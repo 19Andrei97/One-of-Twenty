@@ -1,0 +1,16 @@
+{
+	"window":
+	{
+		"width": 1280,
+		"height": 720,
+		"frames": 120,
+		"fullscreen": false
+	},
+
+	"font":
+	{
+		"file": "fonts/arial.ttf",
+		"size": 24,
+		"color": [255, 255, 255]
+	}
+}

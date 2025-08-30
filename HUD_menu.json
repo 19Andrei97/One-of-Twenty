@@ -1,0 +1,78 @@
+{
+  "button_random": 
+  {
+    "type": "button",
+    "width": 150,
+    "height": 30,
+    "position": 
+    {
+        "x": 20, 
+        "y": 15
+    },
+    "label": "Random Seed",
+    "color_fill": [255, 255, 255],
+    "outline": [0, 0, 0],
+    "thickness": 2,
+    "text_size": 16,
+
+    "function": 0
+  },
+
+  "continent_frequency": 
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": 
+    {
+        "x": 20, 
+        "y": 70
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.06,
+    "label": "Continent Frequency",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+
+    "function": 0
+  },
+
+  "warp_frequency": 
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": 
+    {
+        "x": 20, 
+        "y": 100
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.01,
+    "label": "Warp Frequency",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+
+    "function": 1
+  },
+
+  "cont_multiplier": 
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": 
+    {
+        "x": 20, 
+        "y": 130
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.1,
+    "label": "Continent Multiplier",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+
+    "function": 3
+  }
+
+}

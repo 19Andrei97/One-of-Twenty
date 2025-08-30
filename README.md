@@ -1,0 +1,61 @@
+# One Of Twenty
+
+One Of Twenty is a game project written in C++17 using SFML for graphics and window management.  
+The project is modular, featuring components such as MapGenerator, HUD, Entity, and Game, with dynamic map and entity management.
+
+## Features
+
+- Dynamic map generation using Perlin Noise
+- Chunk-based map management for optimized rendering and memory usage
+- Interactive and adaptive HUD system
+- Customizable entity logic
+- Scene and input modularity
+
+## Requirements
+
+- C++17 compatible compiler (Visual Studio 2022 recommended)
+- [SFML](https://www.sfml-dev.org/) (Simple and Fast Multimedia Library)
+
+## Installation
+
+1. Clone the repository
+2. Install SFML and configure your project to include it
+3. Build using Visual Studio 2022 or another C++17 compatible compiler
+
+## Usage
+
+- Run the game using the generated executable
+- Configure options via the `config.json` file
+- Modify map and entity logic in the source files
+
+## Project Structure
+
+- `src/mapgen/MapGenerator.*` : Map generation and management
+- `src/hud/Hud.*` : HUD and user interface management
+- `Entity.*` and `EntityManager.*` : Entity management
+- `Game.*` : Main game logic and loop
+- `main.cpp` : Entry point
+
+## TODO
+
+### General
+- Re-check all objects for dynamic allocation of big objects.
+
+### MapGenerator
+- Add resources (minerals, rivers?)
+
+### Game
+- Implement a `Scene` class, pass inputs to scenes.
+
+### HUD
+- **FIX:** HUD growing or shrinking based on camera zoom.
+- Add pop-up that shows terrain underneath.
+
+### Entity
+- Implement weights-based decisions for entities.
+
+---
+
+## License
+
+This project is distributed under the MIT license.
