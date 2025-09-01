@@ -40,12 +40,12 @@ void Game::init(const std::string& path)
 	m_text->setString("Hello");
 
 	// MAP GENERATION
-	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame, "Map_Elements.json");
+	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame, "map_data.json");
 	m_map->setMap(16);
 	m_map->setDebugNoiseView(false);
 
 	// HUD
-	m_hud = std::make_unique<Hud>(m_font, *m_map, "HUD_menu.json");
+	m_hud = std::make_unique<Hud>(m_font, *m_map, "hud_menu_data.json");
 	m_hud->init();
 
 	// CAMERA

@@ -145,38 +145,39 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 	float m3 = 0.75f;
 
 	// --- OCEAN ---
-	if (continent < t0) return sf::Color(m_biomes["very_deep_ocean"][0], m_biomes["very_deep_ocean"][1], m_biomes["very_deep_ocean"][2]);
-	if (continent < t1) return sf::Color(m_biomes["deep_ocean"][0], m_biomes["deep_ocean"][1], m_biomes["deep_ocean"][2]);
-	if (continent < t2) return sf::Color(m_biomes["ocean"][0], m_biomes["ocean"][1], m_biomes["ocean"][2]);
-	if (continent < t3) return sf::Color(m_biomes["sand"][0], m_biomes["sand"][1], m_biomes["sand"][2]);
+	if (continent < m_thresholds["very_deep_ocean"]) return m_biomes["very_deep_ocean"];
+	if (continent < m_thresholds["deep_ocean"]) return m_biomes["deep_ocean"];
+	if (continent < m_thresholds["ocean"]) return m_biomes["ocean"];
+	if (continent < m_thresholds["sand"]) return m_biomes["sand"];
 
 	// --- CONTINENT ---
-	if (continent < t4)
+	if (continent < m_thresholds["hills"])
 	{
-		if (mineral > m1)
-			return sf::Color(m_biomes["clay"][0], m_biomes["clay"][1], m_biomes["clay"][2]);						// M1 Clay
+		if (mineral > m_thresholds["clay"])
+			return m_biomes["clay"];
 
-		return sf::Color(m_biomes["hills"][0], m_biomes["hills"][1], m_biomes["hills"][2]);						// T4 Hills
+		return m_biomes["hills"];
 	}
-	if (continent < t5)
-	{
-		if (mineral > m2)
-			return sf::Color(m_biomes["iron"][0], m_biomes["iron"][1], m_biomes["iron"][2]);						// M2 Iron
 
-		return sf::Color(m_biomes["forest"][0], m_biomes["forest"][1], m_biomes["forest"][2]);						// T5 Forest
-	}
-		
-		
-	if (continent < t6)
+	if (continent < m_thresholds["forest"])
 	{
-		if (mineral > m3)
-			return sf::Color(m_biomes["silver"][0], m_biomes["silver"][1], m_biomes["silver"][2]);						// M3 Silver
+		if (mineral > m_thresholds["iron"])
+			return m_biomes["iron"];
 
-		return sf::Color(m_biomes["mountain"][0], m_biomes["mountain"][1], m_biomes["mountain"][2]);						// T6 Mountains
+		return m_biomes["forest"];
 	}
 		
 		
-	return sf::Color(m_biomes["snow"][0], m_biomes["snow"][1], m_biomes["snow"][2]);						// T7 Snow
+	if (continent < m_thresholds["mountain"])
+	{
+		if (mineral > m_thresholds["silver"])
+			return m_biomes["silver"];
+
+		return m_biomes["mountain"];
+	}
+		
+		
+	return m_biomes["snow"];
 }
 
 /*

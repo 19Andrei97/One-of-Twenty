@@ -1,0 +1,34 @@
+{
+	"elements":
+	{
+		"clay":				[178, 102, 64],
+		"iron":				[112, 128, 144],
+		"silver":			[192, 192, 192],
+
+		"snow":				[255, 255, 255],
+		"mountain":			[115, 77, 38],
+		"forest":			[40, 113, 40],
+		"hills":			[51, 153, 51],
+		"sand":				[238, 214, 175],
+
+		"ocean":			[0, 0, 180],
+		"deep_ocean":		[0, 0, 120],
+		"very_deep_ocean":	[0, 0, 90]
+	},
+
+	"heights":
+	{
+		"clay":	0.8,
+		"iron":	0.8,
+		"silver": 0.75,
+
+		"mountain": 0.95,
+		"forest": 0.75,
+		"hills": 0.6,
+		"sand": 0.5,
+
+		"ocean":  0.45,
+		"deep_ocean": 0.3,
+		"very_deep_ocean": 0.1
+	}
+}

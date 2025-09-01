@@ -40,6 +40,7 @@ The project is modular, featuring components such as MapGenerator, HUD, Entity, 
 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
+- Add pre-compiled header file.
 
 ### MapGenerator
 - Add rivers?

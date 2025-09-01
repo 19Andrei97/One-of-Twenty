@@ -73,9 +73,9 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="HUD_menu.json" />
+    <None Include="hud_menu_data.json" />
     <None Include="config.json" />
     <None Include="README.md" />
-    <None Include="Map_Elements.json" />
+    <None Include="map_data.json" />
   </ItemGroup>
 </Project>

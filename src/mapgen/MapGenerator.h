@@ -75,7 +75,8 @@ private:
 	FastNoiseLite		m_warpNoise;
 	FastNoiseLite		m_mineralNoise;
 
-	nlohmann::json		m_biomes;
+	std::unordered_map<std::string, sf::Color>		m_biomes;
+	std::unordered_map<std::string, float>			m_thresholds;
 
 	// DEBUG variables
 	sf::Font	d_font;
@@ -116,10 +117,21 @@ public:
 		// Generate Thread
 		m_workerThread = std::thread(&MapGenerator::startWorker, this);
 
-		// Add biomes obj
-
+		// Construct biomes and heights objs
 		std::ifstream f(biomes_file);
-		m_biomes = nlohmann::json::parse(f);
+		nlohmann::json j = nlohmann::json::parse(f);
+
+		for (auto& [key, value] : j["elements"].items()) {
+			m_biomes[key] = {
+				static_cast<std::uint8_t>(value[0]),
+				static_cast<std::uint8_t>(value[1]),
+				static_cast<std::uint8_t>(value[2]),
+			};
+		}
+
+		for (auto& [key, value] : j["heights"].items()) {
+			m_thresholds[key] = value.get<float>();
+		}
 	}
 	
 	~MapGenerator()
