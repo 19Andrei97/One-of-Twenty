@@ -16,9 +16,10 @@ namespace Function
 	enum Slider
 	{
 		ContFreq = 0,
+		ContMult,
 		WarpFreq,
-		TerrMult,
-		ContMult
+		MineralFreq,
+		MineralMult
 	};
 }
 

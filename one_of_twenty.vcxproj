@@ -157,6 +157,7 @@
   <ItemGroup>
     <None Include="config.json" />
     <None Include="HUD_menu.json" />
+    <None Include="Map_Elements.json" />
     <None Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

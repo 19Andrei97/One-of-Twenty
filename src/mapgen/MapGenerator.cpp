@@ -124,27 +124,59 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 	float warpY = worldY + m_warpNoise.GetNoise(worldX, worldY) * 100.0f;
 	float continent = (m_continentNoise.GetNoise(warpX * m_cont_multiplier, warpY * m_cont_multiplier) + 1.0f) * 0.5f;
 
-	// Scale all thresholds (Easy setup for changing terrain in the future
-	float t0 = 0.1f;
-	float t1 = 0.3f;
-	float t2 = 0.45f;
-	float t3 = 0.5f;
+	// Generate mineral noise
+	float mineral = (m_mineralNoise.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
 
-	float t4 = 0.6f;
-	float t5 = 0.75f;
-	float t6 = 0.95f;
+	// Scale all thresholds (Easy setup for changing terrain in the future)
+
+	// CONTINENT
+	float t0 = 0.1f;	// 0 Very deep ocean
+	float t1 = 0.3f;	// 1 Deep ocean
+	float t2 = 0.45f;	// 2 Ocean
+	float t3 = 0.5f;	// 3 Sand
+
+	float t4 = 0.6f;	// 4 Hills
+	float t5 = 0.75f;	// 5 Forest
+	float t6 = 0.95f;	// 6 Mountains
+
+	// MINERALS
+	float m1 = 0.75f;
+	float m2 = 0.75f;
+	float m3 = 0.75f;
 
 	// --- OCEAN ---
-	if (continent < t0) return sf::Color(0, 0, 90);			// 0 Very deep ocean
-	if (continent < t1) return sf::Color(0, 0, 120);		// 1 Deep ocean
-	if (continent < t2) return sf::Color(0, 0, 180);		// 2 Ocean
-	if (continent < t3) return sf::Color(238, 214, 175);	// 3 Sand
+	if (continent < t0) return sf::Color(m_biomes["very_deep_ocean"][0], m_biomes["very_deep_ocean"][1], m_biomes["very_deep_ocean"][2]);
+	if (continent < t1) return sf::Color(m_biomes["deep_ocean"][0], m_biomes["deep_ocean"][1], m_biomes["deep_ocean"][2]);
+	if (continent < t2) return sf::Color(m_biomes["ocean"][0], m_biomes["ocean"][1], m_biomes["ocean"][2]);
+	if (continent < t3) return sf::Color(m_biomes["sand"][0], m_biomes["sand"][1], m_biomes["sand"][2]);
 
 	// --- CONTINENT ---
-	if (continent < t4) return sf::Color(51, 153, 51);		// 4 Hills
-	if (continent < t5) return sf::Color(40, 113, 40);		// 5 Forest
-	if (continent < t6) return sf::Color(115, 77, 38);		// 6 Mountains
-	return sf::Color(255, 255, 255);						// 7 Snow
+	if (continent < t4)
+	{
+		if (mineral > m1)
+			return sf::Color(m_biomes["clay"][0], m_biomes["clay"][1], m_biomes["clay"][2]);						// M1 Clay
+
+		return sf::Color(m_biomes["hills"][0], m_biomes["hills"][1], m_biomes["hills"][2]);						// T4 Hills
+	}
+	if (continent < t5)
+	{
+		if (mineral > m2)
+			return sf::Color(m_biomes["iron"][0], m_biomes["iron"][1], m_biomes["iron"][2]);						// M2 Iron
+
+		return sf::Color(m_biomes["forest"][0], m_biomes["forest"][1], m_biomes["forest"][2]);						// T5 Forest
+	}
+		
+		
+	if (continent < t6)
+	{
+		if (mineral > m3)
+			return sf::Color(m_biomes["silver"][0], m_biomes["silver"][1], m_biomes["silver"][2]);						// M3 Silver
+
+		return sf::Color(m_biomes["mountain"][0], m_biomes["mountain"][1], m_biomes["mountain"][2]);						// T6 Mountains
+	}
+		
+		
+	return sf::Color(m_biomes["snow"][0], m_biomes["snow"][1], m_biomes["snow"][2]);						// T7 Snow
 }
 
 /*
@@ -324,7 +356,10 @@ void MapGenerator::setNoises()
 {
 	m_continentNoise.SetSeed(m_seed);
 	m_continentNoise.SetFrequency(m_cont_freq);
-
+	
 	m_warpNoise.SetSeed(m_seed);
 	m_warpNoise.SetFrequency(m_warp_freq);
+
+	m_mineralNoise.SetSeed(m_seed);
+	m_mineralNoise.SetFrequency(m_mineral_freq);
 }

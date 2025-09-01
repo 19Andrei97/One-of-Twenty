@@ -76,5 +76,6 @@
     <None Include="HUD_menu.json" />
     <None Include="config.json" />
     <None Include="README.md" />
+    <None Include="Map_Elements.json" />
   </ItemGroup>
 </Project>

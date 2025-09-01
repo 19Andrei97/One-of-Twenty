@@ -64,22 +64,6 @@ void Hud::init()
 					};
 				break;
 
-			case Function::Slider::WarpFreq:
-				sliders.back()->onChange = [this](float val)
-					{
-						m_map.setWarpFreq(val);
-						m_map.m_reset = true;
-					};
-				break;
-
-			case Function::Slider::TerrMult:
-				sliders.back()->onChange = [this](float val)
-					{
-						m_map.setTerrMult(val);
-						m_map.m_reset = true;
-					};
-				break;
-
 			case Function::Slider::ContMult:
 				sliders.back()->onChange = [this](float val)
 					{
@@ -88,15 +72,34 @@ void Hud::init()
 					};
 				break;
 
+			case Function::Slider::WarpFreq:
+				sliders.back()->onChange = [this](float val)
+					{
+						m_map.setWarpFreq(val);
+						m_map.m_reset = true;
+					};
+				break;
+
+			case Function::Slider::MineralFreq:
+				sliders.back()->onChange = [this](float val)
+					{
+						m_map.setMineralMult(val);
+						m_map.m_reset = true;
+					};
+				break;
+
+			case Function::Slider::MineralMult:
+				sliders.back()->onChange = [this](float val)
+					{
+						m_map.setMineralFreq(val);
+						m_map.m_reset = true;
+					};
+				break;
+
 			}
-
-
 		}
+
 		else if (value["type"] == "input")
-		{
-
-		}
-		else if (value["type"] == "space")
 		{
 
 		}

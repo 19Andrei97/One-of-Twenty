@@ -37,7 +37,7 @@
     "function": 0
   },
 
-  "warp_frequency": 
+  "cont_multiplier": 
   {
     "type": "slider",
     "width": 300,
@@ -48,15 +48,15 @@
         "y": 100
     },
     "minimum_value": 0,
-    "maximum_value": 0.01,
-    "label": "Warp Frequency",
+    "maximum_value": 0.1,
+    "label": "Continent Multiplier",
     "bar_color": [0, 0, 0],
     "handle_color": [255, 255, 255],
 
     "function": 1
   },
 
-  "cont_multiplier": 
+   "warp_frequency": 
   {
     "type": "slider",
     "width": 300,
@@ -67,12 +67,50 @@
         "y": 130
     },
     "minimum_value": 0,
-    "maximum_value": 0.1,
-    "label": "Continent Multiplier",
+    "maximum_value": 0.01,
+    "label": "Warp Frequency",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+
+    "function": 2
+  },
+
+  
+  "mineral_frequency": 
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": 
+    {
+        "x": 20, 
+        "y": 160
+    },
+    "minimum_value": 0,
+    "maximum_value": 1,
+    "label": "Mineral Frequency",
     "bar_color": [0, 0, 0],
     "handle_color": [255, 255, 255],
 
     "function": 3
-  }
+  },
 
+  "mineral_multiplier": 
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": 
+    {
+        "x": 20, 
+        "y": 190
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.05,
+    "label": "Mineral Multiplier",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+
+    "function": 4
+  }
 }

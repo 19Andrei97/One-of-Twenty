@@ -13,8 +13,6 @@ Game::Game(const std::string& config)
 
 void Game::init(const std::string& path)
 {
-	using json = nlohmann::json;
-
 	std::ifstream f(path);
 	nlohmann::json data = nlohmann::json::parse(f);
 
@@ -42,7 +40,7 @@ void Game::init(const std::string& path)
 	m_text->setString("Hello");
 
 	// MAP GENERATION
-	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame);
+	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame, "Map_Elements.json");
 	m_map->setMap(16);
 	m_map->setDebugNoiseView(false);
 

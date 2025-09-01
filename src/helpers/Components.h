@@ -34,7 +34,7 @@ public:
 class CCollision
 {
 public:
-	float radius = 0.0f;
+	float radius;
 	CCollision(float r)
 		: radius(r) {
 	}
@@ -43,7 +43,7 @@ public:
 class CScore
 {
 public:
-	int score = 0;
+	int score;
 	CScore(int initialScore = 0)
 		: score(initialScore) {
 	}
@@ -52,8 +52,8 @@ public:
 class CLifespan
 {
 public:
-	int remaining = 0;
-	int total = 0;
+	int remaining;
+	int total;
 	CLifespan(int total)
 		: remaining(total), total(total) {
 	}
@@ -62,11 +62,11 @@ public:
 class CInput
 {
 public:
-	bool up = false;
-	bool down = false;
-	bool left = false;
-	bool right = false;
-	bool shoot = false;
+    bool up{ false };
+	bool down{ false };
+	bool left{ false };
+	bool right{ false };
+	bool shoot{ false };
 
 	CInput() {}
 };

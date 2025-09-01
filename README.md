@@ -42,7 +42,7 @@ The project is modular, featuring components such as MapGenerator, HUD, Entity, 
 - Re-check all objects for dynamic allocation of big objects.
 
 ### MapGenerator
-- Add resources (minerals, rivers?)
+- Add rivers?
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
