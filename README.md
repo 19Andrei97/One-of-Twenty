@@ -45,15 +45,15 @@ The project is modular, featuring components such as MapGenerator, HUD, Entity, 
 ### MapGenerator
 - Add rivers?
 - Remove id for chunks?
+- add possibility to increase depths and heights
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
 
-### HUD
-- Add pop-up that shows terrain underneath.
-
 ### Entity
+- implement entt
 - Implement weights-based decisions for entities.
+- add ai through llama for civilization politics
 
 ---
 
