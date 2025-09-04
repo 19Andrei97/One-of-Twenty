@@ -1,4 +1,6 @@
 {
+	"tile_size": 16,
+
 	"elements":
 	{
 		"clay":				[178, 102, 64],

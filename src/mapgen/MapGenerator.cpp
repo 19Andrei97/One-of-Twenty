@@ -3,12 +3,6 @@
 // Static variable for Chunk IDS
 int MapGenerator::m_chunk_ids = 0;
 
-void MapGenerator::setMap(int tile_size_px, int seed)
-{
-	m_tile_size_px	= tile_size_px;
-	m_seed			= seed;
-}
-
 sf::Vector2i getNextChunkPosition(const sf::Vector2i& pos, int multiple) {
 	auto next = [multiple](int p)->int {
 		int r = p % multiple;
@@ -126,23 +120,6 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 
 	// Generate mineral noise
 	float mineral = (m_mineralNoise.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
-
-	// Scale all thresholds (Easy setup for changing terrain in the future)
-
-	// CONTINENT
-	float t0 = 0.1f;	// 0 Very deep ocean
-	float t1 = 0.3f;	// 1 Deep ocean
-	float t2 = 0.45f;	// 2 Ocean
-	float t3 = 0.5f;	// 3 Sand
-
-	float t4 = 0.6f;	// 4 Hills
-	float t5 = 0.75f;	// 5 Forest
-	float t6 = 0.95f;	// 6 Mountains
-
-	// MINERALS
-	float m1 = 0.75f;
-	float m2 = 0.75f;
-	float m3 = 0.75f;
 
 	// --- OCEAN ---
 	if (continent < m_thresholds["very_deep_ocean"]) return m_biomes["very_deep_ocean"];
@@ -363,4 +340,58 @@ void MapGenerator::setNoises()
 
 	m_mineralNoise.SetSeed(m_seed);
 	m_mineralNoise.SetFrequency(m_mineral_freq);
+}
+
+
+std::string MapGenerator::getPositionInfo(sf::Vector2f pos)
+{
+	int chunk_size_px = (m_chunkSize * m_tile_size_px)*2;
+
+	sf::Vector2i chunkPos
+	(
+		static_cast<int>(pos.x) / chunk_size_px * chunk_size_px,
+		static_cast<int>(pos.y) / chunk_size_px * chunk_size_px
+	);
+
+	auto it = m_chunks.find(chunkPos);
+	if (it == m_chunks.end() || !it->second)
+		return "Unknown";
+
+	// Convert world → tile
+	sf::Vector2i tile = worldToTile(pos);
+	sf::Vector2f tileWorld = tileToWorld(tile);
+
+	std::cout << "chunk pos: " << chunkPos.x << ", " << chunkPos.y << "\n";
+	std::cout << "tile index: " << tile.x << ", " << tile.y << "\n";
+	std::cout << "tile world: " << tileWorld.x << ", " << tileWorld.y << "\n";
+
+	sf::Color tileColor = getBiomeColor(tileWorld.x, tileWorld.y);
+
+	for (const auto& [key, color] : m_biomes) {
+		if (color == tileColor)
+			return key;
+	}
+
+	return "Unknown";
+}
+
+
+
+
+sf::Vector2i MapGenerator::worldToTile(sf::Vector2f pos) const 
+{
+	return sf::Vector2i
+	(
+		static_cast<int>(pos.x) / m_tile_size_px,
+		static_cast<int>(pos.y) / m_tile_size_px
+	);
+}
+
+sf::Vector2f MapGenerator::tileToWorld(sf::Vector2i tile) const 
+{
+	return sf::Vector2f
+	(
+		tile.x * m_tile_size_px,
+		tile.y * m_tile_size_px
+	);
 }

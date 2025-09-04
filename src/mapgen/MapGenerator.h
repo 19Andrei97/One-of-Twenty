@@ -35,12 +35,12 @@ public:
 	struct Chunk {
 		sf::Vector2i	position;			// top left position of chunk
 		sf::VertexArray vertices;			// the map in vertices ready to draw
-		int				id;					// unique id
+		//int				id;					// unique id
 
 		// DEBUG variables
 		std::vector<std::shared_ptr<sf::Text>>	d_noise;
 
-		Chunk() { id = m_chunk_ids++; }
+		//Chunk() { id = m_chunk_ids++; }
 	};
 
 private:
@@ -91,6 +91,9 @@ private:
 	sf::Color					getBiomeColor(float height, float temp);
 	void						startWorker();
 
+	sf::Vector2i worldToTile(sf::Vector2f pos) const;
+	sf::Vector2f tileToWorld(sf::Vector2i tile) const;
+
 public:
 
 	// RESET VARIABLE
@@ -114,9 +117,6 @@ public:
 
 		setNoises();
 
-		// Generate Thread
-		m_workerThread = std::thread(&MapGenerator::startWorker, this);
-
 		// Construct biomes and heights objs
 		std::ifstream f(biomes_file);
 		nlohmann::json j = nlohmann::json::parse(f);
@@ -132,8 +132,16 @@ public:
 		for (auto& [key, value] : j["heights"].items()) {
 			m_thresholds[key] = value.get<float>();
 		}
+
+		// Initiate variables
+		m_tile_size_px = j["tile_size"];
+		m_seed = Random::get(1, 1000000);
+
+		// Generate Thread
+		m_workerThread = std::thread(&MapGenerator::startWorker, this);
 	}
-	
+
+	// DECONSTRUCTOR
 	~MapGenerator()
 	{
 		// Thread cleaning
@@ -146,8 +154,7 @@ public:
 	// RENDERING
 	void render(const sf::IntRect& viewBounds, sf::RenderTarget& window);
 
-	// SETTERS/SET MAP PARAMETERS
-	void setMap	(int tile_size_px, int seed = Random::get(1, 1000000));
+	// SETTERS
 	void setSeed(int seed = Random::get(1, 1000000))	{ m_seed = seed; }
 	void setNoises();
 
@@ -175,6 +182,8 @@ public:
 	// GETTERS
 	int					getTileSize()				const	{ return m_tile_size_px; }
 	int					getSeed()					const	{ return m_seed; }
+	std::string			getPositionInfo(sf::Vector2f pos);
+
 	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
 	bool				getDebugWireFrame()			const	{ return d_wire_frame; }
 };

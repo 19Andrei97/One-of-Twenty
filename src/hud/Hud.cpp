@@ -107,14 +107,15 @@ void Hud::init()
 
 }
 
-void Hud::render(sf::RenderTarget& window, const sf::View& view)
+void Hud::render(sf::RenderTarget& window)
 {
-	sf::Vector2f viewCenter = view.getCenter();
-	sf::Vector2f viewSize = view.getSize();
+	sf::Vector2f viewCenter = m_camera.getCenter();
+	sf::Vector2f viewSize = m_camera.getSize();
 
 	for (auto& b : buttons)
 	{
-		sf::Vector2f screenPos(
+		sf::Vector2f screenPos
+		(
 			viewCenter.x - viewSize.x / 2.f + b->m_pos.x,
 			viewCenter.y - viewSize.y / 2.f + b->m_pos.y
 		);
@@ -275,6 +276,7 @@ void Hud::input(const sf::Event::MouseButtonPressed& event, sf::Vector2f& mouse_
 
 		for (auto& s : sliders)
 			checkClick(s, mouse_position);
+
 		break;
 	}
 

@@ -44,12 +44,12 @@ The project is modular, featuring components such as MapGenerator, HUD, Entity, 
 
 ### MapGenerator
 - Add rivers?
+- Remove id for chunks?
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
 
 ### HUD
-- **FIX:** HUD growing or shrinking based on camera zoom.
 - Add pop-up that shows terrain underneath.
 
 ### Entity
