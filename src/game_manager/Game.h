@@ -1,13 +1,16 @@
 #pragma once
 
-#include "Entity.h"
-#include "EntityManager.h"
-#include "src/mapgen/MapGenerator.h"
-#include "Camera.h"
+#include "../entity/Entity.h"
+#include "../entity/EntityManager.h"
+#include "../mapgen/MapGenerator.h"
+#include "../camera/Camera.h"
 #include "Components.h"
 #include "json.h"
-#include "src/hud/Hud.h"
+#include "../hud/Hud.h"
+#include "Random.h"
 
+#include <iostream>
+#include <fstream>
 #include <SFML/Graphics.hpp>
 
 class Game

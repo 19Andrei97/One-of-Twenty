@@ -1,10 +1,10 @@
 #include <SFML/Graphics.hpp>
-#include "Game.h"
+#include "src/game_manager/Game.h"
 #include <iostream>
 
 int main()
 {
-	Game g("config.json");
+	Game g("src/config/config.json");
 
 	g.run();
 }

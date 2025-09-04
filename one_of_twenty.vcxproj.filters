@@ -21,16 +21,16 @@
     <ClCompile Include="src\mapgen\MapGenerator.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-    <ClCompile Include="Entity.cpp">
+    <ClCompile Include="src\entity\Entity.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-    <ClCompile Include="Game.cpp">
+    <ClCompile Include="src\game_manager\Game.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-    <ClCompile Include="EntityManager.cpp">
+    <ClCompile Include="src\entity\EntityManager.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-    <ClCompile Include="Camera.cpp">
+    <ClCompile Include="src\camera\Camera.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
     <ClCompile Include="src\hud\Hud.cpp">
@@ -47,19 +47,19 @@
     <ClInclude Include="src\mapgen\MapGenerator.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
-    <ClInclude Include="Entity.h">
+    <ClInclude Include="src\entity\Entity.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
-    <ClInclude Include="Game.h">
+    <ClInclude Include="src\game_manager\Game.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
-    <ClInclude Include="EntityManager.h">
+    <ClInclude Include="src\entity\EntityManager.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="src\helpers\Components.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
-    <ClInclude Include="Camera.h">
+    <ClInclude Include="src\camera\Camera.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="src\helpers\ThreadSafeQueue.h">
@@ -73,9 +73,9 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="hud_menu_data.json" />
-    <None Include="config.json" />
+    <None Include="src\config\hud_menu_data.json" />
+    <None Include="src\config\config.json" />
     <None Include="README.md" />
-    <None Include="map_data.json" />
+    <None Include="src\config\map_data.json" />
   </ItemGroup>
 </Project>

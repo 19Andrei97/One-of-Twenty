@@ -185,6 +185,24 @@ void Hud::render(sf::RenderTarget& window)
 		window.draw(s->handle);
 		window.draw(*(s->text));
 	}
+
+	// RENDER INFO BOX
+	{
+		if (info_box && info_box->m_text.size() >= 1)
+		{
+			window.draw(info_box->m_rect);
+
+			int text_space{ 0 };
+			for (auto& text : info_box->m_text)
+			{
+				text->setPosition({ info_box->m_pos.x + 20, info_box->m_pos.y + 20 + text_space });
+				window.draw(*(text));
+
+				text_space += 20;
+			}
+		}
+	}
+
 }
 
 bool Hud::checkClick(const std::unique_ptr<CButton>& obj, const sf::Vector2f& mouse_pos)
@@ -246,6 +264,20 @@ void Hud::writing(const std::unique_ptr<CInputBox>& obj, const sf::Event::TextEn
 		obj->inputString += static_cast<char>(textEvent.unicode);
 		obj->text->setString(obj->inputString);
 	}
+}
+
+// ACCESSORIES
+
+void Hud::infoBox(std::vector<std::string> info)
+{
+	info_box = std::make_unique<CInfoBox>
+		(
+			200.f,
+			200.f,
+			m_font,
+			info,
+			m_camera
+		);	
 }
 
 

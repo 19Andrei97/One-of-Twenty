@@ -133,21 +133,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="Entity.cpp" />
-    <ClCompile Include="EntityManager.cpp" />
-    <ClCompile Include="Game.cpp" />
+    <ClCompile Include="src\camera\Camera.cpp" />
+    <ClCompile Include="src\entity\Entity.cpp" />
+    <ClCompile Include="src\entity\EntityManager.cpp" />
+    <ClCompile Include="src\game_manager\Game.cpp" />
     <ClCompile Include="src\hud\Hud.cpp" />
     <ClCompile Include="src\mapgen\MapGenerator.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Camera.h" />
+    <ClInclude Include="src\camera\Camera.h" />
     <ClInclude Include="src\helpers\Components.h" />
-    <ClInclude Include="Entity.h" />
-    <ClInclude Include="EntityManager.h" />
+    <ClInclude Include="src\entity\Entity.h" />
+    <ClInclude Include="src\entity\EntityManager.h" />
     <ClInclude Include="src\helpers\FastNoiseLite.h" />
-    <ClInclude Include="Game.h" />
+    <ClInclude Include="src\game_manager\Game.h" />
     <ClInclude Include="src\helpers\json.h" />
     <ClInclude Include="src\helpers\ThreadSafeQueue.h" />
     <ClInclude Include="src\hud\Hud.h" />
@@ -155,9 +155,9 @@
     <ClInclude Include="src\helpers\Random.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="config.json" />
-    <None Include="hud_menu_data.json" />
-    <None Include="map_data.json" />
+    <None Include="src\config\config.json" />
+    <None Include="src\config\hud_menu_data.json" />
+    <None Include="src\config\map_data.json" />
     <None Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

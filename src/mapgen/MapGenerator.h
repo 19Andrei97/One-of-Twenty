@@ -180,9 +180,9 @@ public:
 	}
 
 	// GETTERS
-	int					getTileSize()				const	{ return m_tile_size_px; }
-	int					getSeed()					const	{ return m_seed; }
-	std::string			getPositionInfo(sf::Vector2f pos);
+	int							getTileSize()				const	{ return m_tile_size_px; }
+	int							getSeed()					const	{ return m_seed; }
+	std::vector<std::string>	getPositionInfo(sf::Vector2f pos);
 
 	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
 	bool				getDebugWireFrame()			const	{ return d_wire_frame; }

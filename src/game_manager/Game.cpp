@@ -1,8 +1,4 @@
 #include "Game.h"
-#include "Random.h"
-#include "src/mapgen/MapGenerator.h"
-#include <iostream>
-#include <fstream>
 
 // GAME FLOW ////////////////////////////////////////////////////////////
 
@@ -40,11 +36,11 @@ void Game::init(const std::string& path)
 	m_text->setString("Hello");
 
 	// MAP GENERATION
-	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame, "map_data.json");
+	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame, "src/config/map_data.json");
 	m_map->setDebugNoiseView(false);
 
 	// HUD
-	m_hud = std::make_unique<Hud>(m_font, *m_map, "hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
+	m_hud = std::make_unique<Hud>(m_font, *m_map, "src/config/hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
 	m_hud->init();
 
 	// CAMERA
@@ -206,12 +202,15 @@ void Game::sUserInput()
 				{
 				case sf::Mouse::Button::Left:
 				{
-					sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_camera.getCamera());
-					sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_hud->getCamera());
+					auto pixel = sf::Mouse::getPosition(m_window);
 
-					m_hud->input(*mousePressed, mouseHudPos);
+					// GUI coords
+					sf::Vector2f guiPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
+					m_hud->input(*mousePressed, guiPos);
 
-					std::cout << m_map->getPositionInfo(mouseWorldPos) << "\n";
+					// World coords
+					sf::Vector2f worldPos = m_window.mapPixelToCoords(pixel, m_camera.getCamera());
+					m_hud->infoBox(m_map->getPositionInfo(worldPos));
 
 					break;
 				}
@@ -236,8 +235,9 @@ void Game::sUserInput()
 				{
 				case sf::Mouse::Button::Left:
 				{
-					sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_camera.getCamera());
-					sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_hud->getCamera());
+					auto pixel = sf::Mouse::getPosition(m_window);
+					sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera.getCamera());
+					sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
 
 					m_hud->input(*mousereleased, mouseHudPos);
 				}
@@ -250,8 +250,9 @@ void Game::sUserInput()
 		{
 			if (!m_paused)
 			{
-				sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_camera.getCamera());
-				sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_hud->getCamera());
+				auto pixel = sf::Mouse::getPosition(m_window);
+				sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera.getCamera());
+				sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
 
 				m_hud->input(*mousemoved, mouseHudPos);
 			}

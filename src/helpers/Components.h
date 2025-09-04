@@ -186,3 +186,36 @@ public:
         handle.setOrigin({ height, height });
     }
 };
+
+class CInfoBox
+{
+public:
+    sf::RectangleShape                      m_rect;
+    std::vector<std::unique_ptr<sf::Text>>  m_text;
+    sf::Vector2f                            m_pos;
+
+    CInfoBox(
+        float width,
+        float height,
+        const sf::Font& font,
+        const std::vector<std::string>& text,
+        sf::View& view,
+        const sf::Color& fill           = {0, 0, 0, 128}, // black 50% transparent
+        const sf::Color& text_color     = sf::Color::White,
+        unsigned int charSize           = 16U
+    )
+        : m_rect({ width, height })
+        , m_pos({ 0, view.getSize().y - height })
+    {
+        m_rect.setPosition(m_pos);
+        m_rect.setFillColor(fill);
+
+        for (auto& el : text)
+        {
+            m_text.push_back(std::make_unique<sf::Text>(font));
+            m_text.back()->setString(el);
+            m_text.back()->setCharacterSize(charSize);
+            m_text.back()->setFillColor(text_color);
+        }
+    }
+};

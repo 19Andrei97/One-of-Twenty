@@ -343,8 +343,10 @@ void MapGenerator::setNoises()
 }
 
 
-std::string MapGenerator::getPositionInfo(sf::Vector2f pos)
+std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 {
+	std::vector<std::string> result;
+
 	int chunk_size_px = (m_chunkSize * m_tile_size_px)*2;
 
 	sf::Vector2i chunkPos
@@ -355,27 +357,34 @@ std::string MapGenerator::getPositionInfo(sf::Vector2f pos)
 
 	auto it = m_chunks.find(chunkPos);
 	if (it == m_chunks.end() || !it->second)
-		return "Unknown";
+	{
+		result.push_back("Unknown");
+		return result;
+	}
 
 	// Convert world → tile
 	sf::Vector2i tile = worldToTile(pos);
 	sf::Vector2f tileWorld = tileToWorld(tile);
-
-	std::cout << "chunk pos: " << chunkPos.x << ", " << chunkPos.y << "\n";
-	std::cout << "tile index: " << tile.x << ", " << tile.y << "\n";
-	std::cout << "tile world: " << tileWorld.x << ", " << tileWorld.y << "\n";
-
-	sf::Color tileColor = getBiomeColor(tileWorld.x, tileWorld.y);
+	sf::Color tileColor = getBiomeColor(tile.x, tile.y);
 
 	for (const auto& [key, color] : m_biomes) {
 		if (color == tileColor)
-			return key;
+		{
+			result.push_back("Type: " + key);
+			break;
+		}
 	}
 
-	return "Unknown";
+	if(result.size() < 1)
+		result.push_back("Unknown");
+	else
+	{
+		result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
+		result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
+	}
+
+	return result;
 }
-
-
 
 
 sf::Vector2i MapGenerator::worldToTile(sf::Vector2f pos) const 

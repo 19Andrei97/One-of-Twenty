@@ -35,6 +35,7 @@ class Hud
 	std::vector<std::unique_ptr<CButton>>		buttons;
 	std::vector<std::unique_ptr<CInputBox>>		inputs;
 	std::vector<std::unique_ptr<CSlider>>		sliders;
+	std::unique_ptr<CInfoBox>					info_box;
 
 public:
 
@@ -58,6 +59,9 @@ public:
 	bool checkClick(const std::unique_ptr<CInputBox>& obj, const sf::Vector2f& mouse_pos);
 	bool checkClick(const std::unique_ptr<CSlider>& obj, const sf::Vector2f& mouse_pos);
 	void writing(const std::unique_ptr<CInputBox>& obj, const sf::Event::TextEntered& textEvent);
+
+	// HUD ACCESSORIES
+	void infoBox(std::vector<std::string> info);
 
 	// INPUTS
 	void input(const sf::Event::TextEntered& event);
