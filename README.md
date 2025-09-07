@@ -1,15 +1,6 @@
 # One Of Twenty
 
-One Of Twenty is a game project written in C++17 using SFML for graphics and window management.  
-The project is modular, featuring components such as MapGenerator, HUD, Entity, and Game, with dynamic map and entity management.
-
-## Features
-
-- Dynamic map generation using Perlin Noise
-- Chunk-based map management for optimized rendering and memory usage
-- Interactive and adaptive HUD system
-- Customizable entity logic
-- Scene and input modularity
+One Of Twenty is a game project that I started to learn the basics of c++.
 
 ## Requirements
 
