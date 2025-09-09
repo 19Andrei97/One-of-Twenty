@@ -34,9 +34,7 @@ One Of Twenty is a game project that I started to learn the basics of c++.
 - Add logger.
 
 ### MapGenerator
-- FIX: info box no more working when updating map.
 - Add rivers?
-- Remove id for chunks?
 - add possibility to increase depths and heights
 
 ### Game

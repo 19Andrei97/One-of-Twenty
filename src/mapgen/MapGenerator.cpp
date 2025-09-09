@@ -1,10 +1,6 @@
-﻿
-#include "pch.h"
+﻿#include "pch.h"
 
 #include "MapGenerator.h"
-
-// Static variable for Chunk IDS
-int MapGenerator::m_chunk_ids = 0;
 
 sf::Vector2i getNextChunkPosition(const sf::Vector2i& pos, int multiple) {
 	auto next = [multiple](int p)->int {
@@ -22,7 +18,7 @@ sf::Vector2i getNextChunkPosition(const sf::Vector2i& pos, int multiple) {
 */
 std::shared_ptr<MapGenerator::Chunk>& MapGenerator::generateChunk(const int height, const int width, const sf::Vector2i& position)
 {
-	auto chunk = std::make_shared<Chunk>();
+	auto chunk		= std::make_shared<Chunk>();
 	chunk->position = position;
 	chunk->vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
 
@@ -346,48 +342,48 @@ void MapGenerator::setNoises()
 	m_mineralNoise.SetFrequency(m_mineral_freq);
 }
 
-
+/*
+*	Return the information of the requested position.
+*/
 std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 {
-	std::vector<std::string> result;
+    std::vector<std::string> result;
 
-	int chunk_size_px = (m_chunkSize * m_tile_size_px)*2;
+    int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
+    sf::Vector2i chunkPos = getNextChunkPosition(
+        sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
+        num_tiles_per_chunk
+    );
 
-	sf::Vector2i chunkPos
-	(
-		static_cast<int>(pos.x) / chunk_size_px * chunk_size_px,
-		static_cast<int>(pos.y) / chunk_size_px * chunk_size_px
-	);
+    auto it = m_chunks.find(chunkPos);
+    if (it == m_chunks.end() || !it->second)
+    {
+        result.push_back("Unknown");
+        return result;
+    }
 
-	auto it = m_chunks.find(chunkPos);
-	if (it == m_chunks.end() || !it->second)
-	{
-		result.push_back("Unknown");
-		return result;
-	}
+    // Calcola la posizione della tile e il colore del bioma
+    sf::Vector2i tile = worldToTile(pos);
+    sf::Vector2f tileWorld = tileToWorld(tile);
+    sf::Color tileColor = getBiomeColor(pos.x, pos.y);
 
-	// Convert world → tile
-	sf::Vector2i tile = worldToTile(pos);
-	sf::Vector2f tileWorld = tileToWorld(tile);
-	sf::Color tileColor = getBiomeColor(tile.x, tile.y);
+    for (const auto& [key, color] : m_biomes) {
+        if (color == tileColor)
+        {
+            result.push_back("Type: " + key);
+            break;
+        }
+    }
 
-	for (const auto& [key, color] : m_biomes) {
-		if (color == tileColor)
-		{
-			result.push_back("Type: " + key);
-			break;
-		}
-	}
+    if(result.empty())
+        result.push_back("Unknown");
+    else
+    {
+        result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
+        result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
+    }
 
-	if(result.size() < 1)
-		result.push_back("Unknown");
-	else
-	{
-		result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
-		result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
-	}
-
-	return result;
+    return result;
 }
 
 

@@ -17,17 +17,13 @@ public:
 	struct Chunk {
 		sf::Vector2i	position;			// top left position of chunk
 		sf::VertexArray vertices;			// the map in vertices ready to draw
-		//int				id;					// unique id
 
 		// DEBUG variables
 		std::vector<std::shared_ptr<sf::Text>>	d_noise;
-
-		//Chunk() { id = m_chunk_ids++; }
 	};
 
 private:
 	// CHUNK variables
-	static int																	m_chunk_ids;			// Variable for chunk ids
 	std::unordered_map<sf::Vector2i, std::shared_ptr<Chunk>, Vector2iHash>		m_chunks;
 	std::atomic<sf::Vector2i>													m_cameraPos;
 	std::atomic<sf::Vector2i>													m_viewSize;
@@ -87,7 +83,6 @@ public:
 		: d_font(font)
 		, i_frames(frames)
 	{
-
 		// Set Noises
 		m_continentNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 		m_continentNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
