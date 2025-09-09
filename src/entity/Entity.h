@@ -1,9 +1,5 @@
 #pragma once
 
-#include "Components.h"
-#include <memory>
-#include <string>
-
 namespace Type
 {
 	enum Human

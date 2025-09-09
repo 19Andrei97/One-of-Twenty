@@ -31,9 +31,10 @@ One Of Twenty is a game project that I started to learn the basics of c++.
 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
-- Add pre-compiled header file.
+- Add logger.
 
 ### MapGenerator
+- FIX: info box no more working when updating map.
 - Add rivers?
 - Remove id for chunks?
 - add possibility to increase depths and heights

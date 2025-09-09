@@ -1,3 +1,6 @@
+
+#include "pch.h"
+
 #include "Hud.h"
 
 void Hud::init()

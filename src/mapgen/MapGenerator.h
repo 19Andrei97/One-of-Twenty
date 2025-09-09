@@ -1,23 +1,5 @@
 #pragma once
 
-#include <sstream>
-#include <fstream>
-#include <iostream>
-
-#include <memory>
-#include <cmath>
-#include <future>
-#include <vector>
-#include <unordered_map>
-
-#include <SFML/Graphics.hpp>
-#include <SFML/OpenGL.hpp>
-
-#include "FastNoiseLite.h"
-#include "Random.h"
-#include "ThreadSafeQueue.h"
-#include "json.h"
-
 // CHUNK HASH			///////////////////////////
 struct Vector2iHash {
 	std::size_t operator()(const sf::Vector2i& v) const noexcept {
@@ -65,11 +47,12 @@ private:
 	int					m_seed{ 0 };
 
 	float				m_cont_multiplier{ 0.018f };
-	float				m_mineral_multiplier{ 0.018f };
+	float				m_mineral_multiplier{ 0.15f };
 
 	double				m_cont_freq{ 0.023 };
 	double				m_warp_freq{ 0.007 };
-	double				m_mineral_freq{ 0.023 };
+	double				m_mineral_freq{ 0.004 };
+
 
 	FastNoiseLite		m_continentNoise;
 	FastNoiseLite		m_warpNoise;
@@ -106,7 +89,7 @@ public:
 	{
 
 		// Set Noises
-		m_continentNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_continentNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 		m_continentNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
 
 		m_warpNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);

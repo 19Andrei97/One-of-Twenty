@@ -1,3 +1,6 @@
+
+#include "pch.h"
+
 #include "Entity.h"
 
 Entity::Entity(const size_t id, const int type)

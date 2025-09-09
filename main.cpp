@@ -1,6 +1,7 @@
-#include <SFML/Graphics.hpp>
+
+#include "pch.h"
+
 #include "src/game_manager/Game.h"
-#include <iostream>
 
 int main()
 {

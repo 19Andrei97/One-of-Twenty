@@ -4,14 +4,8 @@
 #include "../entity/EntityManager.h"
 #include "../mapgen/MapGenerator.h"
 #include "../camera/Camera.h"
-#include "Components.h"
-#include "json.h"
-#include "../hud/Hud.h"
-#include "Random.h"
 
-#include <iostream>
-#include <fstream>
-#include <SFML/Graphics.hpp>
+#include "../hud/Hud.h"
 
 class Game
 {

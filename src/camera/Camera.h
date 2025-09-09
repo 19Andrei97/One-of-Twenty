@@ -1,8 +1,5 @@
 #pragma once
 
-#include <SFML/Graphics.hpp>
-#include <memory>
-#include <iostream>
 #include "Components.h"
 
 class Camera

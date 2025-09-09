@@ -1,4 +1,7 @@
-﻿#include "MapGenerator.h"
+﻿
+#include "pch.h"
+
+#include "MapGenerator.h"
 
 // Static variable for Chunk IDS
 int MapGenerator::m_chunk_ids = 0;
@@ -122,6 +125,7 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 	float mineral = (m_mineralNoise.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
 
 	// --- OCEAN ---
+
 	if (continent < m_thresholds["very_deep_ocean"]) return m_biomes["very_deep_ocean"];
 	if (continent < m_thresholds["deep_ocean"]) return m_biomes["deep_ocean"];
 	if (continent < m_thresholds["ocean"]) return m_biomes["ocean"];
