@@ -17,7 +17,7 @@
 #include "Random.h"
 #include "ThreadSafeQueue.h"
 #include "json.h"
-//#include "Components.h"
+#include "Components_HUD.h"
 
 // SFML library
 #include <SFML/Graphics.hpp>

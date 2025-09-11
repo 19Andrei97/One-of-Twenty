@@ -1,106 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include <SFML/Graphics.hpp>
 #include <functional>
-#include <iostream>
-
-enum class PersonalityTrait {
-    Brave,
-    Curious,
-    Greedy,
-    Loyal,
-    Aggressive,
-    Calm,
-    Honest,
-    Cunning,
-    End
-};
-
-enum class EntityType {
-    Human_Generic,
-    Human_Farmer,
-    Human_Lumberjack,
-    Animal_Dog,
-    Animal_Cat
-};
-
-struct CType {
-    EntityType type;
-
-    CType(const EntityType& t)
-        : type(t)
-    {}
-};
-
-struct CPersonality {
-    std::map<int, int> traits;
-
-    CPersonality() {
-        for (int i = 0; i < static_cast<int>(PersonalityTrait::End); i++)
-        {
-            traits[i] = Random::get(0, 100);
-        }
-    }
-};
-
-struct CTransform
-{
-    bool            has_target{ false };
-    float           speed{ 0.f };
-	sf::Vector2f    pos{ 0.f, 0.f };
-    sf::Vector2f    target{ 0.f, 0.f };
-
-	CTransform(const sf::Vector2f& p, const float v)
-		: pos(p), speed(v)
-    {}
-};
-
-struct CShape
-{
-	sf::CircleShape circle;
-
-	CShape(float radius, int points, const sf::Color& fill)
-		: circle(radius, points)
-	{
-		circle.setFillColor(fill);
-		//circle.setOutlineColor(outline);
-		//circle.setOutlineThickness(thickness);
-		circle.setOrigin({ radius, radius });
-	}
-};
-
-struct CCollision
-{
-	float radius;
-
-	CCollision(float r)
-		: radius(r) 
-    {}
-};
-
-struct CLifespan
-{
-	int remaining;
-	int total;
-
-	CLifespan(int total)
-		: remaining(total), total(total) 
-    {}
-};
-
-struct CInput
-{
-    bool up{ false };
-	bool down{ false };
-	bool left{ false };
-	bool right{ false };
-	bool shoot{ false };
-
-	CInput() {}
-};
-
 
 // HUD COMPONENTS
+
 class CButton
 {
 public:
@@ -110,7 +14,7 @@ public:
     std::function<void()>           onClick;
 
     CButton(
-        float width, 
+        float width,
         float height,
         const sf::Vector2f& pos,
         const sf::Font& font,
@@ -142,13 +46,13 @@ public:
     std::unique_ptr<sf::Text>       text;
     std::string                     placeholder;
     sf::Vector2f                    pos;
-    std::function<void(float)>      onEnter; 
+    std::function<void(float)>      onEnter;
 
     std::string inputString;
     bool active = false;
 
     CInputBox(
-        float width, 
+        float width,
         float height,
         const sf::Vector2f& pos_v,
         const sf::Font& font,
@@ -179,7 +83,7 @@ public:
     sf::CircleShape             handle;
     std::unique_ptr<sf::Text>   text;
     sf::Vector2f                pos;
-        
+
     float   minValue;
     float   maxValue;
     float   value;
@@ -193,11 +97,11 @@ public:
         const sf::Vector2f& pos_v,
         float minVal,
         float maxVal,
-        const sf::Font&     font,
-        const std::string&  text_p = "Default",
-        const sf::Color&    barColor = sf::Color::Black,
-        const sf::Color&    handleColor = sf::Color::White
-     )
+        const sf::Font& font,
+        const std::string& text_p = "Default",
+        const sf::Color& barColor = sf::Color::Black,
+        const sf::Color& handleColor = sf::Color::White
+    )
         : pos(pos_v), minValue(minVal), maxValue(maxVal), value(maxVal / 2)
     {
         text = std::make_unique<sf::Text>(font);
@@ -228,9 +132,9 @@ public:
         const sf::Font& font,
         const std::vector<std::string>& text,
         sf::View& view,
-        const sf::Color& fill           = {0, 0, 0, 128}, // black 50% transparent
-        const sf::Color& text_color     = sf::Color::White,
-        unsigned int charSize           = 16U
+        const sf::Color& fill = { 0, 0, 0, 128 }, // black 50% transparent
+        const sf::Color& text_color = sf::Color::White,
+        unsigned int charSize = 16U
     )
         : m_rect({ width, height })
         , m_pos({ 0, view.getSize().y - height })
