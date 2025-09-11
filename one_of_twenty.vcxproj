@@ -146,7 +146,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\camera\Camera.cpp" />
-    <ClCompile Include="src\entity\Entity.cpp" />
     <ClCompile Include="src\entity\EntityManager.cpp" />
     <ClCompile Include="src\game_manager\Game.cpp" />
     <ClCompile Include="src\helpers\pch.cpp">
@@ -166,7 +165,6 @@
   <ItemGroup>
     <ClInclude Include="src\camera\Camera.h" />
     <ClInclude Include="src\helpers\Components.h" />
-    <ClInclude Include="src\entity\Entity.h" />
     <ClInclude Include="src\entity\EntityManager.h" />
     <ClInclude Include="src\helpers\FastNoiseLite.h" />
     <ClInclude Include="src\game_manager\Game.h" />

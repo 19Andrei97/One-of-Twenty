@@ -1,28 +1,25 @@
 #pragma once
 
-#include "Entity.h"
-
-
-using EntityVec = std::vector<std::shared_ptr<Entity>>;
-using EntityMap = std::map<int, EntityVec>;
+#include "Components.h"
 
 class EntityManager
 {
-	EntityVec	m_entities;
-	EntityVec	m_entitiesToAdd;
-	EntityMap	m_entityMap;
-	size_t		m_totalEntities = 0;
-
-	void removeDeadEntities(EntityVec& vec);
+	std::unique_ptr<entt::registry>	m_registry;
+	int								m_totalEntities{ 0 };
 
 public:
 
-	EntityManager();
+	// CONSTRUCTOR
+	EntityManager() 
+	{
+		m_registry = std::make_unique<entt::registry>();
+	}
 
+	// MAIN FUNCTIONS
+	void render(sf::RenderTarget& window);
 	void update();
+	void addEntity(const EntityType& type);
 
-	std::shared_ptr<Entity> addEntity(const int type);
-
-	const EntityVec& getEntities();
-	const EntityVec& getEntities(const int type);
+	// GETTERS
+	//const EntityVec& getEntities(const EntityType& type);
 };

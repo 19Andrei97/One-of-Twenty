@@ -5,12 +5,7 @@
 
 // GAME FLOW ////////////////////////////////////////////////////////////
 
-Game::Game(const std::string& config)
-{
-	init(config);
-}
-
-void Game::init(const std::string& path)
+Game::Game(const std::string& path)
 {
 	std::ifstream f(path);
 	nlohmann::json data = nlohmann::json::parse(f);
@@ -47,9 +42,12 @@ void Game::init(const std::string& path)
 	m_hud->init();
 
 	// CAMERA
-	m_camera.setCamera(data["window"]["width"], data["window"]["height"]);
-	m_camera.cInput		= std::make_shared<CInput>();
-	m_window.setView(m_camera.getCamera());
+	m_camera = std::make_unique<Camera>(data["window"]["width"], data["window"]["height"]);
+	m_camera->cInput = std::make_shared<CInput>();
+	m_window.setView(m_camera->getCamera());
+
+	// ENTITIES MANAGER
+	m_entity_manager = std::make_unique<EntityManager>();
 }
 
 void Game::run()
@@ -80,32 +78,36 @@ void Game::setPaused()
 
 // SPAWNS ////////////////////////////////////////////////////////////
 
-void Game::spawnPlayer()
+void Game::spawnEntities()
 {
-
+	m_entity_manager->addEntity(EntityType::Human_Generic);
 }
 
 // SYSTEMS ////////////////////////////////////////////////////////////
 
 void Game::sMovement()
 {
-	if (m_camera.cInput->up)
+	// Entities Updates
+	m_entity_manager->update();
+
+
+	if (m_camera->cInput->up)
 	{
-		m_camera.move(0, -m_camera.getVelocity() * m_deltaTime);
-		m_current_position.y -= static_cast<int>(m_camera.getVelocity() * m_deltaTime);
-	} else if (m_camera.cInput->down)
+		m_camera->move(0, -m_camera->getVelocity() * m_deltaTime);
+		m_current_position.y -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
+	} else if (m_camera->cInput->down)
 	{
-		m_camera.move(0, m_camera.getVelocity() * m_deltaTime);
-		m_current_position.y += static_cast<int>(m_camera.getVelocity() * m_deltaTime);
+		m_camera->move(0, m_camera->getVelocity() * m_deltaTime);
+		m_current_position.y += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
 	}
-	if (m_camera.cInput->left)
+	if (m_camera->cInput->left)
 	{
-		m_camera.move(-m_camera.getVelocity() * m_deltaTime, 0);
-		m_current_position.x -= static_cast<int>(m_camera.getVelocity() * m_deltaTime);
-	} else if (m_camera.cInput->right)
+		m_camera->move(-m_camera->getVelocity() * m_deltaTime, 0);
+		m_current_position.x -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
+	} else if (m_camera->cInput->right)
 	{
-		m_camera.move(m_camera.getVelocity() * m_deltaTime, 0);
-		m_current_position.x += static_cast<int>(m_camera.getVelocity() * m_deltaTime);
+		m_camera->move(m_camera->getVelocity() * m_deltaTime, 0);
+		m_current_position.x += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
 	}
 		
 }
@@ -119,8 +121,10 @@ void Game::sRender()
 {
 	m_window.clear();
 
-	m_window.setView(m_camera.getCamera());
-	m_map->render(m_camera.getWorldBounds(), m_window);
+	m_window.setView(m_camera->getCamera());
+	m_map->render(m_camera->getWorldBounds(), m_window);
+
+	m_entity_manager->render(m_window);
 	
 	m_window.setView(m_hud->getCamera());
 	m_hud->render(m_window);
@@ -149,17 +153,19 @@ void Game::sUserInput()
 			if (!m_paused)
 			{
 				if (keyPressed->code == sf::Keyboard::Key::W)
-					m_camera.cInput->up = true;
+					m_camera->cInput->up = true;
 				if (keyPressed->code == sf::Keyboard::Key::S)
-					m_camera.cInput->down = true;
+					m_camera->cInput->down = true;
 				if (keyPressed->code == sf::Keyboard::Key::A)
-					m_camera.cInput->left = true;
+					m_camera->cInput->left = true;
 				if (keyPressed->code == sf::Keyboard::Key::D)
-					m_camera.cInput->right = true;
+					m_camera->cInput->right = true;
 				if (keyPressed->code == sf::Keyboard::Key::M)
 					m_map->setSeed();
 				if (keyPressed->code == sf::Keyboard::Key::G)
 					m_map->setDebugWireFrame(true);
+				if (keyPressed->code == sf::Keyboard::Key::Num1)
+					m_entity_manager->addEntity(EntityType::Human_Generic);
 			}
 		}
 
@@ -170,16 +176,16 @@ void Game::sUserInput()
 				switch (keyReleased->code)
 				{
 				case sf::Keyboard::Key::W:
-					m_camera.cInput->up = false;
+					m_camera->cInput->up = false;
 					break;
 				case sf::Keyboard::Key::S:
-					m_camera.cInput->down = false;
+					m_camera->cInput->down = false;
 					break;
 				case sf::Keyboard::Key::A:
-					m_camera.cInput->left = false;
+					m_camera->cInput->left = false;
 					break;
 				case sf::Keyboard::Key::D:
-					m_camera.cInput->right = false;
+					m_camera->cInput->right = false;
 					break;
 				case sf::Keyboard::Key::G:
 					m_map->setDebugWireFrame(false);
@@ -212,7 +218,7 @@ void Game::sUserInput()
 					m_hud->input(*mousePressed, guiPos);
 
 					// World coords
-					sf::Vector2f worldPos = m_window.mapPixelToCoords(pixel, m_camera.getCamera());
+					sf::Vector2f worldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
 					m_hud->infoBox(m_map->getPositionInfo(worldPos));
 
 					break;
@@ -239,7 +245,7 @@ void Game::sUserInput()
 				case sf::Mouse::Button::Left:
 				{
 					auto pixel = sf::Mouse::getPosition(m_window);
-					sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera.getCamera());
+					sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
 					sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
 
 					m_hud->input(*mousereleased, mouseHudPos);
@@ -254,7 +260,7 @@ void Game::sUserInput()
 			if (!m_paused)
 			{
 				auto pixel = sf::Mouse::getPosition(m_window);
-				sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera.getCamera());
+				sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
 				sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
 
 				m_hud->input(*mousemoved, mouseHudPos);
@@ -267,9 +273,9 @@ void Game::sUserInput()
 			if (!m_paused)
 			{
 				if (mouseWheel->delta > 0)
-					m_camera.zoomIn();
+					m_camera->zoomIn();
 				else
-					m_camera.zoomOut();
+					m_camera->zoomOut();
 			}
 		}
 	}

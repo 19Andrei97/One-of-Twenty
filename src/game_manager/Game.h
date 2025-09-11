@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../entity/Entity.h"
 #include "../entity/EntityManager.h"
 #include "../mapgen/MapGenerator.h"
 #include "../camera/Camera.h"
@@ -13,7 +12,8 @@ class Game
 	sf::Clock						m_clock;
 	sf::Font						m_font;
 	std::unique_ptr<sf::Text>		m_text;
-	Camera							m_camera;
+	std::unique_ptr<Camera>			m_camera;
+	std::unique_ptr<EntityManager>	m_entity_manager;
 	std::unique_ptr<MapGenerator>	m_map;
 	std::unique_ptr<Hud>			m_hud;
 
@@ -24,9 +24,6 @@ class Game
 	bool							m_paused = false;	// Game is paused check
 	bool							m_running = true;	// Game is running check
 
-	std::shared_ptr<Entity> m_player;
-
-	void init(const std::string& config);
 	void setPaused();
 
 	void sMovement();
@@ -34,11 +31,11 @@ class Game
 	void sRender();
 	void sCollision();
 
-	void spawnPlayer();
+	void spawnEntities();
 
 public:
 
-	Game(const std::string& config);
+	Game(const std::string& path);
 
 	void run();
 

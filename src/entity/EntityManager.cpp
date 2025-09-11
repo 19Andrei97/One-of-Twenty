@@ -3,64 +3,68 @@
 
 #include "EntityManager.h"
 
-EntityManager::EntityManager() {}
-
 void EntityManager::update()
 {
-	for (auto& e : m_entitiesToAdd)
+	// REMOVE ENTITIES 
+	std::vector<entt::entity> toDestroy;
+
+	m_registry->view<CLifespan>().each([&](auto entity, CLifespan& life) 
 	{
-		m_entities.push_back(e);
-		m_entityMap[e->type()].push_back(e);
+		if (life.remaining <= 0) 
+		{
+			toDestroy.push_back(entity);
+		}
+	});
+
+	for (auto entity : toDestroy) 
+	{
+		m_registry->destroy(entity);
+		--m_totalEntities;
 	}
 
-	m_entitiesToAdd.clear();
+	// UPDATE ENTITIES
 
-	removeDeadEntities(m_entities);
-
-	for (auto& [tag, entityVec] : m_entityMap)
+	// Moving
+	m_registry->view<CTransform>().each([](auto entity, CTransform& trs)
 	{
+			if (trs.has_target)
+			{
+				sf::Vector2f direction = trs.pos - trs.target;
+				float distance = sqrt(direction.x * direction.x + direction.y * direction.y);
 
-		removeDeadEntities(entityVec);
+				if (distance > 0.0f) {
+					direction.x /= distance;   // normalize x
+					direction.y /= distance;   // normalize y
 
-	}
+					trs.pos.x += direction.x * trs.speed; // TO DO ADD DELTA TIME
+					trs.pos.y += direction.y * trs.speed;
+				}
+			}
+	});
+
+
 }
 
 /// MANAGING ENTITIES //////////////////////////////////////////////////////////////
 
-void EntityManager::removeDeadEntities(EntityVec& vec)
+void EntityManager::addEntity(const EntityType& type)
 {
-	vec.erase(
-		std::remove_if(vec.begin(), vec.end(),
-			[](const std::shared_ptr<Entity>& e) {
-				return !e->isAlive();
-			}),
-		vec.end()
-	);
+	auto entity = m_registry->create();
+
+	// TODO ADD SHAPE
+	m_registry->emplace<CType>(entity, type);
+	m_registry->emplace<CLifespan>(entity, 100);
+	m_registry->emplace<CTransform>(entity, sf::Vector2f{0.0f, 0.0f}, 1.f);
+	m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
+
+	++m_totalEntities;
 }
 
-std::shared_ptr<Entity> EntityManager::addEntity(const int type)
+void EntityManager::render(sf::RenderTarget& window)
 {
-	auto entity = std::shared_ptr<Entity>(new Entity(++m_totalEntities, type));
-
-	m_entitiesToAdd.push_back(entity);
-
-	return entity;
-}
-
-/// GETTING ENTITIES //////////////////////////////////////////////////////////////
-
-const EntityVec& EntityManager::getEntities()
-{
-	return m_entities;
-}
-
-const EntityVec& EntityManager::getEntities(const int type)
-{
-	static EntityVec emptyVec; // restituito se il tag non esiste
-
-	auto it = m_entityMap.find(type);
-	if (it != m_entityMap.end()) {
-		return it->second;
-	}
-	return emptyVec;
+	// TO BE FINISHED
+	m_registry->view<CShape>().each([&](auto entity, CShape& shape)
+	{
+			window.draw(shape.circle);
+	});
 }

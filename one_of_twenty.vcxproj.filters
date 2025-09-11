@@ -21,9 +21,6 @@
     <ClCompile Include="src\mapgen\MapGenerator.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-    <ClCompile Include="src\entity\Entity.cpp">
-      <Filter>File di origine</Filter>
-    </ClCompile>
     <ClCompile Include="src\game_manager\Game.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
@@ -48,9 +45,6 @@
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="src\mapgen\MapGenerator.h">
-      <Filter>File di intestazione</Filter>
-    </ClInclude>
-    <ClInclude Include="src\entity\Entity.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="src\game_manager\Game.h">

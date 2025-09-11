@@ -4,64 +4,92 @@
 #include <functional>
 #include <iostream>
 
-class CTransform
-{
-public:
-	sf::Vector2f pos = { 0.f, 0.f };
-    sf::Vector2f velocity = { 0.f, 0.f };
-	float angle = 0;
-
-	CTransform(const sf::Vector2f& p, const sf::Vector2f& v, float a)
-		: pos(p), velocity(v), angle(a) {
-	}
+enum class PersonalityTrait {
+    Brave,
+    Curious,
+    Greedy,
+    Loyal,
+    Aggressive,
+    Calm,
+    Honest,
+    Cunning,
+    End
 };
 
-class CShape
+enum class EntityType {
+    Human_Generic,
+    Human_Farmer,
+    Human_Lumberjack,
+    Animal_Dog,
+    Animal_Cat
+};
+
+struct CType {
+    EntityType type;
+
+    CType(const EntityType& t)
+        : type(t)
+    {}
+};
+
+struct CPersonality {
+    std::map<int, int> traits;
+
+    CPersonality() {
+        for (int i = 0; i < static_cast<int>(PersonalityTrait::End); i++)
+        {
+            traits[i] = Random::get(0, 100);
+        }
+    }
+};
+
+struct CTransform
 {
-public:
+    bool            has_target{ false };
+    float           speed{ 0.f };
+	sf::Vector2f    pos{ 0.f, 0.f };
+    sf::Vector2f    target{ 0.f, 0.f };
+
+	CTransform(const sf::Vector2f& p, const float v)
+		: pos(p), speed(v)
+    {}
+};
+
+struct CShape
+{
 	sf::CircleShape circle;
 
-	CShape(float radius, int points, const sf::Color& fill, const sf::Color& outline, float thickness)
+	CShape(float radius, int points, const sf::Color& fill)
 		: circle(radius, points)
 	{
 		circle.setFillColor(fill);
-		circle.setOutlineColor(outline);
-		circle.setOutlineThickness(thickness);
+		//circle.setOutlineColor(outline);
+		//circle.setOutlineThickness(thickness);
 		circle.setOrigin({ radius, radius });
 	}
 };
 
-class CCollision
+struct CCollision
 {
-public:
 	float radius;
+
 	CCollision(float r)
-		: radius(r) {
-	}
+		: radius(r) 
+    {}
 };
 
-class CScore
+struct CLifespan
 {
-public:
-	int score;
-	CScore(int initialScore = 0)
-		: score(initialScore) {
-	}
-};
-
-class CLifespan
-{
-public:
 	int remaining;
 	int total;
+
 	CLifespan(int total)
-		: remaining(total), total(total) {
-	}
+		: remaining(total), total(total) 
+    {}
 };
 
-class CInput
+struct CInput
 {
-public:
     bool up{ false };
 	bool down{ false };
 	bool left{ false };

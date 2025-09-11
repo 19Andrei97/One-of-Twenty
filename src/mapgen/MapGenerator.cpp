@@ -2,19 +2,8 @@
 
 #include "MapGenerator.h"
 
-sf::Vector2i getNextChunkPosition(const sf::Vector2i& pos, int multiple) {
-	auto next = [multiple](int p)->int {
-		int r = p % multiple;
-		if (r == 0) return p;
-		return (p > 0) ? (p + (multiple - r)) : (p - r);
-		};
-	return { next(pos.x), next(pos.y) };
-}
-
 /*
 *	Generate a chunk of terrain based on height and width in tiles. Position is the top left of the chunk
-*	
-*	@ return std::shared_ptr<MapGenerator::Chunk>&
 */
 std::shared_ptr<MapGenerator::Chunk>& MapGenerator::generateChunk(const int height, const int width, const sf::Vector2i& position)
 {
@@ -158,7 +147,7 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 }
 
 /*
-* Starts another thread. Check view boundaries and generate chunks if needed.
+*	Starts another thread. Check view boundaries and generate chunks if needed.
 */
 void MapGenerator::startWorker() {
 	while (m_running) {
@@ -198,7 +187,19 @@ void MapGenerator::startWorker() {
 }
 
 /*
-* Helper function to render. Check if there is intersection between view and chunk.
+*	Helper function to render. Find next chunk position relative to pos.
+*/
+sf::Vector2i getNextChunkPosition(const sf::Vector2i& pos, int multiple) {
+	auto next = [multiple](int p)->int {
+		int r = p % multiple;
+		if (r == 0) return p;
+		return (p > 0) ? (p + (multiple - r)) : (p - r);
+		};
+	return { next(pos.x), next(pos.y) };
+}
+
+/*
+*	Helper function to render. Check if there is intersection between view and chunk.
 */
 bool chunkInView(const sf::Vector2i& chunkPos, const sf::Vector2i& chunkSize, const sf::IntRect& viewBounds)
 {
@@ -220,8 +221,6 @@ bool chunkInView(const sf::Vector2i& chunkPos, const sf::Vector2i& chunkSize, co
 
 /*
 *	Render chunks based on view boundaries.
-*	
-*	@ return void
 */
 void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& window) {
 	int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
@@ -343,7 +342,7 @@ void MapGenerator::setNoises()
 }
 
 /*
-*	Return the information of the requested position.
+*	Return the information at the requested map position.
 */
 std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 {
