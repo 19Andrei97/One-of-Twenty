@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../mapgen/MapGenerator.h"
-#include "Components.h"
 
 namespace Function
 {

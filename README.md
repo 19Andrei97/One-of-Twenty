@@ -37,7 +37,7 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 - Implement a `Scene` class, pass inputs to scenes.
 
 ### Entity
-- Add ability to move.
+- Add ability to choose target.
 - Add needs.
 - Implement weights-based decisions for entities.
 - add ai through llama for civilization politics

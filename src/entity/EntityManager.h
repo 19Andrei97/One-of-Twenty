@@ -20,6 +20,9 @@ public:
 	void update();
 	void addEntity(const EntityType& type);
 
+	// SETTERS
+	void nextTarget(const EntityType& type, sf::Vector2f& targ);
+
 	// GETTERS
 	//const EntityVec& getEntities(const EntityType& type);
 };

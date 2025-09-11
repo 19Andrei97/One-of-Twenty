@@ -221,6 +221,9 @@ void Game::sUserInput()
 					sf::Vector2f worldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
 					m_hud->infoBox(m_map->getPositionInfo(worldPos));
 
+					// TESTING ENTITY MOVING
+					m_entity_manager->nextTarget(EntityType::Human_Generic, worldPos);
+
 					break;
 				}
 
