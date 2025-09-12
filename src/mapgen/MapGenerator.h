@@ -148,13 +148,12 @@ public:
 	void setDebugWireFrame(bool status)					{ d_wire_frame = status; }
 	void print()
 	{
-		std::cout << "Seed: " << m_seed << "\n";
-		std::cout << "Mineral Frequency: " << m_mineral_freq << "\n";
-		std::cout << "Continent Frequency: " << m_cont_freq << "\n";
-		std::cout << "Warp Frequency: " << m_warp_freq << "\n\n";
-		std::cout << "Mineral Multiplier: " << m_mineral_multiplier << "\n";
-		std::cout << "Continent Multiplier: " << m_cont_multiplier << "\n";
-		std::cout << "------------------------\n\n";
+		LOG_INFO("Seed: {}.", m_seed);
+		LOG_INFO("Mineral Frequency: {}.", m_mineral_freq);
+		LOG_INFO("Continent Frequency: {}.", m_cont_freq);
+		LOG_INFO("Warp Frequency: {}.", m_warp_freq);
+		LOG_INFO("Mineral Multiplier: {}.", m_mineral_multiplier);
+		LOG_INFO("Continent Multiplier: {}.", m_cont_multiplier);
 	}
 
 	// GETTERS

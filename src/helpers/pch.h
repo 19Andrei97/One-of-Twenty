@@ -18,6 +18,7 @@
 #include "ThreadSafeQueue.h"
 #include "json.h"
 #include "Components_HUD.h"
+#include "Logger.h"
 
 // SFML library
 #include <SFML/Graphics.hpp>
@@ -25,3 +26,6 @@
 
 // ENTT library
 #include <entt/entt.hpp>
+
+// spdlog library
+//#include <spdlog/spdlog.h>

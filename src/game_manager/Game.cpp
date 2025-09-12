@@ -10,6 +10,9 @@ Game::Game(const std::string& path)
 	std::ifstream f(path);
 	nlohmann::json data = nlohmann::json::parse(f);
 
+	// LOGGER
+	Logger::init(data["logger"]["file"]);
+
 	// WINDOW AND FRAME
 	sf::State state;
 
@@ -32,19 +35,23 @@ Game::Game(const std::string& path)
 	m_text->setFillColor(sf::Color(data["font"]["color"][0], data["font"]["color"][1], data["font"]["color"][2]));
 
 	// MAP GENERATION
+	LOG_DEBUG("Creating Map Generator.");
 	m_map = std::make_shared<MapGenerator>(m_font, m_currentFrame, "src/config/map_data.json");
 	m_map->setDebugNoiseView(false);
 
 	// HUD
+	LOG_DEBUG("Creating HUD.");
 	m_hud = std::make_unique<Hud>(m_font, m_map, "src/config/hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
 	m_hud->init();
 
 	// CAMERA
+	LOG_DEBUG("Creating Camera.");
 	m_camera = std::make_unique<Camera>(data["window"]["width"], data["window"]["height"]);
 	m_camera->cInput = std::make_shared<CInput>();
 	m_window.setView(m_camera->getCamera());
 
 	// ENTITIES MANAGER
+	LOG_DEBUG("Creating Entities Manager.");
 	m_entity_manager = std::make_unique<EntityManager>(m_map);
 }
 

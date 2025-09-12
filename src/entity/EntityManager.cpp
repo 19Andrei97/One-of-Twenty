@@ -42,7 +42,7 @@ void EntityManager::update()
 				else
 				{
 					trs.has_target = false;
-					std::cout << "Target reached by " << (int)entity << "\n";
+					LOG_DEBUG("Target reached by entity with id {}.", (int)entity);
 				}
 			}
 			else

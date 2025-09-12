@@ -12,5 +12,10 @@
 		"file": "fonts/arial.ttf",
 		"size": 24,
 		"color": [255, 255, 255]
+	},
+
+	"logger":
+	{
+		"file": "logs/game.log"
 	}
 }

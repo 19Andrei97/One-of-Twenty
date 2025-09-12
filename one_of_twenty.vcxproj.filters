@@ -74,11 +74,17 @@
     <ClInclude Include="src\helpers\Components_HUD.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="src\helpers\Logger.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\config\hud_menu_data.json" />
     <None Include="src\config\config.json" />
     <None Include="README.md" />
     <None Include="src\config\map_data.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="logs\game.log" />
   </ItemGroup>
 </Project>
