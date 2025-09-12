@@ -77,6 +77,15 @@ struct CCollision
     {}
 };
 
+struct CVision
+{
+    float radius;
+
+    CVision(float r = 250.f)
+        : radius(r)
+    {}
+};
+
 struct CLifespan
 {
 	int remaining;

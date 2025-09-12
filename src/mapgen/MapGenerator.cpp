@@ -349,10 +349,11 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
     std::vector<std::string> result;
 
     int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
-    sf::Vector2i chunkPos = getNextChunkPosition(
-        sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
-        num_tiles_per_chunk
-    );
+    sf::Vector2i chunkPos = getNextChunkPosition
+							(
+								sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
+								num_tiles_per_chunk
+							);
 
     auto it = m_chunks.find(chunkPos);
     if (it == m_chunks.end() || !it->second)
@@ -366,7 +367,8 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
     sf::Vector2f tileWorld = tileToWorld(tile);
     sf::Color tileColor = getBiomeColor(pos.x, pos.y);
 
-    for (const auto& [key, color] : m_biomes) {
+    for (const auto& [key, color] : m_biomes) 
+	{
         if (color == tileColor)
         {
             result.push_back("Type: " + key);
@@ -385,7 +387,41 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
     return result;
 }
 
+/*
+*	Return a random coord in the provided radius != than water
+*/
+sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radius)
+{
+	int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
+	sf::Vector2i chunkPos = getNextChunkPosition
+	(
+		sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
+		num_tiles_per_chunk
+	);
 
+	auto it = m_chunks.find(chunkPos);
+	if (it == m_chunks.end() || !it->second)
+	{
+		return pos; // If chunk is not found return current position
+	}
+
+	sf::Color tileColor;
+	float random_x;
+	float random_y;
+	while (tileColor.r == 0)
+	{
+		random_x = Random::get(static_cast<int>(pos.x - radius), static_cast<int>(pos.x + radius));
+		random_y = Random::get(static_cast<int>(pos.y - radius), static_cast<int>(pos.y + radius));
+
+		tileColor = getBiomeColor(random_x, random_y);
+	}
+
+	return sf::Vector2f{ random_x , random_y };
+}
+
+/*
+*	Translate coordinates
+*/
 sf::Vector2i MapGenerator::worldToTile(sf::Vector2f pos) const 
 {
 	return sf::Vector2i

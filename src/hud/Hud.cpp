@@ -33,8 +33,8 @@ void Hud::init()
 			{
 			case Function::Button::Random:
 				buttons.back()->onClick = [this]() {
-					m_map.setSeed();
-					m_map.m_reset = true;
+					m_map->setSeed();
+					m_map->m_reset = true;
 					};
 				break;
 			}
@@ -62,40 +62,40 @@ void Hud::init()
 			case Function::Slider::ContFreq:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map.setContFreq(val);
-						m_map.m_reset = true;
+						m_map->setContFreq(val);
+						m_map->m_reset = true;
 					};
 				break;
 
 			case Function::Slider::ContMult:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map.setContMult(val);
-						m_map.m_reset = true;
+						m_map->setContMult(val);
+						m_map->m_reset = true;
 					};
 				break;
 
 			case Function::Slider::WarpFreq:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map.setWarpFreq(val);
-						m_map.m_reset = true;
+						m_map->setWarpFreq(val);
+						m_map->m_reset = true;
 					};
 				break;
 
 			case Function::Slider::MineralFreq:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map.setMineralMult(val);
-						m_map.m_reset = true;
+						m_map->setMineralMult(val);
+						m_map->m_reset = true;
 					};
 				break;
 
 			case Function::Slider::MineralMult:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map.setMineralFreq(val);
-						m_map.m_reset = true;
+						m_map->setMineralFreq(val);
+						m_map->m_reset = true;
 					};
 				break;
 

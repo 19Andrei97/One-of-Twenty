@@ -30,15 +30,13 @@ Game::Game(const std::string& path)
 	m_text->setFont(m_font);
 	m_text->setCharacterSize(data["font"]["size"]);
 	m_text->setFillColor(sf::Color(data["font"]["color"][0], data["font"]["color"][1], data["font"]["color"][2]));
-	m_text->setPosition({ 20.f, 20.f });
-	m_text->setString("Hello");
 
 	// MAP GENERATION
-	m_map = std::make_unique<MapGenerator>(m_font, m_currentFrame, "src/config/map_data.json");
+	m_map = std::make_shared<MapGenerator>(m_font, m_currentFrame, "src/config/map_data.json");
 	m_map->setDebugNoiseView(false);
 
 	// HUD
-	m_hud = std::make_unique<Hud>(m_font, *m_map, "src/config/hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
+	m_hud = std::make_unique<Hud>(m_font, m_map, "src/config/hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
 	m_hud->init();
 
 	// CAMERA
@@ -47,7 +45,7 @@ Game::Game(const std::string& path)
 	m_window.setView(m_camera->getCamera());
 
 	// ENTITIES MANAGER
-	m_entity_manager = std::make_unique<EntityManager>();
+	m_entity_manager = std::make_unique<EntityManager>(m_map);
 }
 
 void Game::run()

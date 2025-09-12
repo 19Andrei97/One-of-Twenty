@@ -161,6 +161,7 @@ public:
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }
 	std::vector<std::string>	getPositionInfo(sf::Vector2f pos);
+	sf::Vector2f				getLocationWithinBound(sf::Vector2f& pos, float radius);
 
 	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
 	bool				getDebugWireFrame()			const	{ return d_wire_frame; }

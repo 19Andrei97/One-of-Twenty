@@ -14,8 +14,8 @@ class Game
 	std::unique_ptr<sf::Text>		m_text;
 	std::unique_ptr<Camera>			m_camera;
 	std::unique_ptr<EntityManager>	m_entity_manager;
-	std::unique_ptr<MapGenerator>	m_map;
 	std::unique_ptr<Hud>			m_hud;
+	std::shared_ptr<MapGenerator>	m_map;
 
 	sf::Vector2i					m_current_position{ 0, 0 };
 	float							m_deltaTime{ 0.f };

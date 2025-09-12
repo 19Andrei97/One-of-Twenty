@@ -22,10 +22,10 @@ namespace Function
 
 class Hud
 {
-	sf::Font&			m_font;
-	std::string			m_file;
-	sf::View			m_camera;
-	MapGenerator&		m_map;
+	sf::Font&						m_font;
+	std::string						m_file;
+	sf::View						m_camera;
+	std::shared_ptr<MapGenerator>	m_map;
 
 	// VECTORS ELEMENTS
 	std::vector<std::unique_ptr<CButton>>		buttons;
@@ -36,7 +36,7 @@ class Hud
 public:
 
 	// CONSTRUCTOR & INITIATOR
-	Hud(sf::Font& font, MapGenerator& map, const std::string& file, float window_x, float window_y)
+	Hud(sf::Font& font, std::shared_ptr<MapGenerator> map, const std::string& file, float window_x, float window_y)
 		: m_font(font)
 		, m_map(map)
 		, m_file(file)

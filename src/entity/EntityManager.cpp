@@ -25,14 +25,14 @@ void EntityManager::update()
 	// UPDATE ENTITIES
 
 	// Moving
-	m_registry->view<CTransform>().each([](auto entity, CTransform& trs)
+	m_registry->view<CTransform, CVision>().each([&](auto entity, CTransform& trs, CVision& vsn)
 	{
 			if (trs.has_target)
 			{
 				sf::Vector2f direction = trs.target - trs.pos;
 				float distance = sqrt(direction.x * direction.x + direction.y * direction.y);
 
-				if (distance > 0.5f) {
+				if (distance > 1.f) {
 					direction.x /= distance;   // normalize x
 					direction.y /= distance;   // normalize y
 
@@ -45,17 +45,30 @@ void EntityManager::update()
 					std::cout << "Target reached by " << (int)entity << "\n";
 				}
 			}
+			else
+			{
+				trs.target = m_map->getLocationWithinBound(trs.pos, vsn.radius);
+				trs.has_target = true;
+			}
 	});
-
-
 }
 
 void EntityManager::render(sf::RenderTarget& window)
 {
-	m_registry->view<CShape, CTransform>().each([&](auto entity, CShape& shape, CTransform& trs)
+	m_registry->view<CShape, CTransform, CVision>().each([&](auto entity, CShape& shape, CTransform& trs, CVision& vsn)
 		{
 			shape.circle.setPosition(trs.pos);
 			window.draw(shape.circle);
+
+			// THIS IS JUST FOR TESTING AND NEEDS TO BE IMPROVED
+			if (show_vision)
+			{
+				sf::CircleShape circle(vsn.radius);
+				circle.setFillColor({ 255, 255, 255, 100 });
+				circle.setPosition(trs.pos);
+				circle.setOrigin({ vsn.radius, vsn.radius });
+				window.draw(circle);
+			}
 		});
 }
 
@@ -65,11 +78,11 @@ void EntityManager::addEntity(const EntityType& type)
 {
 	auto entity = m_registry->create();
 
-	// TODO ADD SHAPE
 	m_registry->emplace<CType>(entity, type);
 	m_registry->emplace<CLifespan>(entity, 100);
 	m_registry->emplace<CTransform>(entity, sf::Vector2f{ 0.0f, 0.0f }, 1.f);
 	m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
+	m_registry->emplace<CVision>(entity);
 
 	++m_totalEntities;
 }

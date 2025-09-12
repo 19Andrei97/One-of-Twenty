@@ -13,31 +13,25 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 1. Clone the repository
 2. Install SFML and configure your project to include it
 3. Install entt, you can follow the how to in their github project.
-4. Build using Visual Studio 2022 or another C++17 compatible compiler
-
-## Project Structure
-
-- `src/mapgen/MapGenerator.*` : Map generation and management
-- `src/hud/Hud.*` : HUD and user interface management
-- `Entity.*` and `EntityManager.*` : Entity management
-- `Game.*` : Main game logic and loop
-- `main.cpp` : Entry point
+4. Build using Visual Studio 2022 or another C++17 compatible compiler.
 
 ## TODO
 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
 - Add logger.
+- Implement thread handler class.
 
 ### MapGenerator
 - Add rivers?
-- add possibility to increase depths and heights
+- add possibility to increase depths and heights.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
 
 ### Entity
-- Add ability to choose target.
+- Improve CVision component debug circle.
+- Add cost for moving depending on tile.
 - Add needs.
 - Implement weights-based decisions for entities.
 - add ai through llama for civilization politics
