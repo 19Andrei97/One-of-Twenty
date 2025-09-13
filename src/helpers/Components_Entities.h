@@ -55,6 +55,12 @@ struct CMemory {
         locations[type] = pos;
     }
 
+    void rememberLocation(const std::unordered_map<Elements, sf::Vector2f>& map)
+    {
+        for(auto& [key, val] : map)
+            locations[key] = val;
+    }
+
     sf::Vector2f getLocation(const Elements& type)
     {
         const auto& it = locations.find(type);

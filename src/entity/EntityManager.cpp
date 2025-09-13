@@ -51,6 +51,15 @@ void EntityManager::update()
 				trs.has_target = true;
 			}
 	});
+
+	// Memory
+	m_registry->view<CTransform, CVision, CMemory>().each([&](auto entity, CTransform& trs, CVision& vsn, CMemory& mmr)
+		{
+			const auto resources{ m_map->getResourcesWithinBoundary(trs.pos, vsn.radius) };
+			mmr.rememberLocation(resources);
+			//sf::Vector2f loca = mmr.getLocation(Elements::ocean);
+			//LOG_DEBUG("Closest water at x: {} y: {}", loca.x, loca.y);
+		});
 }
 
 void EntityManager::render(sf::RenderTarget& window)

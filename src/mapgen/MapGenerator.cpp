@@ -363,7 +363,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
     }
 
     // Calcola la posizione della tile e il colore del bioma
-    sf::Vector2i tile = worldToTile(pos);
+    sf::Vector2f tile = worldToTile(pos);
     sf::Vector2f tileWorld = tileToWorld(tile);
     sf::Color tileColor = getBiomeColor(pos.x, pos.y);
 
@@ -405,7 +405,7 @@ sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radiu
 		return pos; // If chunk is not found return current position
 	}
 
-	sf::Color tileColor{0.f, 0.f, 0.f};
+	sf::Color tileColor;
 	float random_x{ 0.f };
 	float random_y{ 0.f };
 	while (tileColor.r == 0)
@@ -420,18 +420,55 @@ sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radiu
 }
 
 /*
+*	Return a map of resources found within the boundaries.
+*/
+std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBoundary(sf::Vector2f& pos, float radius)
+{
+	std::unordered_map<Elements, std::pair<float, sf::Vector2f>> closest;
+	sf::Vector2f centerTile = worldToTile(pos);
+	int tileRadius = static_cast<int>(radius / m_tile_size_px);
+
+	for (int dx = -tileRadius; dx <= tileRadius; ++dx) {
+		for (int dy = -tileRadius; dy <= tileRadius; ++dy) {
+			sf::Vector2f tile = centerTile + sf::Vector2f(dx, dy);
+			sf::Vector2f tileWorldPos = tileToWorld(tile);
+			float dist = std::hypot(tileWorldPos.x - pos.x, tileWorldPos.y - pos.y);
+			if (dist <= radius) {
+				sf::Color color = getBiomeColor(tileWorldPos.x, tileWorldPos.y);
+				for (const auto& [element, biomeColor] : m_biomes) {
+					if (color == biomeColor) {
+						auto it = closest.find(element);
+						if (it == closest.end() || dist < it->second.first) {
+							closest[element] = { dist, tile };
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	// Convert to required output type
+	std::unordered_map<Elements, sf::Vector2f> resources;
+	for (const auto& [element, pair] : closest) {
+		resources[element] = pair.second;
+	}
+	return resources;
+}
+
+/*
 *	Translate coordinates
 */
-sf::Vector2i MapGenerator::worldToTile(sf::Vector2f pos) const 
+sf::Vector2f MapGenerator::worldToTile(sf::Vector2f pos) const 
 {
-	return sf::Vector2i
+	return sf::Vector2f
 	(
 		static_cast<int>(pos.x) / m_tile_size_px,
 		static_cast<int>(pos.y) / m_tile_size_px
 	);
 }
 
-sf::Vector2f MapGenerator::tileToWorld(sf::Vector2i tile) const 
+sf::Vector2f MapGenerator::tileToWorld(sf::Vector2f tile) const 
 {
 	return sf::Vector2f
 	(

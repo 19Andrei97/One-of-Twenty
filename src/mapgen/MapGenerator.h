@@ -89,8 +89,8 @@ private:
 	sf::Color					getBiomeColor(float height, float temp);
 	void						startWorker();
 
-	sf::Vector2i worldToTile(sf::Vector2f pos) const;
-	sf::Vector2f tileToWorld(sf::Vector2i tile) const;
+	sf::Vector2f worldToTile(sf::Vector2f pos) const;
+	sf::Vector2f tileToWorld(sf::Vector2f tile) const;
 
 public:
 
@@ -178,8 +178,9 @@ public:
 	// GETTERS
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }
-	std::vector<std::string>	getPositionInfo(sf::Vector2f pos);
-	sf::Vector2f				getLocationWithinBound(sf::Vector2f& pos, float radius);
+	std::vector<std::string>						getPositionInfo(sf::Vector2f pos);
+	sf::Vector2f									getLocationWithinBound(sf::Vector2f& pos, float radius);
+	std::unordered_map<Elements, sf::Vector2f>		getResourcesWithinBoundary(sf::Vector2f& pos, float radius);
 
 	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
 	bool				getDebugWireFrame()			const	{ return d_wire_frame; }

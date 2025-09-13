@@ -24,12 +24,14 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 ### MapGenerator
 - Add rivers?
 - add possibility to increase depths and heights.
+- Improve getting resources for entities.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
 
 ### Entity
 - Improve CVision component debug circle.
+- Improve CMemory component
 - Add cost for moving depending on tile.
 - Add needs.
 - Implement weights-based decisions for entities.
