@@ -111,39 +111,39 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 
 	// --- OCEAN ---
 
-	if (continent < m_thresholds["very_deep_ocean"]) return m_biomes["very_deep_ocean"];
-	if (continent < m_thresholds["deep_ocean"]) return m_biomes["deep_ocean"];
-	if (continent < m_thresholds["ocean"]) return m_biomes["ocean"];
-	if (continent < m_thresholds["sand"]) return m_biomes["sand"];
+	if (continent < m_thresholds[Elements::very_deep_ocean]) return m_biomes[Elements::very_deep_ocean];
+	if (continent < m_thresholds[Elements::deep_ocean]) return m_biomes[Elements::deep_ocean];
+	if (continent < m_thresholds[Elements::ocean]) return m_biomes[Elements::ocean];
+	if (continent < m_thresholds[Elements::sand]) return m_biomes[Elements::sand];
 
 	// --- CONTINENT ---
-	if (continent < m_thresholds["hills"])
+	if (continent < m_thresholds[Elements::hill])
 	{
-		if (mineral > m_thresholds["clay"])
-			return m_biomes["clay"];
+		if (mineral > m_thresholds[Elements::clay])
+			return m_biomes[Elements::clay];
 
-		return m_biomes["hills"];
+		return m_biomes[Elements::hill];
 	}
 
-	if (continent < m_thresholds["forest"])
+	if (continent < m_thresholds[Elements::forest])
 	{
-		if (mineral > m_thresholds["iron"])
-			return m_biomes["iron"];
+		if (mineral > m_thresholds[Elements::iron])
+			return m_biomes[Elements::iron];
 
-		return m_biomes["forest"];
-	}
-		
-		
-	if (continent < m_thresholds["mountain"])
-	{
-		if (mineral > m_thresholds["silver"])
-			return m_biomes["silver"];
-
-		return m_biomes["mountain"];
+		return m_biomes[Elements::forest];
 	}
 		
 		
-	return m_biomes["snow"];
+	if (continent < m_thresholds[Elements::muntain])
+	{
+		if (mineral > m_thresholds[Elements::silver])
+			return m_biomes[Elements::silver];
+
+		return m_biomes[Elements::muntain];
+	}
+		
+		
+	return m_biomes[Elements::snow];
 }
 
 /*
@@ -371,7 +371,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 	{
         if (color == tileColor)
         {
-            result.push_back("Type: " + key);
+			result.push_back("Type: " + std::to_string(static_cast<int>(key)));
             break;
         }
     }
@@ -405,9 +405,9 @@ sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radiu
 		return pos; // If chunk is not found return current position
 	}
 
-	sf::Color tileColor;
-	float random_x;
-	float random_y;
+	sf::Color tileColor{0.f, 0.f, 0.f};
+	float random_x{ 0.f };
+	float random_y{ 0.f };
 	while (tileColor.r == 0)
 	{
 		random_x = Random::get(static_cast<int>(pos.x - radius), static_cast<int>(pos.x + radius));

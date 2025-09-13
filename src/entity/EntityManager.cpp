@@ -83,6 +83,7 @@ void EntityManager::addEntity(const EntityType& type)
 	m_registry->emplace<CTransform>(entity, sf::Vector2f{ 0.0f, 0.0f }, 1.f);
 	m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
 	m_registry->emplace<CVision>(entity);
+	m_registry->emplace<CMemory>(entity);
 
 	++m_totalEntities;
 }

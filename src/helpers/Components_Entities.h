@@ -1,7 +1,10 @@
 ﻿#pragma once
 
+#include "../mapgen/MapGenerator.h"
+
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <unordered_map>
 
 enum class PersonalityTrait {
     Brave,
@@ -39,6 +42,27 @@ struct CPersonality {
         {
             traits[i] = Random::get(0, 100);
         }
+    }
+};
+
+struct CMemory {
+    std::unordered_map<Elements, sf::Vector2f> locations;
+
+    CMemory(){}
+
+    void rememberLocation(const sf::Vector2f& pos, const Elements& type)
+    {
+        locations[type] = pos;
+    }
+
+    sf::Vector2f getLocation(const Elements& type)
+    {
+        const auto& it = locations.find(type);
+
+        if (it != locations.end())
+            return it->second;
+        else
+            return sf::Vector2f{ 0.f, 0.f };
     }
 };
 

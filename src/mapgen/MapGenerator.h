@@ -9,6 +9,25 @@ struct Vector2iHash {
 	}
 };
 
+// ELEMENTS ENUM		///////////////////////////
+enum class Elements
+{
+	very_deep_ocean = 0,
+	deep_ocean,
+	ocean,
+
+	sand,
+	hill,
+	forest,
+	muntain,
+	snow,
+
+	clay,
+	iron,
+	silver
+
+};
+
 // MAP GENERATOR CLASS	///////////////////////////
 class MapGenerator
 {
@@ -54,8 +73,8 @@ private:
 	FastNoiseLite		m_warpNoise;
 	FastNoiseLite		m_mineralNoise;
 
-	std::unordered_map<std::string, sf::Color>		m_biomes;
-	std::unordered_map<std::string, float>			m_thresholds;
+	std::unordered_map<Elements, sf::Color>		m_biomes;
+	std::unordered_map<Elements, float>			m_thresholds;
 
 	// DEBUG variables
 	sf::Font	d_font;
@@ -100,7 +119,7 @@ public:
 		nlohmann::json j = nlohmann::json::parse(f);
 
 		for (auto& [key, value] : j["elements"].items()) {
-			m_biomes[key] = {
+			m_biomes[static_cast<Elements>(std::stoi(key))] = {
 				static_cast<std::uint8_t>(value[0]),
 				static_cast<std::uint8_t>(value[1]),
 				static_cast<std::uint8_t>(value[2]),
@@ -108,7 +127,7 @@ public:
 		}
 
 		for (auto& [key, value] : j["heights"].items()) {
-			m_thresholds[key] = value.get<float>();
+			m_thresholds[static_cast<Elements>(std::stoi(key))] = value.get<float>();
 		}
 
 		// Initiate variables
