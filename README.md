@@ -20,11 +20,14 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
 - Implement thread handler class.
+- Check into bin files.
 
 ### MapGenerator
 - Add rivers?
-- add possibility to increase depths and heights.
+- Add possibility to increase depths and heights.
 - Improve getting resources for entities.
+- FIX: different noise map for each resource?
+- Add option to create an island.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
@@ -35,7 +38,7 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 - Add cost for moving depending on tile.
 - Add needs.
 - Implement weights-based decisions for entities.
-- add ai through llama for civilization politics
+- Add ai through llama for civilization politics
 
 ---
 
