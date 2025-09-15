@@ -1,6 +1,6 @@
 # One Of Twenty
 
-One Of Twenty is a game project that I started to learn the basics of c++ while providing a something more than just a test.
+One Of Twenty is a game project that I started to learn the basics of c++ while trying to create a real simulation game.
 
 ## Requirements
 
@@ -20,11 +20,14 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
 - Implement thread handler class.
+- Check into bin files.
 
 ### MapGenerator
 - Add rivers?
 - add possibility to increase depths and heights.
 - Improve getting resources for entities.
+- FIX: different noise map for each resource?
+- Add option to create an island.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
