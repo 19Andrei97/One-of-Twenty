@@ -19,6 +19,7 @@
 #include "json.h"
 #include "Components_HUD.h"
 #include "Logger.h"
+#include "GameClock.h"
 
 // SFML library
 #include <SFML/Graphics.hpp>

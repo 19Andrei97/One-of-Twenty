@@ -77,6 +77,9 @@
     <ClInclude Include="src\helpers\Logger.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="src\helpers\GameClock.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\config\hud_menu_data.json" />

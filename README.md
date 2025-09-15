@@ -20,7 +20,9 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
 - Implement thread handler class.
+- Implement pause game.
 - Check into bin files.
+- FIX: Map stretching when moving window.
 
 ### MapGenerator
 - Add rivers?
@@ -34,11 +36,11 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 
 ### Entity
 - Improve CVision component debug circle.
-- Improve CMemory component
+- Improve CMemory component (currently remembers only water adn hill).
 - Add cost for moving depending on tile.
-- Add needs.
+- Improve CBasicNeeds.
 - Implement weights-based decisions for entities.
-- add ai through llama for civilization politics
+- Add ai through llama for civilization politics
 
 ---
 

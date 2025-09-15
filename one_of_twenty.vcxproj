@@ -168,6 +168,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera\Camera.h" />
+    <ClInclude Include="src\helpers\GameClock.h" />
     <ClInclude Include="src\helpers\Components_Entities.h" />
     <ClInclude Include="src\entity\EntityManager.h" />
     <ClInclude Include="src\helpers\Components_HUD.h" />

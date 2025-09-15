@@ -426,21 +426,31 @@ std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBound
 {
 	std::unordered_map<Elements, std::pair<float, sf::Vector2f>> closest;
 	sf::Vector2f centerTile = worldToTile(pos);
-	int tileRadius = static_cast<int>(radius / m_tile_size_px);
+	int tileRadius			= static_cast<int>(radius / m_tile_size_px);
 
-	for (int dx = -tileRadius; dx <= tileRadius; ++dx) {
-		for (int dy = -tileRadius; dy <= tileRadius; ++dy) {
+	for (int dx = -tileRadius; dx <= tileRadius; ++dx) 
+	{
+		for (int dy = -tileRadius; dy <= tileRadius; ++dy) 
+		{
 			sf::Vector2f tile = centerTile + sf::Vector2f(dx, dy);
 			sf::Vector2f tileWorldPos = tileToWorld(tile);
 			float dist = std::hypot(tileWorldPos.x - pos.x, tileWorldPos.y - pos.y);
-			if (dist <= radius) {
+
+			if (dist <= radius) 
+			{
 				sf::Color color = getBiomeColor(tileWorldPos.x, tileWorldPos.y);
-				for (const auto& [element, biomeColor] : m_biomes) {
-					if (color == biomeColor) {
+
+				for (const auto& [element, biomeColor] : m_biomes) 
+				{
+					
+					if (color == biomeColor && (element == Elements::ocean || element == Elements::hill))
+					{
 						auto it = closest.find(element);
-						if (it == closest.end() || dist < it->second.first) {
+						if (it == closest.end() || dist < it->second.first) 
+						{
 							closest[element] = { dist, tile };
 						}
+
 						break;
 					}
 				}

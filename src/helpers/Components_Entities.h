@@ -34,7 +34,8 @@ struct CType {
     {}
 };
 
-struct CPersonality {
+struct CPersonality 
+{
     std::map<int, int> traits;
 
     CPersonality() {
@@ -45,7 +46,22 @@ struct CPersonality {
     }
 };
 
-struct CMemory {
+struct CBasicNeeds
+{
+    int thirst{ 100 };
+    int hunger{ 100 };
+    int sleep{ 0 };
+
+    bool drinking{ false };
+    bool eating{ false };
+    bool sleeping{ false };
+
+    CBasicNeeds()
+    {}
+};
+
+struct CMemory 
+{
     std::unordered_map<Elements, sf::Vector2f> locations;
 
     CMemory(){}

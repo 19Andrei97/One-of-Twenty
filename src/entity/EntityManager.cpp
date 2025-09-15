@@ -24,9 +24,69 @@ void EntityManager::update()
 
 	// UPDATE ENTITIES
 
-	// Moving
-	m_registry->view<CTransform, CVision>().each([&](auto entity, CTransform& trs, CVision& vsn)
+	m_registry->view<CTransform, CVision, CMemory, CBasicNeeds>().each([&](auto entity, CTransform& trs, CVision& vsn, CMemory& mmr, CBasicNeeds& needs)
 	{
+			// UPDATING NEEDS
+			if (m_game_clock->getHour() != m_last_updated_hour)
+			{
+				needs.hunger	= std::max(0, needs.hunger - 5);
+				needs.thirst	= std::max(0, needs.thirst - 10);
+				needs.sleep		= std::min(needs.sleep + 2, 100);
+
+				LOG_INFO("Hunger: {}", needs.hunger);
+				LOG_INFO("Thirst: {}", needs.thirst);
+				LOG_INFO("Sleep: {}",  needs.sleep);
+
+				m_last_updated_hour = m_game_clock->getHour();
+			}
+
+			if (!needs.drinking && !needs.eating && !needs.sleeping)
+			{
+				if(needs.thirst < 10)
+				{
+
+					auto pos = mmr.getLocation(Elements::ocean);
+					if (pos.x != 0.f)
+					{
+						trs.target = pos;
+						trs.has_target = true;
+						needs.drinking = true;
+
+						LOG_INFO("Entity {} going to drink", (int)entity);
+					}
+					else
+						LOG_INFO("Entity {} searching for water.", (int)entity);
+
+				}
+
+				if (needs.hunger < 10)
+				{
+
+					auto pos = mmr.getLocation(Elements::hill);
+					if (pos.x != 0.f)
+					{
+						trs.target = pos;
+						trs.has_target = true;
+						needs.eating = true;
+
+						LOG_INFO("Entity {} going to eat", (int)entity);
+					}
+					else
+						LOG_INFO("Entity {} searching for food.", (int)entity);
+
+				}
+
+				if (needs.sleeping > 80)
+				{
+					//LOG_INFO("Entity {} needs to sleep", (int)entity);
+				}
+
+				// UPDATE MEMORY IF NO NEEDS
+				const auto resources{ m_map->getResourcesWithinBoundary(trs.pos, vsn.radius) };
+				mmr.rememberLocation(resources);
+			}
+
+			// UPDATE MOVMENT
 			if (trs.has_target)
 			{
 				sf::Vector2f direction = trs.target - trs.pos;
@@ -41,8 +101,25 @@ void EntityManager::update()
 				}
 				else
 				{
+					// Entity drinking.
+					if (mmr.getLocation(Elements::ocean) == trs.target && needs.drinking)
+					{
+						needs.drinking = false;
+						needs.thirst = 100;
+
+						LOG_INFO("Entity {} finished drinking.", (int)entity);
+					}
+					// Entity eating.
+					else if (mmr.getLocation(Elements::hill) == trs.target && needs.eating)
+					{
+						needs.eating = false;
+						needs.hunger = 100;
+
+						LOG_INFO("Entity {} finished eating.", (int)entity);
+					}
+
 					trs.has_target = false;
-					LOG_DEBUG("Target reached by entity with id {}.", (int)entity);
+					//LOG_INFO("Target reached by entity with id {}.", (int)entity);
 				}
 			}
 			else
@@ -51,15 +128,6 @@ void EntityManager::update()
 				trs.has_target = true;
 			}
 	});
-
-	// Memory
-	m_registry->view<CTransform, CVision, CMemory>().each([&](auto entity, CTransform& trs, CVision& vsn, CMemory& mmr)
-		{
-			const auto resources{ m_map->getResourcesWithinBoundary(trs.pos, vsn.radius) };
-			mmr.rememberLocation(resources);
-			//sf::Vector2f loca = mmr.getLocation(Elements::ocean);
-			//LOG_DEBUG("Closest water at x: {} y: {}", loca.x, loca.y);
-		});
 }
 
 void EntityManager::render(sf::RenderTarget& window)
@@ -93,6 +161,7 @@ void EntityManager::addEntity(const EntityType& type)
 	m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
 	m_registry->emplace<CVision>(entity);
 	m_registry->emplace<CMemory>(entity);
+	m_registry->emplace<CBasicNeeds>(entity);
 
 	++m_totalEntities;
 }

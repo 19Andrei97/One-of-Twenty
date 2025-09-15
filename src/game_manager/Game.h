@@ -11,10 +11,12 @@ class Game
 	sf::RenderWindow				m_window;
 	sf::Clock						m_clock;
 	sf::Font						m_font;
+
 	std::unique_ptr<sf::Text>		m_text;
 	std::unique_ptr<Camera>			m_camera;
 	std::unique_ptr<EntityManager>	m_entity_manager;
 	std::unique_ptr<Hud>			m_hud;
+	std::shared_ptr<GameClock>		m_game_clock;
 	std::shared_ptr<MapGenerator>	m_map;
 
 	sf::Vector2i					m_current_position{ 0, 0 };

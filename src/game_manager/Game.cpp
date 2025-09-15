@@ -24,11 +24,21 @@ Game::Game(const std::string& path)
 	m_window.create(sf::VideoMode({ data["window"]["width"], data["window"]["height"] }), "One Of Twenty", state);
 	m_window.setFramerateLimit(data["window"]["frames"]);
 
+	// IN GAME CLOCK
+	LOG_DEBUG("Creating in Game Clock.");
+	m_game_clock = std::make_shared<GameClock>(120.f);
+	m_game_clock->onNewDay([&]() 
+		{
+			LOG_INFO("New day. Passed: {}", m_game_clock->getDays());
+		});
+
 	// TEXT AND FONT
+	LOG_DEBUG("Opening font file.");
 	if (!m_font.openFromFile(data["font"]["file"])) {
 		std::cerr << "Could not load font!\n";
 	}
 
+	LOG_DEBUG("Creating Text.");
 	m_text = std::make_unique<sf::Text>(m_font);
 	m_text->setFont(m_font);
 	m_text->setCharacterSize(data["font"]["size"]);
@@ -52,7 +62,7 @@ Game::Game(const std::string& path)
 
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");
-	m_entity_manager = std::make_unique<EntityManager>(m_map);
+	m_entity_manager = std::make_unique<EntityManager>(m_map, m_game_clock);
 }
 
 void Game::run()
@@ -61,6 +71,7 @@ void Game::run()
 	while (m_running)
 	{
 		m_deltaTime = m_clock.restart().asSeconds();
+		m_game_clock->update(m_deltaTime);
 
 		if (!m_paused)
 		{
@@ -79,6 +90,8 @@ void Game::run()
 void Game::setPaused()
 {
 	m_paused = !m_paused;
+
+	m_game_clock->pause(m_paused);
 }
 
 // SPAWNS ////////////////////////////////////////////////////////////
