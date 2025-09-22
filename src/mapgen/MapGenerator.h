@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SharedContainer.h"
+
 // CHUNK HASH			///////////////////////////
 struct Vector2iHash {
 	std::size_t operator()(const sf::Vector2i& v) const noexcept {
@@ -41,53 +43,55 @@ public:
 		std::vector<std::shared_ptr<sf::Text>>	d_noise;
 	};
 
+	using ChunkMap = std::unordered_map<sf::Vector2i, std::shared_ptr<Chunk>, Vector2iHash>;
+
 private:
 	// CHUNK variables
-	std::unordered_map<sf::Vector2i, std::shared_ptr<Chunk>, Vector2iHash>		m_chunks;
-	std::atomic<sf::Vector2i>													m_cameraPos;
-	std::atomic<sf::Vector2i>													m_viewSize;
-	ThreadSafeQueue<std::shared_ptr<Chunk>>										m_readyChunks;
-	std::mutex																	m_chunksMutex;
-	const int																	maxChunksPerCycle{ 8 };	// maximum chunk generators
-	const int																	m_chunkSize{ 32 };		// chunk tile size
-	const int																	m_unloadMargin{ 5 };	// chunks beyond view before unloading 
+	ChunkMap	c_chunks;
+	int			c_chunk_size;
+	int			c_chunk_margin;
+
+	// SHARED variables
+	std::atomic<sf::Vector2i>	s_camera_position;
+	std::atomic<sf::Vector2i>	s_view_size;
+	std::atomic<bool>			s_running{ true };
 	
 	// THREAD Variables
-	std::thread						m_workerThread;
-	std::atomic<bool>				m_running{ true };
-	ThreadSafeQueue<sf::Vector2i>	m_requestQueue;
+	BS::thread_pool<>							t_threads{ 3 };
+	std::mutex									t_mutex;
+	SharedContainer<std::shared_ptr<Chunk>>		tc_chunks_ready;
+	SharedContainer<sf::Vector2i>				tc_chunks_in_queue;
 	
 	// MAP Variables
-	int					m_tile_size_px{ 0 };
-	int					m_seed{ 0 };
+	int					m_tile_size_px;
+	int					m_seed;
 
-	float				m_cont_multiplier{ 0.018f };
-	float				m_mineral_multiplier{ 0.15f };
+	float				m_cont_multiplier;
+	float				m_mineral_multiplier;
 
-	double				m_cont_freq{ 0.023 };
-	double				m_warp_freq{ 0.007 };
-	double				m_mineral_freq{ 0.004 };
+	double				m_cont_freq;
+	double				m_warp_freq;
+	double				m_mineral_freq;
 
-
-	FastNoiseLite		m_continentNoise;
-	FastNoiseLite		m_warpNoise;
-	FastNoiseLite		m_mineralNoise;
+	FastNoiseLite		m_noise_continent;
+	FastNoiseLite		m_noise_wrap;
+	FastNoiseLite		m_noise_mineral;
 
 	std::unordered_map<Elements, sf::Color>		m_biomes;
 	std::unordered_map<Elements, float>			m_thresholds;
+
+	// INHERITED variables
+	int& i_frames;
 
 	// DEBUG variables
 	sf::Font	d_font;
 	bool		d_noise_val{ false };
 	bool		d_wire_frame{ false };
 
-	// INHERITED variables
-	int&		i_frames;
-
 	// GENERATE MAP SUPPORT FUNCTIONS
-	std::shared_ptr<Chunk>&		generateChunk(const int height, const int width, const sf::Vector2i& position);
+	std::shared_ptr<Chunk>		generateChunk(const int height, const int width, const sf::Vector2i& position);
 	sf::Color					getBiomeColor(float height, float temp);
-	void						startWorker();
+	void						startChunksGenerator();
 
 	sf::Vector2f worldToTile(sf::Vector2f pos) const;
 	sf::Vector2f tileToWorld(sf::Vector2f tile) const;
@@ -98,27 +102,16 @@ public:
 	bool m_reset{ false };
 
 	// CONSTRUCTORS
-	MapGenerator(sf::Font& font, int& frames, const std::string& biomes_file)
+	MapGenerator(sf::Font& font, int& frames,const std::string& map_file)
 		: d_font(font)
 		, i_frames(frames)
 	{
-		// Set Noises
-		m_continentNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-		m_continentNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-
-		m_warpNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-		m_warpNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-
-		m_mineralNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-		m_mineralNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
-
-		setNoises();
+		// Create json
+		std::ifstream f(map_file);
+		nlohmann::json js_map = nlohmann::json::parse(f);
 
 		// Construct biomes and heights objs
-		std::ifstream f(biomes_file);
-		nlohmann::json j = nlohmann::json::parse(f);
-
-		for (auto& [key, value] : j["elements"].items()) {
+		for (auto& [key, value] : js_map["elements"].items()) {
 			m_biomes[static_cast<Elements>(std::stoi(key))] = {
 				static_cast<std::uint8_t>(value[0]),
 				static_cast<std::uint8_t>(value[1]),
@@ -126,30 +119,50 @@ public:
 			};
 		}
 
-		for (auto& [key, value] : j["heights"].items()) {
+		for (auto& [key, value] : js_map["heights"].items()) {
 			m_thresholds[static_cast<Elements>(std::stoi(key))] = value.get<float>();
 		}
 
 		// Initiate variables
-		m_tile_size_px = j["tile_size"];
+		m_tile_size_px = js_map["tile_size"];
 		m_seed = Random::get(1, 1000000);
+		c_chunk_size = js_map["chunk_tile_size"];
+		c_chunk_margin = js_map["chunk_margin"];
+
+		m_cont_multiplier = static_cast<float>(js_map["cont_multiplier"]);
+		m_mineral_multiplier = static_cast<float>(js_map["mineral_multiplier"]);
+		m_cont_freq = static_cast<float>(js_map["cont_freq"]);
+		m_warp_freq = static_cast<float>(js_map["warp_freq"]);
+		m_mineral_freq = static_cast<float>(js_map["mineral_freq"]);
+
+		// Set Noises
+		m_noise_continent.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+		m_noise_continent.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+		m_noise_wrap.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_noise_wrap.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+		m_noise_mineral.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_noise_mineral.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+		setNoises();
 
 		// Generate Thread
-		m_workerThread = std::thread(&MapGenerator::startWorker, this);
+		t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
+		t_threads.submit_task([this] { startChunksGenerator(); });
+		t_threads.submit_task([this] { startChunksGenerator(); });
 	}
 
 	// DECONSTRUCTOR
 	~MapGenerator()
 	{
 		// Thread cleaning
-		m_running = false;
-		m_requestQueue.shutdown();
-		if (m_workerThread.joinable())
-			m_workerThread.join();
+		s_running = false;
 	}
 
 	// RENDERING
 	void render(const sf::IntRect& viewBounds, sf::RenderTarget& window);
+	void fillQueueChunks();
 
 	// SETTERS
 	void setSeed(int seed = Random::get(1, 1000000))	{ m_seed = seed; }

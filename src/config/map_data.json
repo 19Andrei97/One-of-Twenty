@@ -1,5 +1,14 @@
 {
     "tile_size": 16,
+    "chunk_tile_size": 32,
+    "chunk_margin": 2,
+
+    "cont_multiplier": 0.018,
+    "mineral_multiplier": 0.15,
+
+    "cont_freq": 0.023,
+    "warp_freq": 0.007,
+    "mineral_freq": 0.004,
 
     "elements": {
         "0": [0, 0, 90],

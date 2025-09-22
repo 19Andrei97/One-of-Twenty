@@ -176,11 +176,11 @@
     <ClInclude Include="src\game_manager\Game.h" />
     <ClInclude Include="src\helpers\json.h" />
     <ClInclude Include="src\helpers\Logger.h" />
-    <ClInclude Include="src\helpers\ThreadSafeQueue.h" />
     <ClInclude Include="src\hud\Hud.h" />
     <ClInclude Include="src\mapgen\MapGenerator.h" />
     <ClInclude Include="src\helpers\Random.h" />
     <ClInclude Include="src\helpers\pch.h" />
+    <ClInclude Include="src\helpers\SharedContainer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\config\config.json" />

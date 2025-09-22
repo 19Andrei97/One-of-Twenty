@@ -15,7 +15,6 @@
 // Custom headers
 #include "FastNoiseLite.h"
 #include "Random.h"
-#include "ThreadSafeQueue.h"
 #include "json.h"
 #include "Components_HUD.h"
 #include "Logger.h"
@@ -28,5 +27,5 @@
 // ENTT library
 #include <entt/entt.hpp>
 
-// spdlog library
-//#include <spdlog/spdlog.h>
+// thread-pool library
+#include <BS_thread_pool.hpp>

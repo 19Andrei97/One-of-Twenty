@@ -3,20 +3,70 @@
 #include "MapGenerator.h"
 
 /*
+*	Decide which color for the biome.
+*/
+sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
+
+	// Generate noise and wrap for natural environment
+	float warpX = worldX + m_noise_wrap.GetNoise(worldX, worldY) * 100.0f;
+	float warpY = worldY + m_noise_wrap.GetNoise(worldX, worldY) * 100.0f;
+	float continent = (m_noise_continent.GetNoise(warpX * m_cont_multiplier, warpY * m_cont_multiplier) + 1.0f) * 0.5f;
+
+	// Generate mineral noise
+	float mineral = (m_noise_mineral.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
+
+	// --- OCEAN ---
+
+	if (continent < m_thresholds[Elements::very_deep_ocean]) return m_biomes[Elements::very_deep_ocean];
+	if (continent < m_thresholds[Elements::deep_ocean]) return m_biomes[Elements::deep_ocean];
+	if (continent < m_thresholds[Elements::ocean]) return m_biomes[Elements::ocean];
+	if (continent < m_thresholds[Elements::sand]) return m_biomes[Elements::sand];
+
+	// --- CONTINENT ---
+	if (continent < m_thresholds[Elements::hill])
+	{
+		if (mineral > m_thresholds[Elements::clay])
+			return m_biomes[Elements::clay];
+
+		return m_biomes[Elements::hill];
+	}
+
+	if (continent < m_thresholds[Elements::forest])
+	{
+		if (mineral > m_thresholds[Elements::iron])
+			return m_biomes[Elements::iron];
+
+		return m_biomes[Elements::forest];
+	}
+
+
+	if (continent < m_thresholds[Elements::muntain])
+	{
+		if (mineral > m_thresholds[Elements::silver])
+			return m_biomes[Elements::silver];
+
+		return m_biomes[Elements::muntain];
+	}
+
+
+	return m_biomes[Elements::snow];
+}
+
+/*
 *	Generate a chunk of terrain based on height and width in tiles. Position is the top left of the chunk
 */
-std::shared_ptr<MapGenerator::Chunk>& MapGenerator::generateChunk(const int height, const int width, const sf::Vector2i& position)
+std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int height, const int width, const sf::Vector2i& position)
 {
 	auto chunk		= std::make_shared<Chunk>();
 	chunk->position = position;
 	chunk->vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
 
 	// Step 1: store colors of all tiles
-	std::vector<std::vector<sf::Color>> colors(m_chunkSize * m_chunkSize, std::vector<sf::Color>(m_chunkSize * m_chunkSize));
+	std::vector<std::vector<sf::Color>> colors(height * width, std::vector<sf::Color>(height * width));
 
-	for (int ty = 0; ty < m_chunkSize * m_chunkSize; ty += m_tile_size_px) 
+	for (int ty = 0; ty < height * width; ty += m_tile_size_px)
 	{
-		for (int tx = 0; tx < m_chunkSize * m_chunkSize; tx += m_tile_size_px) 
+		for (int tx = 0; tx < height * width; tx += m_tile_size_px)
 		{
 			float worldX = position.x + tx;
 			float worldY = position.y + ty;
@@ -25,7 +75,7 @@ std::shared_ptr<MapGenerator::Chunk>& MapGenerator::generateChunk(const int heig
 		}
 	}
 
-	int tiles_per_side{ m_chunkSize * m_chunkSize / m_tile_size_px };
+	int tiles_per_side{ height * width / m_tile_size_px };
 
 	// Step 2: scan rectangles of same color
 	std::vector<std::vector<bool>> visited(tiles_per_side, std::vector<bool>(tiles_per_side, false));
@@ -91,99 +141,29 @@ std::shared_ptr<MapGenerator::Chunk>& MapGenerator::generateChunk(const int heig
 		}
 	}
 
-	m_chunks[position] = chunk;
-
 	return chunk;
 }
 
 /*
-*	Decide which color for the biome.
+*	Generate chunks if needed. (made to run on separate thread)
 */
-sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
+void MapGenerator::startChunksGenerator()
+{ 
+	while (s_running) 
+	{ 
+		std::optional<sf::Vector2i> optChunkPos = tc_chunks_in_queue.pop();
 
-	// Generate noise and wrap for natural environment
-	float warpX = worldX + m_warpNoise.GetNoise(worldX, worldY) * 100.0f;
-	float warpY = worldY + m_warpNoise.GetNoise(worldX, worldY) * 100.0f;
-	float continent = (m_continentNoise.GetNoise(warpX * m_cont_multiplier, warpY * m_cont_multiplier) + 1.0f) * 0.5f;
+		if (!optChunkPos.has_value()) 
+		{ 
+			std::this_thread::sleep_for(std::chrono::milliseconds(5)); 
+			continue; 
+		} 
+	
+		auto chunk = generateChunk(c_chunk_size, c_chunk_size, *optChunkPos);
 
-	// Generate mineral noise
-	float mineral = (m_mineralNoise.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
-
-	// --- OCEAN ---
-
-	if (continent < m_thresholds[Elements::very_deep_ocean]) return m_biomes[Elements::very_deep_ocean];
-	if (continent < m_thresholds[Elements::deep_ocean]) return m_biomes[Elements::deep_ocean];
-	if (continent < m_thresholds[Elements::ocean]) return m_biomes[Elements::ocean];
-	if (continent < m_thresholds[Elements::sand]) return m_biomes[Elements::sand];
-
-	// --- CONTINENT ---
-	if (continent < m_thresholds[Elements::hill])
-	{
-		if (mineral > m_thresholds[Elements::clay])
-			return m_biomes[Elements::clay];
-
-		return m_biomes[Elements::hill];
-	}
-
-	if (continent < m_thresholds[Elements::forest])
-	{
-		if (mineral > m_thresholds[Elements::iron])
-			return m_biomes[Elements::iron];
-
-		return m_biomes[Elements::forest];
-	}
-		
-		
-	if (continent < m_thresholds[Elements::muntain])
-	{
-		if (mineral > m_thresholds[Elements::silver])
-			return m_biomes[Elements::silver];
-
-		return m_biomes[Elements::muntain];
-	}
-		
-		
-	return m_biomes[Elements::snow];
-}
-
-/*
-*	Starts another thread. Check view boundaries and generate chunks if needed.
-*/
-void MapGenerator::startWorker() {
-	while (m_running) {
-		sf::Vector2i alignedPos = m_cameraPos.load();
-		sf::Vector2i viewSize = m_viewSize.load();
-		int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
-
-		// Find missing chunks
-		int generated = 0;
-		for (int y = alignedPos.y - num_tiles_per_chunk;
-			y < alignedPos.y + viewSize.y + num_tiles_per_chunk;
-			y += num_tiles_per_chunk)
-		{
-			for (int x = alignedPos.x - num_tiles_per_chunk;
-				x < alignedPos.x + viewSize.x + num_tiles_per_chunk;
-				x += num_tiles_per_chunk)
-			{
-				if (generated >= maxChunksPerCycle) break;
-
-				sf::Vector2i chunkPos(x, y);
-
-				{ // lock to check m_chunks safely
-					std::lock_guard<std::mutex> lock(m_chunksMutex);
-					if (m_chunks.find(chunkPos) != m_chunks.end()) continue;
-				}
-
-				// Create the chunk directly in this thread
-				auto chunk = generateChunk(m_chunkSize, m_chunkSize, chunkPos);
-				m_readyChunks.push(chunk);
-				++generated;
-			}
-		}
-
-		// Sleep a bit so we’re not burning CPU
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
-	}
+		std::lock_guard<std::mutex> lock(t_mutex);
+		tc_chunks_ready.push(chunk);
+	} 
 }
 
 /*
@@ -223,7 +203,7 @@ bool chunkInView(const sf::Vector2i& chunkPos, const sf::Vector2i& chunkSize, co
 *	Render chunks based on view boundaries.
 */
 void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& window) {
-	int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
+	int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
 	sf::Vector2i chunk_alligned_position = getNextChunkPosition(viewBounds.position, num_tiles_per_chunk);
 
 	// UPDATE in case of changes, only every 20 frames
@@ -234,33 +214,31 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 		setNoises();
 		print();
 
-		std::lock_guard<std::mutex> lock(m_chunksMutex);
-		m_chunks.clear();
+		std::lock_guard<std::mutex> lock(t_mutex);
+		c_chunks.clear();
 	}
 	
 	// Send camera data to worker
-	m_cameraPos.store(chunk_alligned_position);
-	m_viewSize.store(viewBounds.size);
+	s_camera_position.store(chunk_alligned_position);
+	s_view_size.store(viewBounds.size);
 
 	// Pull ready chunks from worker
 	while (true) 
 	{
-		auto optChunk = m_readyChunks.tryPop();
-		if (!optChunk.has_value()) break; // No more chunks ready
+		if (tc_chunks_ready.empty()) break; // No more chunks ready
 
-		auto& chunk = *optChunk; // Dereference optional
-		{
-			std::lock_guard<std::mutex> lock(m_chunksMutex);
-			m_chunks[chunk->position] = std::move(chunk);
-		}
+		auto chunk = tc_chunks_ready.pop();
+
+		std::lock_guard<std::mutex> lock(t_mutex);
+		c_chunks[(*chunk)->position] = *chunk;
 	}
 
 	// Calculate visible chunks
 	std::vector<std::shared_ptr<Chunk>> visibleChunks;
 	{
-		std::lock_guard<std::mutex> lock(m_chunksMutex);
+		std::lock_guard<std::mutex> lock(t_mutex);
 
-		for (auto it = m_chunks.begin(); it != m_chunks.end(); ) 
+		for (auto it = c_chunks.begin(); it != c_chunks.end(); ) 
 		{
 			const sf::Vector2i& pos = it->first;
 
@@ -278,11 +256,11 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 				int dx = std::abs(chunkCenter.x - viewCenter.x) / num_tiles_per_chunk;
 				int dy = std::abs(chunkCenter.y - viewCenter.y) / num_tiles_per_chunk;
 
-				if (dx > (viewBounds.size.x / num_tiles_per_chunk) / 2 + m_unloadMargin ||
-					dy > (viewBounds.size.y / num_tiles_per_chunk) / 2 + m_unloadMargin) 
+				if (dx > (viewBounds.size.x / num_tiles_per_chunk) / 2 + c_chunk_margin ||
+					dy > (viewBounds.size.y / num_tiles_per_chunk) / 2 + c_chunk_margin) 
 				{
 					// Too far — unload it
-					it = m_chunks.erase(it);
+					it = c_chunks.erase(it);
 				}
 				else {
 					++it;
@@ -323,7 +301,40 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 		}
 	}
 
-	//std::cout << m_chunks.size() << '\n';
+	//std::cout << c_chunks.size() << '\n';
+}
+
+/*
+*	Function to fill the queue of chunks to generate. (Made to be run on different thread)
+*/
+void MapGenerator::fillQueueChunks()
+{
+	while (s_running)
+	{
+		sf::Vector2i alignedPos = s_camera_position.load();
+		sf::Vector2i viewSize	= s_view_size.load();
+		int num_tiles_per_chunk	{ c_chunk_size * c_chunk_size };
+		int num_tile_plus		{ num_tiles_per_chunk * c_chunk_margin };
+
+		// Find missing chunks and add them to the queue
+		for (int y = alignedPos.y - num_tile_plus; y < alignedPos.y + viewSize.y + num_tile_plus; y += num_tiles_per_chunk)
+		{
+			for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += num_tiles_per_chunk)
+			{
+				sf::Vector2i chunkPos(x, y); 
+				
+				{
+					std::lock_guard<std::mutex> lock(t_mutex);
+					if (c_chunks.find(chunkPos) != c_chunks.end() || tc_chunks_ready.containsPosition(chunkPos) || tc_chunks_in_queue.contains(chunkPos))
+						continue;
+				}
+				
+				tc_chunks_in_queue.push(chunkPos);
+			}
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
+	}
 }
 
 /*
@@ -331,14 +342,14 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 */
 void MapGenerator::setNoises()
 {
-	m_continentNoise.SetSeed(m_seed);
-	m_continentNoise.SetFrequency(m_cont_freq);
+	m_noise_continent.SetSeed(m_seed);
+	m_noise_continent.SetFrequency(m_cont_freq);
 	
-	m_warpNoise.SetSeed(m_seed);
-	m_warpNoise.SetFrequency(m_warp_freq);
+	m_noise_wrap.SetSeed(m_seed);
+	m_noise_wrap.SetFrequency(m_warp_freq);
 
-	m_mineralNoise.SetSeed(m_seed);
-	m_mineralNoise.SetFrequency(m_mineral_freq);
+	m_noise_mineral.SetSeed(m_seed);
+	m_noise_mineral.SetFrequency(m_mineral_freq);
 }
 
 /*
@@ -348,15 +359,15 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 {
     std::vector<std::string> result;
 
-    int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
+    int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
     sf::Vector2i chunkPos = getNextChunkPosition
 							(
 								sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
 								num_tiles_per_chunk
 							);
 
-    auto it = m_chunks.find(chunkPos);
-    if (it == m_chunks.end() || !it->second)
+    auto it = c_chunks.find(chunkPos);
+    if (it == c_chunks.end() || !it->second)
     {
         result.push_back("Unknown");
         return result;
@@ -392,15 +403,15 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 */
 sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radius)
 {
-	int num_tiles_per_chunk = m_chunkSize * m_chunkSize;
+	int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
 	sf::Vector2i chunkPos = getNextChunkPosition
 	(
 		sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
 		num_tiles_per_chunk
 	);
 
-	auto it = m_chunks.find(chunkPos);
-	if (it == m_chunks.end() || !it->second)
+	auto it = c_chunks.find(chunkPos);
+	if (it == c_chunks.end() || !it->second)
 	{
 		return pos; // If chunk is not found return current position
 	}

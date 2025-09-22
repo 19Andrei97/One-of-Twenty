@@ -59,9 +59,6 @@
     <ClInclude Include="src\camera\Camera.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
-    <ClInclude Include="src\helpers\ThreadSafeQueue.h">
-      <Filter>File di intestazione</Filter>
-    </ClInclude>
     <ClInclude Include="src\hud\Hud.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
@@ -78,6 +75,9 @@
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="src\helpers\GameClock.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="src\helpers\SharedContainer.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
   </ItemGroup>
