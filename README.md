@@ -7,19 +7,20 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 - C++17 compatible compiler (Visual Studio 2022 recommended)
 - [SFML](https://www.sfml-dev.org/) (Simple and Fast Multimedia Library)
 - [entt](https://github.com/skypjack/entt) (Entity Component System by Michele Caini)
+- [thread-pool](https://github.com/bshoshany/thread-pool) (Thread Manager by Barak Shoshany)
 
 ## Installation
 
 1. Clone the repository.
 2. Install SFML and configure your project to include it.
-3. Install entt, you can follow the how to in their github project.
-4. Build using Visual Studio 2022 or another C++17 compatible compiler.
+3. Install entt, you can follow the how to in the github project.
+4. Install thread-pool, you can follow the how to the github project.
+5. Build using Visual Studio 2022 or another C++17 compatible compiler.
 
 ## TODO
 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
-- Implement thread handler class. FIX often queues same chunk few times.
 
 ### MapGenerator
 - Add rivers?
