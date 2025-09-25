@@ -62,7 +62,7 @@ Game::Game(const std::string& path)
 
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");
-	m_entity_manager = std::make_unique<EntityManager>(m_font, m_map, m_game_clock);
+	m_entity_manager = std::make_unique<EntityManager>(m_font, m_map, m_game_clock, m_deltaTime);
 }
 
 void Game::run()

@@ -39,8 +39,8 @@ void EntityManager::update()
 				direction.x /= distance;   // normalize x
 				direction.y /= distance;   // normalize y
 
-				trs.pos.x += direction.x * trs.speed; // TO DO ADD DELTA TIME
-				trs.pos.y += direction.y * trs.speed;
+				trs.pos.x += direction.x * trs.speed * m_delta_time;
+				trs.pos.y += direction.y * trs.speed * m_delta_time;
 			}
 			else
 			{
@@ -96,6 +96,18 @@ void EntityManager::update()
 				LOG_INFO("Entity {} finished drinking.", (int)entity);
 			}
 		}
+		else if (auto action = std::dynamic_pointer_cast<CSleeping>(queue.actions.front()))
+		{
+			if (m_game_clock->getTimestamp() - action->timestamp_min > action->duration_min)
+			{
+				needs.sleep = 0;
+
+				std::lock_guard<std::mutex> lock(m_mutex);
+				queue.actions.pop_front();
+
+				LOG_INFO("Entity {} finished sleeping.", (int)entity);
+			}
+		}
 
 		// UPDATING NEEDS
 		if (m_game_clock->getHour() != m_last_updated_hour)
@@ -104,10 +116,6 @@ void EntityManager::update()
 			needs.hunger = std::max(0, needs.hunger - 5);
 			needs.thirst = std::max(0, needs.thirst - 10);
 			needs.sleep = std::min(needs.sleep + 2, 100);
-
-			//LOG_INFO("Hunger: {}", needs.hunger);
-			//LOG_INFO("Thirst: {}", needs.thirst);
-			//LOG_INFO("Sleep: {}", needs.sleep);
 
 			m_last_updated_hour = m_game_clock->getHour();
 		}
@@ -159,6 +167,26 @@ void EntityManager::update()
 					queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, pos));
 					queue.actions.push_back(std::make_shared<CEating>(ActionTypes::Eating, m_game_clock->getTimestamp()));
 				}
+			}
+		}
+
+		// Checking if need sleeping
+		if (needs.sleep > 90)
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+
+			// Checking if action is present
+			auto it = std::find_if(queue.actions.begin(), queue.actions.end(),
+				[](const std::shared_ptr<CAction>& act)
+				{
+					return dynamic_cast<CSleeping*>(act.get()) != nullptr;
+				});
+
+			if (it == queue.actions.end())
+			{
+				LOG_INFO("Entity {} needs to sleep.", (int)entity);
+
+				queue.actions.push_back(std::make_shared<CSleeping>(ActionTypes::Sleeping, m_game_clock->getTimestamp()));
 			}
 		}
 	});
@@ -265,7 +293,7 @@ void EntityManager::addEntity(const EntityType& type)
 
 	m_registry->emplace<CType>(entity, type);
 	m_registry->emplace<CLifespan>(entity, 100);
-	m_registry->emplace<CTransform>(entity, sf::Vector2f{ 0.0f, 0.0f }, 1.f);
+	m_registry->emplace<CTransform>(entity, sf::Vector2f{ 0.0f, 0.0f }, 100.f);
 	m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
 	m_registry->emplace<CVision>(entity);
 	m_registry->emplace<CMemory>(entity);

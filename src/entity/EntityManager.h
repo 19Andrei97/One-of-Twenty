@@ -8,6 +8,7 @@ class EntityManager
 
 	int								m_last_updated_hour{ 0 };
 	int								m_total_entities{ 0 };
+	float&							m_delta_time;
 	sf::Font&						m_font;
 	std::unique_ptr<entt::registry>	m_registry;
 	std::shared_ptr<MapGenerator>	m_map;
@@ -20,10 +21,11 @@ public:
 	bool show_vision = false;
 
 	// CONSTRUCTOR
-	EntityManager(sf::Font& font, std::shared_ptr<MapGenerator> map, std::shared_ptr<GameClock> clock)
+	EntityManager(sf::Font& font, std::shared_ptr<MapGenerator> map, std::shared_ptr<GameClock> clock, float& deltatime)
 		: m_font(font)
 		, m_map(map)
 		, m_game_clock(clock)
+		, m_delta_time(deltatime)
 	{
 		m_registry = std::make_unique<entt::registry>();
 

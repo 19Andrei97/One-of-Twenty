@@ -65,10 +65,6 @@ struct CBasicNeeds
     int hunger{ 100 };
     int sleep{ 0 };
 
-    bool drinking{ false };
-    bool eating{ false };
-    bool sleeping{ false };
-
     CBasicNeeds()
     {}
 };
@@ -201,6 +197,16 @@ struct CDrinking : public CAction
     int duration_min{ 30 };
 
     CDrinking(ActionTypes type, std::int64_t stamp)
+        : CAction(type), timestamp_min(stamp) {
+    }
+};
+
+struct CSleeping : public CAction
+{
+    std::int64_t timestamp_min{ 0 };
+    int duration_min{ 500 };
+
+    CSleeping(ActionTypes type, std::int64_t stamp)
         : CAction(type), timestamp_min(stamp) {
     }
 };
