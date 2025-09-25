@@ -27,6 +27,13 @@ public:
     int getHour() const { return m_hour; }
     int getMinute() const { return m_minute; }
     int getDays() const { return m_days; }
+    // Return the total minutes from the beginning of the simulation
+    std::int64_t getTimestamp() const 
+    {
+        return static_cast<std::int64_t>(m_days) * 24 * 60
+            + static_cast<std::int64_t>(m_hour) * 60
+            + m_minute;
+    }
 
     // Triggered when a new day starts
     void onNewDay(std::function<void()> callback) { m_newDayCallback = callback; }

@@ -27,7 +27,7 @@ class Hud
 	sf::View						m_camera;
 	std::shared_ptr<MapGenerator>	m_map;
 
-	// VECTORS ELEMENTS
+	// ELEMENTS
 	std::vector<std::unique_ptr<CButton>>		buttons;
 	std::vector<std::unique_ptr<CInputBox>>		inputs;
 	std::vector<std::unique_ptr<CSlider>>		sliders;

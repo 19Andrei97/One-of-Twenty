@@ -8,6 +8,7 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 - [SFML](https://www.sfml-dev.org/) (Simple and Fast Multimedia Library)
 - [entt](https://github.com/skypjack/entt) (Entity Component System by Michele Caini)
 - [thread-pool](https://github.com/bshoshany/thread-pool) (Thread Manager by Barak Shoshany)
+- [nlohmann-json](https://github.com/nlohmann/json) (JSON parser by Niels Lohmann)
 
 ## Installation
 
@@ -15,7 +16,8 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 2. Install SFML and configure your project to include it.
 3. Install entt, you can follow the how to in the github project.
 4. Install thread-pool, you can follow the how to the github project.
-5. Build using Visual Studio 2022 or another C++17 compatible compiler.
+5. Install nlohmann-json, you can follow the how to the github project.
+6. Build using Visual Studio 2022 or another C++17 compatible compiler.
 
 ## TODO
 

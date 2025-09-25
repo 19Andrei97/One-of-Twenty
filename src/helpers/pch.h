@@ -15,7 +15,6 @@
 // Custom headers
 #include "FastNoiseLite.h"
 #include "Random.h"
-#include "json.h"
 #include "Components_HUD.h"
 #include "Logger.h"
 #include "GameClock.h"
@@ -29,3 +28,6 @@
 
 // thread-pool library
 #include <BS_thread_pool.hpp>
+
+// nlohmann-json library
+#include <nlohmann/json.hpp>

@@ -190,22 +190,19 @@ void Hud::render(sf::RenderTarget& window)
 	}
 
 	// RENDER INFO BOX
+	if (info_box && info_box->m_text.size() >= 1)
 	{
-		if (info_box && info_box->m_text.size() >= 1)
+		window.draw(info_box->m_rect);
+
+		int text_space{ 0 };
+		for (auto& text : info_box->m_text)
 		{
-			window.draw(info_box->m_rect);
+			text->setPosition({ info_box->m_pos.x + 20, info_box->m_pos.y + 20 + text_space });
+			window.draw(*(text));
 
-			int text_space{ 0 };
-			for (auto& text : info_box->m_text)
-			{
-				text->setPosition({ info_box->m_pos.x + 20, info_box->m_pos.y + 20 + text_space });
-				window.draw(*(text));
-
-				text_space += 20;
-			}
+			text_space += 20;
 		}
 	}
-
 }
 
 bool Hud::checkClick(const std::unique_ptr<CButton>& obj, const sf::Vector2f& mouse_pos)

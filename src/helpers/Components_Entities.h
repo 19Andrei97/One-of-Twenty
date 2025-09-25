@@ -6,7 +6,9 @@
 #include <iostream>
 #include <unordered_map>
 
-enum class PersonalityTrait {
+
+enum class PersonalityTrait
+{
     Brave,
     Curious,
     Greedy,
@@ -18,7 +20,8 @@ enum class PersonalityTrait {
     End
 };
 
-enum class EntityType {
+enum class EntityType 
+{
     Human_Generic,
     Human_Farmer,
     Human_Lumberjack,
@@ -26,7 +29,17 @@ enum class EntityType {
     Animal_Cat
 };
 
-struct CType {
+enum class ActionTypes 
+{
+    Moving,
+    Eating,
+    Drinking,
+    Sleeping,
+    Idle
+};
+
+struct CType 
+{
     EntityType type;
 
     CType(const EntityType& t)
@@ -90,7 +103,6 @@ struct CMemory
 
 struct CTransform
 {
-    bool            has_target{ false };
     float           speed{ 0.f };
 	sf::Vector2f    pos{ 0.f, 0.f };
     sf::Vector2f    target{ 0.f, 0.f };
@@ -151,4 +163,74 @@ struct CInput
 	bool shoot{ false };
 
 	CInput() {}
+};
+
+
+// ACTIONS
+
+struct CAction
+{
+    ActionTypes action_name;
+
+    CAction(ActionTypes action) : action_name(action) {}
+    virtual ~CAction() = default;
+};
+
+struct CMoving : public CAction
+{
+    sf::Vector2f target;
+
+    CMoving(ActionTypes type, const sf::Vector2f& tgt = { 0.f, 0.f })
+        : CAction(type), target(tgt) {
+    }
+};
+
+struct CEating : public CAction
+{
+    std::int64_t timestamp_min{ 0 };
+    int duration_min{ 30 };
+
+    CEating(ActionTypes type, std::int64_t stamp)
+        : CAction(type), timestamp_min(stamp) {
+    }
+};
+
+struct CDrinking : public CAction
+{
+    std::int64_t timestamp_min{ 0 };
+    int duration_min{ 30 };
+
+    CDrinking(ActionTypes type, std::int64_t stamp)
+        : CAction(type), timestamp_min(stamp) {
+    }
+};
+
+struct CActionsQueue
+{
+    std::list<std::shared_ptr<CAction>> actions;
+};
+
+// HUD 
+class CEntityInfo
+{
+public:
+    sf::RectangleShape     shape;
+    std::vector<sf::Text>  text;
+    sf::Color              text_color;
+    int                    size;
+
+    CEntityInfo
+    (
+        float width,
+        float height,
+        const sf::Color& fill = { 0, 0, 0, 128 }, // black 50% transparent
+        const sf::Color& p_text_color = sf::Color::White,
+        unsigned int charSize = 12U
+    )
+        : shape({ width, height })
+        , text_color(p_text_color)
+        , size(charSize)
+    {
+        shape.setFillColor(fill);
+    }
 };

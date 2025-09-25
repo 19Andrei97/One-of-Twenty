@@ -174,7 +174,6 @@
     <ClInclude Include="src\helpers\Components_HUD.h" />
     <ClInclude Include="src\helpers\FastNoiseLite.h" />
     <ClInclude Include="src\game_manager\Game.h" />
-    <ClInclude Include="src\helpers\json.h" />
     <ClInclude Include="src\helpers\Logger.h" />
     <ClInclude Include="src\hud\Hud.h" />
     <ClInclude Include="src\mapgen\MapGenerator.h" />

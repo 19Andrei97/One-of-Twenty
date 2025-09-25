@@ -5,22 +5,30 @@
 
 class EntityManager
 {
+
+	int								m_last_updated_hour{ 0 };
+	int								m_total_entities{ 0 };
+	sf::Font&						m_font;
 	std::unique_ptr<entt::registry>	m_registry;
 	std::shared_ptr<MapGenerator>	m_map;
 	std::shared_ptr<GameClock>		m_game_clock;
-	int								m_last_updated_hour{ 0 };
-	int								m_totalEntities{ 0 };
+	std::mutex						m_mutex;
+	BS::thread_pool<>				m_threads{ 2 };
 
 public:
 
-	bool show_vision = true;
+	bool show_vision = false;
 
 	// CONSTRUCTOR
-	EntityManager(std::shared_ptr<MapGenerator> map, std::shared_ptr<GameClock> clock)
-		: m_map(map)
+	EntityManager(sf::Font& font, std::shared_ptr<MapGenerator> map, std::shared_ptr<GameClock> clock)
+		: m_font(font)
+		, m_map(map)
 		, m_game_clock(clock)
 	{
 		m_registry = std::make_unique<entt::registry>();
+
+		// THREADS TO BE IMPLEMENTED
+		//m_threads.submit_task([this] { startChunksGenerator(); });
 	}
 
 	// MAIN FUNCTIONS
