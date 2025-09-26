@@ -27,7 +27,6 @@ enum class Elements
 	clay,
 	iron,
 	silver
-
 };
 
 // MAP GENERATOR CLASS	///////////////////////////

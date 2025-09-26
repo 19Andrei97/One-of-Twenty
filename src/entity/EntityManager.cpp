@@ -24,6 +24,13 @@ void EntityManager::update()
 
 	// UPDATE ENTITIES
 
+	// Update Memory (candidate for another thread?)
+	m_registry->view<CTransform, CMemory, CVision>().each([&](auto entity, auto& trs, auto& memory, auto& vision)
+	{
+		memory.rememberLocation(m_map->getResourcesWithinBoundary(trs.pos, vision.radius));
+	});
+
+	// Moving
 	m_registry->view<CActionsQueue, CTransform>().each([&](auto entity, auto& queue, auto& trs)
 	{
 		if (queue.actions.empty())
@@ -56,9 +63,9 @@ void EntityManager::update()
 		}
 	});
 
+	// Random Target
 	m_registry->view<CActionsQueue, CTransform, CVision>().each([&](auto entity, auto& queue, auto& trs, auto& vision)
 	{
-		// GET RANDOM TARGET IF NO ACTION
 		if (queue.actions.empty())
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
@@ -66,12 +73,7 @@ void EntityManager::update()
 		}
 	});
 
-	m_registry->view<CTransform, CMemory, CVision>().each([&](auto entity, auto& trs, auto& memory, auto& vision)
-	{
-		// UPDATE MEMORY
-		memory.rememberLocation(m_map->getResourcesWithinBoundary(trs.pos, vision.radius));
-	});
-
+	// Needs system
 	m_registry->view<CActionsQueue, CBasicNeeds, CMemory>().each([&](auto entity, auto& queue, auto& needs, auto& memory)
 	{
 		if (queue.actions.empty())
@@ -86,8 +88,6 @@ void EntityManager::update()
 
 				std::lock_guard<std::mutex> lock(m_mutex);
 				queue.actions.pop_front();
-
-				LOG_INFO("Entity {} finished eating.", (int)entity);
 			}
 		}
 		else if(auto action = std::dynamic_pointer_cast<CDrinking>(queue.actions.front()))
@@ -98,8 +98,6 @@ void EntityManager::update()
 
 				std::lock_guard<std::mutex> lock(m_mutex);
 				queue.actions.pop_front();
-
-				LOG_INFO("Entity {} finished drinking.", (int)entity);
 			}
 		}
 		else if (auto action = std::dynamic_pointer_cast<CSleeping>(queue.actions.front()))
@@ -110,20 +108,18 @@ void EntityManager::update()
 
 				std::lock_guard<std::mutex> lock(m_mutex);
 				queue.actions.pop_front();
-
-				LOG_INFO("Entity {} finished sleeping.", (int)entity);
 			}
 		}
 
 		// UPDATING NEEDS
-		if (m_game_clock->getHour() != m_last_updated_hour)
+		if (m_game_clock->getHour() != needs.last_update)
 		{
 
 			needs.hunger = std::max(0, needs.hunger - 3);
 			needs.thirst = std::max(0, needs.thirst - 5);
 			needs.sleep = std::min(needs.sleep + 2, 100);
 
-			m_last_updated_hour = m_game_clock->getHour();
+			needs.last_update = m_game_clock->getHour();
 		}
 
 		// Checking if thirsty
@@ -140,12 +136,11 @@ void EntityManager::update()
 
 			if (it == queue.actions.end())
 			{ 
-				LOG_INFO("Entity {} is thirsty.", (int)entity);
-
-				auto pos = memory.getLocation(Elements::ocean);
-				if (pos.x != 0.f)
+				if (auto pos = memory.getLocation(Elements::ocean))
 				{
-					queue.actions.push_back(std::make_shared<CMoving>( ActionTypes::Moving, pos ));
+					LOG_DEBUG("[MEMORY] Water {} {}", pos->x, pos->y);
+
+					queue.actions.push_back(std::make_shared<CMoving>( ActionTypes::Moving, *pos));
 					queue.actions.push_back(std::make_shared<CDrinking>(ActionTypes::Drinking, m_game_clock->getTimestamp()));
 				}
 			}
@@ -165,12 +160,11 @@ void EntityManager::update()
 
 			if (it == queue.actions.end())
 			{
-				LOG_INFO("Entity {} is hungry.", (int)entity);
-
-				auto pos = memory.getLocation(Elements::hill);
-				if (pos.x != 0.f)
+				if (auto pos = memory.getLocation(Elements::hill))
 				{
-					queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, pos));
+					LOG_DEBUG("[MEMORY] Food {} {}", pos->x, pos->y);
+
+					queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, *pos));
 					queue.actions.push_back(std::make_shared<CEating>(ActionTypes::Eating, m_game_clock->getTimestamp()));
 				}
 			}
@@ -190,40 +184,59 @@ void EntityManager::update()
 
 			if (it == queue.actions.end())
 			{
-				LOG_INFO("Entity {} needs to sleep.", (int)entity);
-
 				queue.actions.push_back(std::make_shared<CSleeping>(ActionTypes::Sleeping, m_game_clock->getTimestamp()));
 			}
 		}
 	});
 
-	m_registry->view<CBasicNeeds, CEntityInfo>().each([&](auto entity, auto& needs, auto& info)
+	// Update Entity info box
+	m_registry->view<CActionsQueue, CBasicNeeds, CEntityInfo>().each([&](auto entity, auto& queue, auto& needs, auto& info)
 	{
 			if (info.text.empty())
 			{
 				// Hunger
-				info.text.push_back(sf::Text{ m_font });
-				info.text.back().setString("Hunger: " + std::to_string(needs.hunger));
-				info.text.back().setCharacterSize(info.size);
-				info.text.back().setFillColor(info.text_color);
+				addTextToEntityInfo(info.text, "Hunger: " + std::to_string(needs.hunger), info.size, info.text_color);
 
 				// Thirst
-				info.text.push_back(sf::Text{ m_font });
-				info.text.back().setString("Thirst: " + std::to_string(needs.thirst));
-				info.text.back().setCharacterSize(info.size);
-				info.text.back().setFillColor(info.text_color);
+				addTextToEntityInfo(info.text, "Thirst: " + std::to_string(needs.thirst), info.size, info.text_color);
 
 				// Sleep
-				info.text.push_back(sf::Text{ m_font });
-				info.text.back().setString("Sleep: " + std::to_string(needs.sleep));
-				info.text.back().setCharacterSize(info.size);
-				info.text.back().setFillColor(info.text_color);
+				addTextToEntityInfo(info.text, "Sleep: " + std::to_string(needs.sleep), info.size, info.text_color);
 			}
 			else
 			{
 				info.text[0].setString("Hunger: " + std::to_string(needs.hunger));
 				info.text[1].setString("Thirst: " + std::to_string(needs.thirst));
 				info.text[2].setString("Sleep: " + std::to_string(needs.sleep));
+
+				// Update current action
+				if(info.text.size() < 4)
+					addTextToEntityInfo(info.text, "Idle.", info.size, info.text_color);
+
+				if (queue.actions.empty())
+				{
+					info.text[3].setString("Idle.");
+					return;
+				}
+
+				switch (static_cast<int>(queue.actions.front()->action_name))
+				{
+				case static_cast<int>(ActionTypes::Moving):
+					info.text[3].setString("Moving.");
+					break;
+				case static_cast<int>(ActionTypes::Eating):
+					info.text[3].setString("Eating.");
+					break;
+				case static_cast<int>(ActionTypes::Sleeping):
+					info.text[3].setString("Sleeping.");
+					break;
+				case static_cast<int>(ActionTypes::Drinking):
+					info.text[3].setString("Drinking.");
+					break;
+
+				default:
+					info.text[3].setString("Idle.");
+				}
 			}
 	});
 
@@ -309,6 +322,7 @@ void EntityManager::addEntity(const EntityType& type)
 	++m_total_entities;
 }
 
+// Add a moving action with assosciated target position.
 void EntityManager::nextTarget(const EntityType& type, sf::Vector2f& target)
 {
 	m_registry->view<CActionsQueue, CTransform, CType>().each([&](auto entity, auto& queue, auto& trs, auto& tp)
@@ -318,4 +332,13 @@ void EntityManager::nextTarget(const EntityType& type, sf::Vector2f& target)
 			queue.actions.push_back(std::make_shared<CMoving>( ActionTypes::Moving, target ));
 
 	});
+}
+
+// HELPER FUNCTION
+void EntityManager::addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color)
+{
+	vec.emplace_back(sf::Text{ m_font });
+	vec.back().setString(s);
+	vec.back().setCharacterSize(size);
+	vec.back().setFillColor(color);
 }

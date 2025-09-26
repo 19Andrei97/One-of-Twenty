@@ -240,7 +240,7 @@ void Game::sUserInput()
 					m_hud->infoBox(m_map->getPositionInfo(worldPos));
 
 					// TESTING ENTITY MOVING
-					m_entity_manager->nextTarget(EntityType::Human_Generic, worldPos);
+					//m_entity_manager->nextTarget(EntityType::Human_Generic, worldPos);
 
 					break;
 				}

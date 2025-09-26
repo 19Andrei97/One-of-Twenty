@@ -65,8 +65,9 @@ struct CBasicNeeds
     int hunger{ 100 };
     int sleep{ 0 };
 
-    CBasicNeeds()
-    {}
+    int last_update{ 0 };
+
+    CBasicNeeds() {}
 };
 
 struct CMemory 
@@ -86,14 +87,14 @@ struct CMemory
             locations[key] = val;
     }
 
-    sf::Vector2f getLocation(const Elements& type)
+    std::optional<sf::Vector2f> getLocation(const Elements& type)
     {
         const auto& it = locations.find(type);
 
         if (it != locations.end())
             return it->second;
         else
-            return sf::Vector2f{ 0.f, 0.f };
+            return std::nullopt;
     }
 };
 
@@ -184,7 +185,7 @@ struct CMoving : public CAction
 struct CEating : public CAction
 {
     std::int64_t timestamp_min{ 0 };
-    int duration_min{ 30 };
+    int duration_min{ 45 };
 
     CEating(ActionTypes type, std::int64_t stamp)
         : CAction(type), timestamp_min(stamp) {
@@ -194,7 +195,7 @@ struct CEating : public CAction
 struct CDrinking : public CAction
 {
     std::int64_t timestamp_min{ 0 };
-    int duration_min{ 30 };
+    int duration_min{ 45 };
 
     CDrinking(ActionTypes type, std::int64_t stamp)
         : CAction(type), timestamp_min(stamp) {

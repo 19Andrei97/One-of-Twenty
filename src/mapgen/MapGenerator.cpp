@@ -399,7 +399,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 }
 
 /*
-*	Return a random coord in the provided radius != than water
+*	Return a random coord in px in the provided radius != than water
 */
 sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radius)
 {
@@ -437,47 +437,47 @@ std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBound
 {
 	std::unordered_map<Elements, std::pair<float, sf::Vector2f>> closest;
 	sf::Vector2f centerTile = worldToTile(pos);
-	int tileRadius			= static_cast<int>(radius / m_tile_size_px);
+	int tileRadius = static_cast<int>(radius / m_tile_size_px);
 
-	for (int dx = -tileRadius; dx <= tileRadius; ++dx) 
+	for (int dx = -tileRadius; dx <= tileRadius; ++dx)
 	{
-		for (int dy = -tileRadius; dy <= tileRadius; ++dy) 
+		for (int dy = -tileRadius; dy <= tileRadius; ++dy)
 		{
 			sf::Vector2f tile = centerTile + sf::Vector2f(dx, dy);
 			sf::Vector2f tileWorldPos = tileToWorld(tile);
 			float dist = std::hypot(tileWorldPos.x - pos.x, tileWorldPos.y - pos.y);
 
-			if (dist <= radius) 
+			if (dist > radius)
+				continue;
+
+			sf::Color color = getBiomeColor(tileWorldPos.x, tileWorldPos.y);
+
+			for (const auto& [element, biomeColor] : m_biomes)
 			{
-				sf::Color color = getBiomeColor(tileWorldPos.x, tileWorldPos.y);
-
-				for (const auto& [element, biomeColor] : m_biomes) 
+				if ((element == Elements::ocean || element == Elements::hill) && color == biomeColor)
 				{
-					
-					if (color == biomeColor && (element == Elements::ocean || element == Elements::hill))
+					auto it = closest.find(element);
+					if (it == closest.end() || dist < it->second.first)
 					{
-						auto it = closest.find(element);
-						if (it == closest.end() || dist < it->second.first) 
-						{
-							closest[element] = { dist, tile };
-						}
-
-						break;
+						closest[element] = { dist, tileWorldPos }; // ✅ store world coords
 					}
+					break; // biome found → skip rest
 				}
 			}
 		}
 	}
 
-	// Convert to required output type
+	// Convert to final result (only closest of each type)
 	std::unordered_map<Elements, sf::Vector2f> resources;
-	for (const auto& [element, pair] : closest) {
+	for (const auto& [element, pair] : closest)
+	{
 		resources[element] = pair.second;
 	}
 	return resources;
 }
 
 
+// Return the cost of the tile position.
 float MapGenerator::getTileCost(const sf::Vector2f& pos)
 {
 	sf::Vector2i chunkPos = 
