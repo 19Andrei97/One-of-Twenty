@@ -34,13 +34,19 @@ void EntityManager::update()
 			sf::Vector2f direction = action->target - trs.pos;
 			float distance = sqrt(direction.x * direction.x + direction.y * direction.y);
 
-			if (distance > 1.f) 
+			if (distance > 0.5f) 
 			{
-				direction.x /= distance;   // normalize x
-				direction.y /= distance;   // normalize y
+				// Normalizing
+				direction.x /= distance;
+				direction.y /= distance;
 
-				trs.pos.x += direction.x * trs.speed * m_delta_time;
-				trs.pos.y += direction.y * trs.speed * m_delta_time;
+				// Tile cost 
+				float cost{ m_map->getTileCost(trs.pos) };
+
+				// Updating position
+				std::lock_guard<std::mutex> lock(m_mutex);
+				trs.pos.x += direction.x * trs.speed * m_delta_time * cost;
+				trs.pos.y += direction.y * trs.speed * m_delta_time * cost;
 			}
 			else
 			{
@@ -113,8 +119,8 @@ void EntityManager::update()
 		if (m_game_clock->getHour() != m_last_updated_hour)
 		{
 
-			needs.hunger = std::max(0, needs.hunger - 5);
-			needs.thirst = std::max(0, needs.thirst - 10);
+			needs.hunger = std::max(0, needs.hunger - 3);
+			needs.thirst = std::max(0, needs.thirst - 5);
 			needs.sleep = std::min(needs.sleep + 2, 100);
 
 			m_last_updated_hour = m_game_clock->getHour();
@@ -219,7 +225,6 @@ void EntityManager::update()
 				info.text[1].setString("Thirst: " + std::to_string(needs.thirst));
 				info.text[2].setString("Sleep: " + std::to_string(needs.sleep));
 			}
-
 	});
 
 }

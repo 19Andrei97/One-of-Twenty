@@ -477,6 +477,43 @@ std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBound
 	return resources;
 }
 
+
+float MapGenerator::getTileCost(const sf::Vector2f& pos)
+{
+	sf::Vector2i chunkPos = 
+		getNextChunkPosition(
+			sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
+			c_chunk_size * c_chunk_size
+		);
+
+	auto it = c_chunks.find(chunkPos);
+	if (it == c_chunks.end() || !it->second)
+	{
+		return 0; // No chunk found, return the input as fallback
+	}
+
+	// Optional: snap pos to the center of the nearest tile
+	int tileX = static_cast<int>(pos.x / m_tile_size_px) * m_tile_size_px + m_tile_size_px / 2;
+	int tileY = static_cast<int>(pos.y / m_tile_size_px) * m_tile_size_px + m_tile_size_px / 2;
+
+	sf::Color tileColor{ getBiomeColor(tileX, tileY) };
+
+	if (tileColor == m_biomes[Elements::hill])
+		return 1;
+	if (tileColor == m_biomes[Elements::forest])
+		return 0.8;
+	if (tileColor == m_biomes[Elements::sand])
+		return 0.5;
+	if (tileColor == m_biomes[Elements::muntain])
+		return 0.5;
+	if (tileColor == m_biomes[Elements::snow] || tileColor == m_biomes[Elements::ocean])
+		return 0.3;
+
+	
+	return 0;
+}
+
+
 /*
 *	Translate coordinates
 */

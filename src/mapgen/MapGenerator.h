@@ -191,6 +191,7 @@ public:
 	// GETTERS
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }
+	float						getTileCost(const sf::Vector2f& pos);
 	std::vector<std::string>						getPositionInfo(sf::Vector2f pos);
 	sf::Vector2f									getLocationWithinBound(sf::Vector2f& pos, float radius);
 	std::unordered_map<Elements, sf::Vector2f>		getResourcesWithinBoundary(sf::Vector2f& pos, float radius);

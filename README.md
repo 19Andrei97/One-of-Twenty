@@ -37,7 +37,7 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 ### Entity
 - Improve CVision component debug circle.
 - Improve CMemory component (currently remembers only water and hill).
-- Add cost for moving depending on tile.
+- Improve Tile Cost calculation.
 - Improve CBasicNeeds.
 - Implement weights-based decisions for entities.
 - Add ai through llama for civilization politics.
