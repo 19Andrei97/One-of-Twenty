@@ -5,11 +5,13 @@
 /*
 *	Decide which color for the biome.
 */
-sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
+sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord) {
+
+	sf::Vector2f coord_f = static_cast<sf::Vector2f>(coord);
 
 	// Generate noise and wrap for natural environment
-	float warpX = worldX + m_noise_wrap.GetNoise(worldX, worldY) * 100.0f;
-	float warpY = worldY + m_noise_wrap.GetNoise(worldX, worldY) * 100.0f;
+	float warpX = coord_f.x + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
+	float warpY = coord_f.y + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
 	float continent = (m_noise_continent.GetNoise(warpX * m_cont_multiplier, warpY * m_cont_multiplier) + 1.0f) * 0.5f;
 
 	// Generate mineral noise
@@ -53,7 +55,7 @@ sf::Color MapGenerator::getBiomeColor(float worldX, float worldY) {
 }
 
 /*
-*	Generate a chunk of terrain based on height and width in tiles. Position is the top left of the chunk
+*	Generate a chunk of terrain based on height and width in tiles. Position is the top left of the chunk in world.
 */
 std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int height, const int width, const sf::Vector2i& position)
 {
@@ -68,10 +70,16 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 	{
 		for (int tx = 0; tx < height * width; tx += m_tile_size_px)
 		{
-			float worldX = position.x + tx;
-			float worldY = position.y + ty;
+			sf::Vector2i world{ position.x + tx , position.y + ty };
 
-			colors[ty / m_tile_size_px][tx / m_tile_size_px] = getBiomeColor(worldX, worldY);
+			colors[ty / m_tile_size_px][tx / m_tile_size_px] = getBiomeColor(world);
+
+			// TO BE IMPROVED, TEST
+			for (auto& [el, val] : m_biomes)
+			{
+				if (val == colors[ty / m_tile_size_px][tx / m_tile_size_px])
+					chunk->tile_types[sf::Vector2i{ ty / m_tile_size_px, tx / m_tile_size_px }] = el;
+			}
 		}
 	}
 
@@ -291,14 +299,6 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 
 		//if (d_wire_frame)
 			//window.draw(chunk->wire);
-
-		if (d_noise_val)
-		{
-			for (auto& text : chunk->d_noise) 
-			{
-				window.draw(*text);
-			}
-		}
 	}
 
 	//std::cout << c_chunks.size() << '\n';
@@ -322,6 +322,11 @@ void MapGenerator::fillQueueChunks()
 			for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += num_tiles_per_chunk)
 			{
 				sf::Vector2i chunkPos(x, y); 
+				sf::Vector2i chunkPosTile{ worldToTile(chunkPos)};
+
+				LOG_DEBUG("Chunk Position in World: {} {}", chunkPos.x, chunkPos.y);
+				LOG_DEBUG("Chunk Position in Tile: {} {}", chunkPosTile.x, chunkPosTile.y);
+
 				
 				{
 					std::lock_guard<std::mutex> lock(t_mutex);
@@ -355,7 +360,7 @@ void MapGenerator::setNoises()
 /*
 *	Return the information at the requested map position.
 */
-std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
+std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 {
     std::vector<std::string> result;
 
@@ -373,10 +378,10 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
         return result;
     }
 
-    // Calcola la posizione della tile e il colore del bioma
-    sf::Vector2f tile = worldToTile(pos);
-    sf::Vector2f tileWorld = tileToWorld(tile);
-    sf::Color tileColor = getBiomeColor(pos.x, pos.y);
+    // Find world tile and biome color
+    sf::Vector2i tile = worldToTile(pos);
+    sf::Vector2i tileWorld = tileToWorld(tile);
+    sf::Color tileColor = getBiomeColor(pos);
 
     for (const auto& [key, color] : m_biomes) 
 	{
@@ -401,14 +406,10 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2f pos)
 /*
 *	Return a random coord in px in the provided radius != than water
 */
-sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radius)
+sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radius)
 {
 	int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
-	sf::Vector2i chunkPos = getNextChunkPosition
-	(
-		sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
-		num_tiles_per_chunk
-	);
+	sf::Vector2i chunkPos = getNextChunkPosition(pos, num_tiles_per_chunk);
 
 	auto it = c_chunks.find(chunkPos);
 	if (it == c_chunks.end() || !it->second)
@@ -417,40 +418,39 @@ sf::Vector2f MapGenerator::getLocationWithinBound(sf::Vector2f& pos, float radiu
 	}
 
 	sf::Color tileColor;
-	float random_x{ 0.f };
-	float random_y{ 0.f };
+	sf::Vector2i random{ 0, 0 };
+
 	while (tileColor.r == 0)
 	{
-		random_x = Random::get(static_cast<int>(pos.x - radius), static_cast<int>(pos.x + radius));
-		random_y = Random::get(static_cast<int>(pos.y - radius), static_cast<int>(pos.y + radius));
+		random.x = Random::get<int, int, int>(pos.x - radius, pos.x + radius);
+		random.y = Random::get<int, int, int>(pos.y - radius, pos.y + radius);
 
-		tileColor = getBiomeColor(random_x, random_y);
+		tileColor = getBiomeColor(random);
 	}
 
-	return sf::Vector2f{ random_x , random_y };
+	return random;
 }
 
-/*
-*	Return a map of resources found within the boundaries.
-*/
-std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBoundary(sf::Vector2f& pos, float radius)
+
+// Return a map of resources found within the boundaries.
+std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBoundary(sf::Vector2i& pos, float radius)
 {
-	std::unordered_map<Elements, std::pair<float, sf::Vector2f>> closest;
-	sf::Vector2f centerTile = worldToTile(pos);
+	std::unordered_map<Elements, std::pair<float, sf::Vector2i>> closest;
+	sf::Vector2i centerTile = worldToTile(pos);
 	int tileRadius = static_cast<int>(radius / m_tile_size_px);
 
 	for (int dx = -tileRadius; dx <= tileRadius; ++dx)
 	{
 		for (int dy = -tileRadius; dy <= tileRadius; ++dy)
 		{
-			sf::Vector2f tile = centerTile + sf::Vector2f(dx, dy);
-			sf::Vector2f tileWorldPos = tileToWorld(tile);
+			sf::Vector2i tile = centerTile + sf::Vector2i(dx, dy);
+			sf::Vector2i tileWorldPos = tileToWorld(tile);
 			float dist = std::hypot(tileWorldPos.x - pos.x, tileWorldPos.y - pos.y);
 
 			if (dist > radius)
 				continue;
 
-			sf::Color color = getBiomeColor(tileWorldPos.x, tileWorldPos.y);
+			sf::Color color = getBiomeColor(tileWorldPos);
 
 			for (const auto& [element, biomeColor] : m_biomes)
 			{
@@ -459,7 +459,7 @@ std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBound
 					auto it = closest.find(element);
 					if (it == closest.end() || dist < it->second.first)
 					{
-						closest[element] = { dist, tileWorldPos }; // ✅ store world coords
+						closest[element] = { dist, tileWorldPos }; // store world coords
 					}
 					break; // biome found → skip rest
 				}
@@ -468,7 +468,7 @@ std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBound
 	}
 
 	// Convert to final result (only closest of each type)
-	std::unordered_map<Elements, sf::Vector2f> resources;
+	std::unordered_map<Elements, sf::Vector2i> resources;
 	for (const auto& [element, pair] : closest)
 	{
 		resources[element] = pair.second;
@@ -476,15 +476,10 @@ std::unordered_map<Elements, sf::Vector2f> MapGenerator::getResourcesWithinBound
 	return resources;
 }
 
-
 // Return the cost of the tile position.
-float MapGenerator::getTileCost(const sf::Vector2f& pos)
+float MapGenerator::getTileCost(const sf::Vector2i& pos)
 {
-	sf::Vector2i chunkPos = 
-		getNextChunkPosition(
-			sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
-			c_chunk_size * c_chunk_size
-		);
+	sf::Vector2i chunkPos = getNextChunkPosition(pos, c_chunk_size * c_chunk_size);
 
 	auto it = c_chunks.find(chunkPos);
 	if (it == c_chunks.end() || !it->second)
@@ -493,10 +488,13 @@ float MapGenerator::getTileCost(const sf::Vector2f& pos)
 	}
 
 	// Optional: snap pos to the center of the nearest tile
-	int tileX = static_cast<int>(pos.x / m_tile_size_px) * m_tile_size_px + m_tile_size_px / 2;
-	int tileY = static_cast<int>(pos.y / m_tile_size_px) * m_tile_size_px + m_tile_size_px / 2;
+	sf::Vector2i tile
+	{ 
+		pos.x / m_tile_size_px * m_tile_size_px + m_tile_size_px / 2, 
+		pos.y / m_tile_size_px * m_tile_size_px + m_tile_size_px / 2 
+	};
 
-	sf::Color tileColor{ getBiomeColor(tileX, tileY) };
+	sf::Color tileColor{ getBiomeColor(tile) };
 
 	if (tileColor == m_biomes[Elements::hill])
 		return 1;
@@ -514,21 +512,53 @@ float MapGenerator::getTileCost(const sf::Vector2f& pos)
 }
 
 
+//Cambia il colore di una tile specifica nella mappa.
+bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_element)
+{
+	sf::Vector2i chunkPos = getNextChunkPosition(
+		sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
+		c_chunk_size * c_chunk_size
+	);
+
+	auto it = c_chunks.find(chunkPos);
+	if (it == c_chunks.end() || !it->second)
+		return false;
+
+	// Find world tile and biome color
+	sf::Vector2i tile = worldToTile(pos);
+
+	// Trova la tile corrispondente nel chunk
+	auto& chunk = it->second;
+	for (auto& [key, val] : chunk->tile_types)
+	{
+		if (static_cast<int>(key.x) == static_cast<int>(tile.x) &&
+			static_cast<int>(key.y) == static_cast<int>(tile.y))
+		{
+			LOG_DEBUG("Tile updated from {} to {} ", static_cast<int>(val), static_cast<int>(new_element));
+
+			val = new_element;
+
+			return true;
+		}
+	}
+	return false;
+}
+
 /*
 *	Translate coordinates
 */
-sf::Vector2f MapGenerator::worldToTile(sf::Vector2f pos) const 
+sf::Vector2i MapGenerator::worldToTile(sf::Vector2i pos) const 
 {
-	return sf::Vector2f
+	return sf::Vector2i
 	(
 		static_cast<int>(pos.x) / m_tile_size_px,
 		static_cast<int>(pos.y) / m_tile_size_px
 	);
 }
 
-sf::Vector2f MapGenerator::tileToWorld(sf::Vector2f tile) const 
+sf::Vector2i MapGenerator::tileToWorld(sf::Vector2i tile) const 
 {
-	return sf::Vector2f
+	return sf::Vector2i
 	(
 		tile.x * m_tile_size_px,
 		tile.y * m_tile_size_px

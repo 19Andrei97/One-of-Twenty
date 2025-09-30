@@ -1,7 +1,7 @@
 
 #include "pch.h"
 
-#include "src/game_manager/Game.h"
+#include "src/game/Game.h"
 
 int main()
 {

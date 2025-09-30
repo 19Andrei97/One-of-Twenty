@@ -41,7 +41,7 @@ public:
 	void addEntity(const EntityType& type);
 
 	// SETTERS
-	void nextTarget(const EntityType& type, sf::Vector2f& targ);
+	void nextTarget(const EntityType& type, sf::Vector2i& targ);
 
 	// GETTERS
 	//const EntityVec& getEntities(const EntityType& type);

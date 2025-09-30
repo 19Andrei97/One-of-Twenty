@@ -23,13 +23,23 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
+- Separate components from helpers.
+
+### Components
+- Convert HUD components into classes.
+
+### HUD
+- Implement multiples HUD levels.
 
 ### MapGenerator
+- IMPORTANT: Convert all coords to be tile. Use world coords only on render
 - Add rivers?
 - Add possibility to increase depths and heights.
 - Improve getting resources for entities.
 - FIX: different noise map for each resource?
 - Add option to create an island.
+- Change map on entity action. CHECK setTileColor, added map for tiles
+- Update chunk unload to double check if no entity or changes are present.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
@@ -37,6 +47,8 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 ### Entity
 - Improve CVision component debug circle.
 - Improve CMemory component (currently remembers only water and hill).
+- ADD city center.
+- Provide actions to advance society.
 - Improve Tile Cost calculation.
 - Improve CBasicNeeds.
 - Implement weights-based decisions for entities.

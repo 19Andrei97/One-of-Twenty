@@ -26,7 +26,9 @@ enum class Elements
 
 	clay,
 	iron,
-	silver
+	silver,
+
+	test
 };
 
 // MAP GENERATOR CLASS	///////////////////////////
@@ -37,9 +39,11 @@ public:
 	struct Chunk {
 		sf::Vector2i	position;			// top left position of chunk
 		sf::VertexArray vertices;			// the map in vertices ready to draw
+		std::unordered_map<sf::Vector2i, Elements, Vector2iHash> tile_types;
+		bool unload{ true };
 
 		// DEBUG variables
-		std::vector<std::shared_ptr<sf::Text>>	d_noise;
+		//std::vector<std::shared_ptr<sf::Text>>	d_noise;
 	};
 
 	using ChunkMap = std::unordered_map<sf::Vector2i, std::shared_ptr<Chunk>, Vector2iHash>;
@@ -89,11 +93,11 @@ private:
 
 	// GENERATE MAP SUPPORT FUNCTIONS
 	std::shared_ptr<Chunk>		generateChunk(const int height, const int width, const sf::Vector2i& position);
-	sf::Color					getBiomeColor(float height, float temp);
+	sf::Color					getBiomeColor(const sf::Vector2i& coord);
 	void						startChunksGenerator();
 
-	sf::Vector2f worldToTile(sf::Vector2f pos) const;
-	sf::Vector2f tileToWorld(sf::Vector2f tile) const;
+	sf::Vector2i worldToTile(sf::Vector2i pos) const;
+	sf::Vector2i tileToWorld(sf::Vector2i tile) const;
 
 public:
 
@@ -174,6 +178,8 @@ public:
 	void setContMult(float mult)						{ m_cont_multiplier = mult; }
 	void setMineralMult(float mult)						{ m_mineral_multiplier = mult; }
 
+	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
+
 	// DEBUG
 	void setDebugNoiseView(bool status)					{ d_noise_val = status; }
 	void setDebugWireFrame(bool status)					{ d_wire_frame = status; }
@@ -190,10 +196,10 @@ public:
 	// GETTERS
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }
-	float						getTileCost(const sf::Vector2f& pos);
-	std::vector<std::string>						getPositionInfo(sf::Vector2f pos);
-	sf::Vector2f									getLocationWithinBound(sf::Vector2f& pos, float radius);
-	std::unordered_map<Elements, sf::Vector2f>		getResourcesWithinBoundary(sf::Vector2f& pos, float radius);
+	float						getTileCost(const sf::Vector2i& pos);
+	std::vector<std::string>						getPositionInfo(sf::Vector2i pos);
+	sf::Vector2i									getLocationWithinBound(sf::Vector2i& pos, float radius);
+	std::unordered_map<Elements, sf::Vector2i>		getResourcesWithinBoundary(sf::Vector2i& pos, float radius);
 
 	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
 	bool				getDebugWireFrame()			const	{ return d_wire_frame; }

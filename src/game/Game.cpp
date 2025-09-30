@@ -237,7 +237,10 @@ void Game::sUserInput()
 
 					// World coords
 					sf::Vector2f worldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
-					m_hud->infoBox(m_map->getPositionInfo(worldPos));
+					m_hud->infoBox(m_map->getPositionInfo(static_cast<sf::Vector2i>(worldPos)));
+
+					// TEST map change tile
+					m_map->setTileColor(static_cast<sf::Vector2i>(worldPos), Elements::test);
 
 					// TESTING ENTITY MOVING
 					//m_entity_manager->nextTarget(EntityType::Human_Generic, worldPos);

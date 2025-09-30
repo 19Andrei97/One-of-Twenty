@@ -38,7 +38,7 @@ void EntityManager::update()
 
 		if(auto action = std::dynamic_pointer_cast<CMoving>(queue.actions.front()))
 		{
-			sf::Vector2f direction = action->target - trs.pos;
+			sf::Vector2i direction = action->target - trs.pos;
 			float distance = sqrt(direction.x * direction.x + direction.y * direction.y);
 
 			if (distance > 0.5f) 
@@ -247,7 +247,7 @@ void EntityManager::render(sf::RenderTarget& window)
 	// ENTITIES
 	m_registry->view<CShape, CTransform, CVision>().each([&](auto entity, auto& shape, auto& trs, auto& vsn)
 	{
-		shape.circle.setPosition(trs.pos);
+		shape.circle.setPosition(static_cast<sf::Vector2f>(trs.pos));
 		window.draw(shape.circle);
 
 		// THIS IS JUST FOR TESTING AND NEEDS TO BE IMPROVED
@@ -255,7 +255,7 @@ void EntityManager::render(sf::RenderTarget& window)
 		{
 			sf::CircleShape circle(vsn.radius);
 			circle.setFillColor({ 255, 255, 255, 100 });
-			circle.setPosition(trs.pos);
+			circle.setPosition(static_cast<sf::Vector2f>(trs.pos));
 			circle.setOrigin({ vsn.radius, vsn.radius });
 			window.draw(circle);
 		}
@@ -311,7 +311,7 @@ void EntityManager::addEntity(const EntityType& type)
 
 	m_registry->emplace<CType>(entity, type);
 	m_registry->emplace<CLifespan>(entity, 100);
-	m_registry->emplace<CTransform>(entity, sf::Vector2f{ 0.0f, 0.0f }, 100.f);
+	m_registry->emplace<CTransform>(entity, sf::Vector2i{ 0, 0 }, 100.f);
 	m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
 	m_registry->emplace<CVision>(entity);
 	m_registry->emplace<CMemory>(entity);
@@ -323,7 +323,7 @@ void EntityManager::addEntity(const EntityType& type)
 }
 
 // Add a moving action with assosciated target position.
-void EntityManager::nextTarget(const EntityType& type, sf::Vector2f& target)
+void EntityManager::nextTarget(const EntityType& type, sf::Vector2i& target)
 {
 	m_registry->view<CActionsQueue, CTransform, CType>().each([&](auto entity, auto& queue, auto& trs, auto& tp)
 	{

@@ -72,22 +72,22 @@ struct CBasicNeeds
 
 struct CMemory 
 {
-    std::unordered_map<Elements, sf::Vector2f> locations;
+    std::unordered_map<Elements, sf::Vector2i> locations;
 
     CMemory(){}
 
-    void rememberLocation(const sf::Vector2f& pos, const Elements& type)
+    void rememberLocation(const sf::Vector2i& pos, const Elements& type)
     {
         locations[type] = pos;
     }
 
-    void rememberLocation(const std::unordered_map<Elements, sf::Vector2f>& map)
+    void rememberLocation(const std::unordered_map<Elements, sf::Vector2i>& map)
     {
         for(auto& [key, val] : map)
             locations[key] = val;
     }
 
-    std::optional<sf::Vector2f> getLocation(const Elements& type)
+    std::optional<sf::Vector2i> getLocation(const Elements& type)
     {
         const auto& it = locations.find(type);
 
@@ -101,10 +101,10 @@ struct CMemory
 struct CTransform
 {
     float           speed{ 0.f };
-	sf::Vector2f    pos{ 0.f, 0.f };
-    sf::Vector2f    target{ 0.f, 0.f };
+	sf::Vector2i    pos{ 0, 0 };
+    sf::Vector2i    target{ 0, 0 };
 
-	CTransform(const sf::Vector2f& p, const float v)
+	CTransform(const sf::Vector2i& p, const float v)
 		: pos(p), speed(v)
     {}
 };
@@ -175,9 +175,9 @@ struct CAction
 
 struct CMoving : public CAction
 {
-    sf::Vector2f target;
+    sf::Vector2i target;
 
-    CMoving(ActionTypes type, const sf::Vector2f& tgt = { 0.f, 0.f })
+    CMoving(ActionTypes type, const sf::Vector2i& tgt = { 0, 0 })
         : CAction(type), target(tgt) {
     }
 };
