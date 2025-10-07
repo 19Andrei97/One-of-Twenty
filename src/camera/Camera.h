@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Components_Entities.h"
+#include "../helpers/Components_Entities.h"
 
 class Camera
 {

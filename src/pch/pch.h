@@ -18,10 +18,13 @@
 #include "Components_HUD.h"
 #include "Logger.h"
 #include "GameClock.h"
+#include "SharedContainer.h"
 
 // SFML library
 #include <SFML/Graphics.hpp>
 #include <SFML/OpenGL.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
 
 // ENTT library
 #include <entt/entt.hpp>

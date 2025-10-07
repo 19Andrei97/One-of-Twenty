@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "../mapgen/MapGenerator.h"
+#include "../map_generator/MapGenerator.h"
 
 #include <SFML/Graphics.hpp>
 #include <iostream>

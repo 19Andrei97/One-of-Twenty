@@ -1,5 +1,5 @@
 
-#include "pch.h"
+#include <pch.h>
 
 #include "Game.h"
 
@@ -46,12 +46,12 @@ Game::Game(const std::string& path)
 
 	// MAP GENERATION
 	LOG_DEBUG("Creating Map Generator.");
-	m_map = std::make_shared<MapGenerator>(m_font, m_currentFrame, "src/config/map_data.json");
+	m_map = std::make_shared<MapGenerator>(m_font, m_currentFrame, "config/map_data.json");
 	m_map->setDebugNoiseView(false);
 
 	// HUD
 	LOG_DEBUG("Creating HUD.");
-	m_hud = std::make_unique<Hud>(m_font, m_map, "src/config/hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
+	m_hud = std::make_unique<Hud>(m_font, m_map, "config/hud_menu_data.json", data["window"]["width"], data["window"]["height"]);
 	m_hud->init();
 
 	// CAMERA

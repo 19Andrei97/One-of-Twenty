@@ -46,6 +46,7 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+build/
 
 # Build results on 'Bin' directories
 **/[Bb]in/*
@@ -426,3 +427,18 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+#CMAKE
+out/
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json

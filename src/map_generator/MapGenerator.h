@@ -1,7 +1,5 @@
 #pragma once
 
-#include "SharedContainer.h"
-
 // CHUNK HASH			///////////////////////////
 struct Vector2iHash {
 	std::size_t operator()(const sf::Vector2i& v) const noexcept {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../entity/EntityManager.h"
-#include "../mapgen/MapGenerator.h"
+#include "../entity_manager/EntityManager.h"
+#include "../map_generator/MapGenerator.h"
 #include "../camera/Camera.h"
 
 #include "../hud/Hud.h"
