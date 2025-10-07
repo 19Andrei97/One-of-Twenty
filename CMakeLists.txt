@@ -12,7 +12,7 @@ if (MSVC)
     add_compile_options(/utf-8)
 endif()
 
-# Opying assets to build
+# Copying assets to build
 file(COPY ${CMAKE_SOURCE_DIR}/fonts DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 file(COPY ${CMAKE_SOURCE_DIR}/config DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
@@ -79,7 +79,7 @@ find_package(spdlog REQUIRED)
 
 # Fetch the library if it's missing
 if(NOT spdlog_FOUND)
-    message(STATUS "Downloading spdlog library.")
+    message(STATUS "spdlog not found — fetching from GitHub...")
 
     FetchContent_Declare(spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
@@ -98,7 +98,7 @@ find_package(nlohmann_json REQUIRED)
 
 # Fetch the library if it's missing
 if(NOT nlohmann_json_FOUND)
-    message(STATUS "Downloading nlohmann_json library.")
+    message(STATUS "nlohmann_json not found — fetching from GitHub...")
 
     FetchContent_Declare(nlohmann_json
         GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -117,6 +117,7 @@ add_subdirectory(src/pch)
 add_subdirectory(src/camera)
 add_subdirectory(src/entity_manager)
 add_subdirectory(src/game)
+add_subdirectory(src/components)
 add_subdirectory(src/helpers)
 add_subdirectory(src/hud)
 add_subdirectory(src/map_generator)
@@ -131,6 +132,7 @@ target_link_libraries(${PROJECT_NAME}
         Camera
         EntityManager
         Game
+        Components
         Helpers
         Hud
         MapGenerator

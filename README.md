@@ -21,7 +21,6 @@ One Of Twenty is a game project that I started to learn the basics of c++ while 
 
 ### General
 - Re-check all objects for dynamic allocation of big objects.
-- Separate components from helpers.
 
 ### Components
 - Convert HUD components into classes.

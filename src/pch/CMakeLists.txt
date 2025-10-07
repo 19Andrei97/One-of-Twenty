@@ -7,6 +7,7 @@ target_precompile_headers(pch INTERFACE
 target_include_directories(pch INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(pch INTERFACE
+    Components
     Helpers
     EnTT::EnTT
     BS_thread_pool

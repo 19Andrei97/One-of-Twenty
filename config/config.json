@@ -1,21 +1,26 @@
 {
-	"window":
-	{
+	"window": {
 		"width": 1280,
 		"height": 720,
 		"frames": 120,
 		"fullscreen": false
 	},
 
-	"font":
-	{
+	"font": {
 		"file": "fonts/arial.ttf",
 		"size": 24,
-		"color": [255, 255, 255]
+		"color": [ 255, 255, 255 ]
 	},
 
-	"logger":
-	{
+	"map": {
+		"file": "config/map_data.json"
+	},
+
+	"hud": {
+		"file": "config/hud_menu_data.json"
+	},
+
+	"logger": {
 		"file": "logs/game.log"
 	}
 }
