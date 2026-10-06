@@ -17,6 +17,8 @@
 #include "Random.h"
 #include "Components_HUD.h"
 #include "Logger.h"
+#include "Config.h"
+#include "CoordMath.h"
 #include "GameClock.h"
 #include "SharedContainer.h"
 

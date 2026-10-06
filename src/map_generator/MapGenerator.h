@@ -108,8 +108,7 @@ public:
 		, i_frames(frames)
 	{
 		// Create json
-		std::ifstream f(map_file);
-		nlohmann::json js_map = nlohmann::json::parse(f);
+		nlohmann::json js_map = loadJsonFile(map_file);
 
 		// Construct biomes and heights objs
 		for (auto& [key, value] : js_map["elements"].items()) {

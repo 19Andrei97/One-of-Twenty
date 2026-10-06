@@ -7,8 +7,7 @@
 
 Game::Game(const std::string& path)
 {
-	std::ifstream f(path);
-	nlohmann::json data = nlohmann::json::parse(f);
+	nlohmann::json data = loadJsonFile(path);
 
 	// LOGGER
 	Logger::init(data["logger"]["file"]);

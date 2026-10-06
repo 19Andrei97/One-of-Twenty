@@ -125,6 +125,21 @@ endif()
 
 ######################################################
 
+# doctest (testing framework, header-only)
+find_package(doctest QUIET)
+
+if(NOT doctest_FOUND)
+    FetchContent_Declare(doctest
+        GIT_REPOSITORY https://github.com/doctest/doctest.git
+        GIT_TAG v2.5.3
+        GIT_SHALLOW ON
+        EXCLUDE_FROM_ALL)
+
+    FetchContent_MakeAvailable(doctest)
+endif()
+
+######################################################
+
 # Add submodules
 add_subdirectory(src/pch)
 add_subdirectory(src/camera)
@@ -157,3 +172,10 @@ target_link_libraries(${PROJECT_NAME}
         SFML::Graphics
         EnTT::EnTT
 )
+
+# Tests
+option(ONE_OF_TWENTY_BUILD_TESTS "Build unit tests" ON)
+if(ONE_OF_TWENTY_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

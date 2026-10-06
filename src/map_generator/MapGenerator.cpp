@@ -64,26 +64,26 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 	chunk->vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
 
 	// Step 1: store colors of all tiles
-	std::vector<std::vector<sf::Color>> colors(height * width, std::vector<sf::Color>(height * width));
+	const int tiles_per_side{ height * width / m_tile_size_px };
 
-	for (int ty = 0; ty < height * width; ty += m_tile_size_px)
+	std::vector<std::vector<sf::Color>> colors(tiles_per_side, std::vector<sf::Color>(tiles_per_side));
+
+	for (int ty = 0; ty < tiles_per_side; ++ty)
 	{
-		for (int tx = 0; tx < height * width; tx += m_tile_size_px)
+		for (int tx = 0; tx < tiles_per_side; ++tx)
 		{
-			sf::Vector2i world{ position.x + tx , position.y + ty };
+			sf::Vector2i world{ position.x + tx * m_tile_size_px, position.y + ty * m_tile_size_px };
 
-			colors[ty / m_tile_size_px][tx / m_tile_size_px] = getBiomeColor(world);
+			colors[ty][tx] = getBiomeColor(world);
 
 			// TO BE IMPROVED, TEST
 			for (auto& [el, val] : m_biomes)
 			{
-				if (val == colors[ty / m_tile_size_px][tx / m_tile_size_px])
-					chunk->tile_types[sf::Vector2i{ ty / m_tile_size_px, tx / m_tile_size_px }] = el;
+				if (val == colors[ty][tx])
+					chunk->tile_types[sf::Vector2i{ tx, ty }] = el;
 			}
 		}
 	}
-
-	int tiles_per_side{ height * width / m_tile_size_px };
 
 	// Step 2: scan rectangles of same color
 	std::vector<std::vector<bool>> visited(tiles_per_side, std::vector<bool>(tiles_per_side, false));
@@ -324,8 +324,7 @@ void MapGenerator::fillQueueChunks()
 				sf::Vector2i chunkPos(x, y); 
 				sf::Vector2i chunkPosTile{ worldToTile(chunkPos)};
 
-				LOG_DEBUG("Chunk Position in World: {} {}", chunkPos.x, chunkPos.y);
-				LOG_DEBUG("Chunk Position in Tile: {} {}", chunkPosTile.x, chunkPosTile.y);
+				LOG_TRACE("Chunk Position in World: {} {} (tile {} {})", chunkPos.x, chunkPos.y, chunkPosTile.x, chunkPosTile.y);
 
 				
 				{
@@ -373,6 +372,8 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 								num_tiles_per_chunk
 							);
 
+    std::lock_guard<std::mutex> lock(t_mutex);
+
     auto it = c_chunks.find(chunkPos);
     if (it == c_chunks.end() || !it->second)
     {
@@ -412,6 +413,8 @@ sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radiu
 {
 	int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
 	sf::Vector2i chunkPos = getNextChunkPosition(pos, num_tiles_per_chunk);
+
+	std::lock_guard<std::mutex> lock(t_mutex);
 
 	auto it = c_chunks.find(chunkPos);
 	if (it == c_chunks.end() || !it->second)
@@ -483,6 +486,8 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 {
 	sf::Vector2i chunkPos = getNextChunkPosition(pos, c_chunk_size * c_chunk_size);
 
+	std::lock_guard<std::mutex> lock(t_mutex);
+
 	auto it = c_chunks.find(chunkPos);
 	if (it == c_chunks.end() || !it->second)
 	{
@@ -522,6 +527,8 @@ bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_ele
 		c_chunk_size * c_chunk_size
 	);
 
+	std::lock_guard<std::mutex> lock(t_mutex);
+
 	auto it = c_chunks.find(chunkPos);
 	if (it == c_chunks.end() || !it->second)
 		return false;
@@ -549,20 +556,12 @@ bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_ele
 /*
 *	Translate coordinates
 */
-sf::Vector2i MapGenerator::worldToTile(sf::Vector2i pos) const 
+sf::Vector2i MapGenerator::worldToTile(sf::Vector2i pos) const
 {
-	return sf::Vector2i
-	(
-		static_cast<int>(pos.x) / m_tile_size_px,
-		static_cast<int>(pos.y) / m_tile_size_px
-	);
+	return CoordMath::worldToTile(pos, m_tile_size_px);
 }
 
-sf::Vector2i MapGenerator::tileToWorld(sf::Vector2i tile) const 
+sf::Vector2i MapGenerator::tileToWorld(sf::Vector2i tile) const
 {
-	return sf::Vector2i
-	(
-		tile.x * m_tile_size_px,
-		tile.y * m_tile_size_px
-	);
+	return CoordMath::tileToWorld(tile, m_tile_size_px);
 }

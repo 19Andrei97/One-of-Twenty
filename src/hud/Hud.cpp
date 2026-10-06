@@ -7,8 +7,7 @@ void Hud::init()
 {
 	using json = nlohmann::json;
 
-	std::ifstream f(m_file);
-	json data = json::parse(f);
+	json data = loadJsonFile(m_file);
 
 	for (const auto& [key, value] : data.items())
 	{

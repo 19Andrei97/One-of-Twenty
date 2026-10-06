@@ -25,7 +25,9 @@ public:
 
         spdlog::set_default_logger(logger);
         spdlog::set_level(spdlog::level::debug);
-        spdlog::flush_on(spdlog::level::info);
+        // Flush at debug level too: a game may terminate without an info-level
+        // line ever being logged, which would otherwise drop buffered debug output.
+        spdlog::flush_on(spdlog::level::debug);
     }
 };
 
@@ -34,3 +36,4 @@ public:
 #define LOG_WARN(...)  spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __FUNCTION__}, spdlog::level::warn, __VA_ARGS__)
 #define LOG_ERROR(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __FUNCTION__}, spdlog::level::err, __VA_ARGS__)
 #define LOG_DEBUG(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __FUNCTION__}, spdlog::level::debug, __VA_ARGS__)
+#define LOG_TRACE(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __FUNCTION__}, spdlog::level::trace, __VA_ARGS__)
