@@ -422,18 +422,21 @@ sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radiu
 		return pos; // If chunk is not found return current position
 	}
 
-	sf::Color tileColor;
 	sf::Vector2i random{ 0, 0 };
 
-	while (tileColor.r == 0)
+	// Bounded retry: a region that is entirely water would otherwise spin
+	// forever, since only non-water tiles have a non-zero red channel.
+	constexpr int max_attempts = 64;
+	for (int attempt = 0; attempt < max_attempts; ++attempt)
 	{
 		random.x = Random::get<int, int, int>(pos.x - radius, pos.x + radius);
 		random.y = Random::get<int, int, int>(pos.y - radius, pos.y + radius);
 
-		tileColor = getBiomeColor(random);
+		if (getBiomeColor(random).r != 0)
+			return random;
 	}
 
-	return random;
+	return pos; // No land tile found within the radius.
 }
 
 

@@ -26,6 +26,16 @@
       }
     },
     {
+      "name": "sanitize",
+      "displayName": "Debug + ASan/UBSan (Ninja, GCC/Clang)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ONE_OF_TWENTY_SANITIZE": "ON"
+      }
+    },
+    {
       "name": "vs",
       "displayName": "Visual Studio 2022",
       "generator": "Visual Studio 17 2022",
@@ -39,6 +49,7 @@
   "buildPresets": [
     { "name": "default", "configurePreset": "default" },
     { "name": "debug", "configurePreset": "debug" },
+    { "name": "sanitize", "configurePreset": "sanitize" },
     { "name": "vs", "configurePreset": "vs", "configuration": "Release" }
   ],
   "testPresets": [
@@ -46,6 +57,16 @@
       "name": "default",
       "configurePreset": "default",
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "output": { "outputOnFailure": true },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "LSAN_OPTIONS": "suppressions=${sourceDir}/tests/lsan.supp",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1:suppressions=${sourceDir}/tests/ubsan.supp"
+      }
     },
     {
       "name": "vs",

@@ -69,7 +69,13 @@ TEST_CASE("concurrent pushes are not lost")
 
     std::vector<std::thread> workers;
     for (int i = 0; i < threads; ++i)
-        workers.emplace_back([&container, per_thread] { for (int j = 0; j < per_thread; ++j) container.push(j); });
+        // Capture by value: MSVC rejects reading a constexpr local without an
+        // explicit capture, and capturing `i` by reference would dangle once
+        // the loop iteration ends.
+        workers.emplace_back([&container, i, per_thread] {
+            for (int j = 0; j < per_thread; ++j)
+                container.push(i * per_thread + j);
+        });
 
     for (auto& worker : workers)
         worker.join();

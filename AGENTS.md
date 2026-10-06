@@ -52,4 +52,7 @@ A run that is killed by `timeout` (exit 124) is a success; check
 ## CI
 
 `.github/workflows/build.yml` builds and tests on Ubuntu 24.04 (with the SFML
-apt dependencies) and Windows 2022.
+apt dependencies) and Windows 2022. The Linux test step runs under `xvfb-run`
+so the render test can create a GL context. A third job builds with ASan+UBSan
+(`-DONE_OF_TWENTY_SANITIZE=ON`) and runs the same suite with the suppression
+files in `tests/`.

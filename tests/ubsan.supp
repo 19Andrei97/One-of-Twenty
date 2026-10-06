@@ -1,0 +1,7 @@
+# UBSan suppressions.
+#
+# FastNoiseLite (vendored, src/helpers/FastNoiseLite.h) deliberately relies on
+# signed 32-bit integer wrapping in its hashing functions, which UBSan reports
+# as signed-integer-overflow. The wrapping is intentional and well-defined on
+# the two's-complement platforms we target, so silence it for that header only.
+signed-integer-overflow:FastNoiseLite.h
