@@ -1,0 +1,55 @@
+# AGENTS.md
+
+Repository notes for AI agents working on One Of Twenty.
+
+## What this is
+
+C++17 simulation game: SFML3 (graphics/window), EnTT (ECS), spdlog (logging),
+nlohmann-json (config), BS::thread_pool (map generation workers), doctest
+(tests). CMake 3.20+.
+
+## Build and test
+
+```bash
+cmake --preset default                 # Ninja + Release, in ./build
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure
+```
+
+- Dependencies are located with `find_package` and fall back to FetchContent
+  with pinned tags (see `CMakeLists.txt`). Do not unpin them.
+- `-DONE_OF_TWENTY_BUILD_TESTS=OFF` disables the test target.
+- Assets under `config/` and `fonts/` are copied to `build/bin/` at configure
+  time. After editing a config or font, re-run CMake configure.
+
+### Running headlessly (CI / containers)
+
+The game needs an X11 display; without one SFML aborts during static
+initialization, before `main`. Use Xvfb:
+
+```bash
+cd build/bin && xvfb-run -a ./OneOfTwenty
+```
+
+A run that is killed by `timeout` (exit 124) is a success; check
+`logs/game.log` for startup traces.
+
+## Conventions and gotchas
+
+- Most `.cpp` files include `<pch.h>` first; it aggregates the common headers.
+  A header used directly by a test must be self-contained (include what it
+  uses), because tests do not go through the pch.
+- `MapGenerator::worldToTile` / `tileToWorld` delegate to
+  `helpers/CoordMath.h` (floor division so negative coordinates map to the
+  correct tile). Keep them as the single source of truth for conversions.
+- Load config files with `loadJsonFile()` (`helpers/Config.h`) so missing or
+  malformed files raise a clear `std::runtime_error`.
+- The chunk map `c_chunks` is shared with worker threads; guard access with
+  `t_mutex`. Prefer `LOG_TRACE` for anything on a hot path.
+- `generateChunk` receives the chunk pixel size (`c_chunk_size * c_chunk_size`)
+  and derives `tiles_per_side = height * width / m_tile_size_px`.
+
+## CI
+
+`.github/workflows/build.yml` builds and tests on Ubuntu 24.04 (with the SFML
+apt dependencies) and Windows 2022.

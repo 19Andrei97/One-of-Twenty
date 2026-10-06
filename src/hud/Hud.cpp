@@ -7,8 +7,7 @@ void Hud::init()
 {
 	using json = nlohmann::json;
 
-	std::ifstream f(m_file);
-	json data = json::parse(f);
+	json data = loadJsonFile(m_file);
 
 	for (const auto& [key, value] : data.items())
 	{
@@ -86,7 +85,7 @@ void Hud::init()
 			case Function::Slider::MineralFreq:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map->setMineralMult(val);
+						m_map->setMineralFreq(val);
 						m_map->m_reset = true;
 					};
 				break;
@@ -94,7 +93,7 @@ void Hud::init()
 			case Function::Slider::MineralMult:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map->setMineralFreq(val);
+						m_map->setMineralMult(val);
 						m_map->m_reset = true;
 					};
 				break;

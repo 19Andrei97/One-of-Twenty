@@ -19,7 +19,7 @@ file(COPY ${CMAKE_SOURCE_DIR}/config DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTOR
 ######################################################
 
 # SFML
-find_package(SFML COMPONENTS System Graphics Window REQUIRED)
+find_package(SFML COMPONENTS System Graphics Window QUIET)
 
 # Fetch the library if it's missing
 if(NOT SFML_FOUND)
@@ -43,6 +43,7 @@ if(NOT EnTT_FOUND)
     FetchContent_Declare(
         EnTT
         GIT_REPOSITORY https://github.com/skypjack/entt.git
+        GIT_TAG v3.16.0
         GIT_SHALLOW ON
     )
 
@@ -69,13 +70,23 @@ if(BS_THREAD_POOL_INCLUDE_DIR)
     message(STATUS "Found BS_thread_pool at: ${BS_THREAD_POOL_INCLUDE_DIR}")
     target_include_directories(BS_thread_pool INTERFACE ${BS_THREAD_POOL_INCLUDE_DIR})
 else()
-    message(FATAL_ERROR "BS_thread_pool.hpp not found — installation is required check the README file for more information on the library.")
+    # Header-only library with no CMakeLists of its own, so the fetched
+    # include/ directory is exposed through our own INTERFACE target.
+    message(STATUS "BS_thread_pool not found - fetching from GitHub...")
+
+    FetchContent_Declare(bs_thread_pool
+        GIT_REPOSITORY https://github.com/bshoshany/thread-pool.git
+        GIT_TAG v5.1.0
+        GIT_SHALLOW ON)
+    FetchContent_MakeAvailable(bs_thread_pool)
+
+    target_include_directories(BS_thread_pool INTERFACE ${bs_thread_pool_SOURCE_DIR}/include)
 endif()
 
 ######################################################
 
 # spdlog
-find_package(spdlog REQUIRED)
+find_package(spdlog QUIET)
 
 # Fetch the library if it's missing
 if(NOT spdlog_FOUND)
@@ -83,6 +94,7 @@ if(NOT spdlog_FOUND)
 
     FetchContent_Declare(spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG v1.17.0
         GIT_SHALLOW ON
         EXCLUDE_FROM_ALL)
 
@@ -94,7 +106,7 @@ endif()
 ######################################################
 
 # nlohmann_json
-find_package(nlohmann_json REQUIRED)
+find_package(nlohmann_json QUIET)
 
 # Fetch the library if it's missing
 if(NOT nlohmann_json_FOUND)
@@ -102,12 +114,28 @@ if(NOT nlohmann_json_FOUND)
 
     FetchContent_Declare(nlohmann_json
         GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.12.0
         GIT_SHALLOW ON
         EXCLUDE_FROM_ALL)
 
     FetchContent_MakeAvailable(nlohmann_json)
 else()
     message(STATUS "Library nlohmann_json was found in ${nlohmann_json_DIR}")
+endif()
+
+######################################################
+
+# doctest (testing framework, header-only)
+find_package(doctest QUIET)
+
+if(NOT doctest_FOUND)
+    FetchContent_Declare(doctest
+        GIT_REPOSITORY https://github.com/doctest/doctest.git
+        GIT_TAG v2.5.3
+        GIT_SHALLOW ON
+        EXCLUDE_FROM_ALL)
+
+    FetchContent_MakeAvailable(doctest)
 endif()
 
 ######################################################
@@ -144,3 +172,10 @@ target_link_libraries(${PROJECT_NAME}
         SFML::Graphics
         EnTT::EnTT
 )
+
+# Tests
+option(ONE_OF_TWENTY_BUILD_TESTS "Build unit tests" ON)
+if(ONE_OF_TWENTY_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

@@ -2,8 +2,14 @@ add_library(MapGenerator MapGenerator.cpp MapGenerator.h)
 
 target_include_directories(MapGenerator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(MapGenerator 
-    PUBLIC     
+# OpenGL is only needed for the debug wireframe rendering
+find_package(OpenGL QUIET)
+
+target_link_libraries(MapGenerator
+    PUBLIC
     pch
-    opengl32
 )
+
+if(OpenGL_FOUND)
+    target_link_libraries(MapGenerator PUBLIC OpenGL::GL)
+endif()
