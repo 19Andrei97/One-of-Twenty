@@ -69,7 +69,7 @@ TEST_CASE("concurrent pushes are not lost")
 
     std::vector<std::thread> workers;
     for (int i = 0; i < threads; ++i)
-        workers.emplace_back([&container] { for (int j = 0; j < per_thread; ++j) container.push(j); });
+        workers.emplace_back([&container, per_thread] { for (int j = 0; j < per_thread; ++j) container.push(j); });
 
     for (auto& worker : workers)
         worker.join();
