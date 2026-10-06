@@ -149,9 +149,9 @@ public:
 		setNoises();
 
 		// Generate Thread
-		t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
-		t_threads.submit_task([this] { startChunksGenerator(); });
-		t_threads.submit_task([this] { startChunksGenerator(); });
+		(void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
+		(void)t_threads.submit_task([this] { startChunksGenerator(); });
+		(void)t_threads.submit_task([this] { startChunksGenerator(); });
 	}
 
 	// DECONSTRUCTOR

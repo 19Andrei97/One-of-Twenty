@@ -330,7 +330,9 @@ void MapGenerator::fillQueueChunks()
 				
 				{
 					std::lock_guard<std::mutex> lock(t_mutex);
-					if (c_chunks.find(chunkPos) != c_chunks.end() || tc_chunks_ready.containsPosition(chunkPos) || tc_chunks_in_queue.contains(chunkPos))
+					if (c_chunks.find(chunkPos) != c_chunks.end()
+						|| tc_chunks_ready.containsIf([&](const std::shared_ptr<Chunk>& chunk) { return chunk && chunk->position == chunkPos; })
+						|| tc_chunks_in_queue.contains(chunkPos))
 						continue;
 				}
 				

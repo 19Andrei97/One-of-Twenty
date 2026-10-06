@@ -5,7 +5,9 @@
 #include <condition_variable>
 #include <future>
 #include <atomic>
+#include <algorithm>
 #include <optional>
+#include <utility>
 
 // THREAD SAFE CONTAINER
 template<typename T>
@@ -22,24 +24,22 @@ public:
         container.push_back(std::move(data));
     }
 
-    bool contains(T& data)
+    bool contains(const T& data)
     {
         std::lock_guard<std::mutex> lock(mtx);
 
         return std::find(container.begin(), container.end(), data) != container.end();
     }
 
-    bool containsPosition(sf::Vector2i& pos)
+    // Generic membership test; the predicate receives a const T&.
+    // Callers that store pointers can still match on the pointee, e.g.
+    //   containsIf([&](const auto& chunk) { return chunk->position == pos; })
+    template<typename Predicate>
+    bool containsIf(Predicate pred)
     {
         std::lock_guard<std::mutex> lock(mtx);
 
-        for (auto& chunk : container)
-        {
-            if (chunk->position == pos)
-                return true;
-        }
-        
-        return false;
+        return std::find_if(container.begin(), container.end(), pred) != container.end();
     }
 
     std::optional<T> pop() 

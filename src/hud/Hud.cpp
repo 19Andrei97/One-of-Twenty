@@ -86,7 +86,7 @@ void Hud::init()
 			case Function::Slider::MineralFreq:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map->setMineralMult(val);
+						m_map->setMineralFreq(val);
 						m_map->m_reset = true;
 					};
 				break;
@@ -94,7 +94,7 @@ void Hud::init()
 			case Function::Slider::MineralMult:
 				sliders.back()->onChange = [this](float val)
 					{
-						m_map->setMineralFreq(val);
+						m_map->setMineralMult(val);
 						m_map->m_reset = true;
 					};
 				break;

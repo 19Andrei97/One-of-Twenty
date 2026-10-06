@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -7,6 +9,11 @@
 class Logger {
 public:
     static void init(const std::string& file = "logs/game.log") {
+        // The file sink does not create parent directories, so a fresh clone
+        // (where logs/ is gitignored) would throw on startup without this.
+        if (const std::filesystem::path path(file); path.has_parent_path())
+            std::filesystem::create_directories(path.parent_path());
+
         auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         console_sink->set_pattern("[%T] [%^%l%$] [%s:%#] %v");
 
