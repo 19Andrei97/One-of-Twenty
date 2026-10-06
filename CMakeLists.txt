@@ -8,6 +8,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 include(FetchContent)
 
+# AddressSanitizer + UndefinedBehaviorSanitizer (GCC/Clang only). The flags are
+# applied just before our own targets below, so fetched dependencies such as
+# SFML are not rebuilt with the sanitizers.
+option(ONE_OF_TWENTY_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+
 if (MSVC)
     add_compile_options(/utf-8)
 endif()
@@ -140,6 +145,13 @@ endif()
 
 ######################################################
 
+if(ONE_OF_TWENTY_SANITIZE)
+    if(MSVC)
+        message(FATAL_ERROR "ONE_OF_TWENTY_SANITIZE is only supported with GCC/Clang")
+    endif()
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address,undefined)
+endif()
 # Add submodules
 add_subdirectory(src/pch)
 add_subdirectory(src/camera)

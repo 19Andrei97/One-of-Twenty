@@ -79,9 +79,29 @@ ctest --test-dir build --output-on-failure
 ```
 
 The tests cover the pure, platform-independent logic: coordinate conversions,
-the thread-safe `SharedContainer`, `GameClock` timekeeping, and JSON config
-loading. CI (`.github/workflows/build.yml`) builds and tests on Linux and
-Windows for every push and pull request.
+the thread-safe `SharedContainer`, `GameClock` timekeeping, JSON config loading,
+and `MapGenerator` lifetime/determinism (biome colors for a fixed seed, worker
+shutdown, and the streaming render path).
+
+CI (`.github/workflows/build.yml`) builds and tests on Linux and Windows for
+every push and pull request, plus a dedicated Linux job that builds with
+AddressSanitizer and UndefinedBehaviorSanitizer.
+
+### Sanitizers
+
+A sanitizer build is available through the `sanitize` preset (GCC/Clang only):
+
+```bash
+cmake --preset sanitize
+cmake --build --preset sanitize
+ctest --preset sanitize          # runs under xvfb-run; see the preset env
+```
+
+On headless machines run the test binary under Xvfb so the render test can
+create a GL context: `xvfb-run -a ctest --test-dir build-asan`.
+`tests/lsan.supp` and `tests/ubsan.supp` silence known third-party noise
+(mesa's GL driver allocations and FastNoiseLite's intentional integer
+wrapping); a genuine leak or UB in project code still fails the run.
 
 ## Controls
 

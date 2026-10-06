@@ -21,7 +21,8 @@ jobs:
             build-essential cmake ninja-build git \
             libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
             libudev-dev libfreetype-dev libgl1-mesa-dev \
-            libflac-dev libvorbis-dev libopenal-dev
+            libflac-dev libvorbis-dev libopenal-dev \
+            xvfb
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -30,7 +31,36 @@ jobs:
         run: cmake --build build -j"$(nproc)"
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: xvfb-run -a ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    name: Linux (gcc, ASan + UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SFML build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git \
+            libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libudev-dev libfreetype-dev libgl1-mesa-dev \
+            libflac-dev libvorbis-dev libopenal-dev \
+            xvfb
+
+      - name: Configure
+        run: cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DONE_OF_TWENTY_SANITIZE=ON
+
+      - name: Build
+        run: cmake --build build-asan -j"$(nproc)"
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/lsan.supp
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1:suppressions=${{ github.workspace }}/tests/ubsan.supp
+        run: xvfb-run -a ctest --test-dir build-asan --output-on-failure
 
   windows:
     name: Windows (msvc)

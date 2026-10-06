@@ -442,3 +442,5 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+# CMake build trees (default, debug, sanitizer)
+build*/

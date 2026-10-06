@@ -91,7 +91,6 @@ private:
 
 	// GENERATE MAP SUPPORT FUNCTIONS
 	std::shared_ptr<Chunk>		generateChunk(const int height, const int width, const sf::Vector2i& position);
-	sf::Color					getBiomeColor(const sf::Vector2i& coord);
 	void						startChunksGenerator();
 
 	sf::Vector2i worldToTile(sf::Vector2i pos) const;
@@ -147,6 +146,8 @@ public:
 
 		setNoises();
 
+		s_running = true;
+
 		// Generate Thread
 		(void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
 		(void)t_threads.submit_task([this] { startChunksGenerator(); });
@@ -156,8 +157,12 @@ public:
 	// DECONSTRUCTOR
 	~MapGenerator()
 	{
-		// Thread cleaning
+		// Stop the workers and wait for them before any member is destroyed.
+		// The thread pool is declared before t_mutex and the shared containers,
+		// so it is destroyed last; without this wait a worker could still touch
+		// those members after they are gone.
 		s_running = false;
+		t_threads.wait();
 	}
 
 	// RENDERING
@@ -191,6 +196,7 @@ public:
 	}
 
 	// GETTERS
+	sf::Color						getBiomeColor(const sf::Vector2i& coord);
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }
 	float						getTileCost(const sf::Vector2i& pos);

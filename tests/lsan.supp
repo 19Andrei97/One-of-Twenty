@@ -1,0 +1,9 @@
+# LeakSanitizer suppressions.
+#
+# Creating an sf::RenderTexture initializes the system GL driver. Under Xvfb
+# that is mesa's libGLX, which keeps process-lifetime allocations that are not
+# reachable from our code. Suppress those so a real leak in the project still
+# fails the run.
+leak:libGLX_mesa
+leak:libGLX
+leak:libEGL
