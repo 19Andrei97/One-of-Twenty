@@ -168,18 +168,27 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core, the
 survival loop and pathfinding are folded into the baseline; the new work starts
-at milestone 2 of the roadmap.
+at milestone 1 of the roadmap.
 
 ### Next milestones
 - [ ] Settlement economy and jobs (entity-type roles, recipes/production, food as
   a resource, stockpile HUD, placeable buildings).
-- [ ] Survival depth (health, illness/weather, shelter/housing).
-- [ ] Presentation and UX (day/night lighting, sprites and camera follow,
-  minimap and stats overlay, real menu, audio).
+- [ ] Threats and defense (wildlife, combat, walls) — gives survival a reason.
+- [ ] Social bonds and society (kinship, relationships, roles, leadership) —
+  the "one of twenty" premise.
 - [ ] Performance and scale (indexed resource queries, spatial entity index,
   incremental memory, headless benchmark in CI).
 - [ ] Observability and tuning (event log, run summaries, runtime config reload,
   interrupt a busy entity when a need turns critical).
+- [ ] Presentation and UX (day/night lighting, sprites and camera follow,
+  minimap and stats overlay, real menu, audio).
+
+### On the side
+- [x] **Survival and population dynamics** (implemented). Kept here for now
+  rather than as an active milestone: entities age and die, needs are lethal
+  when an entity is already struggling, and the settlement reproduces. Follow-up
+  work (health, illness/weather, shelter/housing, survival interrupts) is listed
+  in [ROADMAP.md](ROADMAP.md).
 
 ### Parked
 - [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
@@ -191,15 +200,8 @@ at milestone 2 of the roadmap.
 
 ### Completed
 
-Folded into the baseline; kept here as a record. See the roadmap for the new
-work.
+Retired from the roadmap; kept here as a record.
 
-- [x] **Survival and population dynamics.** Entities age via `CLifespan` and die
-  of old age; thirst/hunger turn lethal once an entity is already struggling;
-  eating/drinking draw on the stockpile; the settlement reproduces when
-  comfortable; population and vitals reach the HUD. Movement no longer overshoots
-  its target, so entities actually arrive to drink and eat, and the seeded
-  population founds itself on a habitable coastal site (rivers enabled).
 - [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes
   entities over the `MoveCost` map, so they go around water and prefer cheap
   ground; movement follows the route (`CPath`) and falls back to a straight line
