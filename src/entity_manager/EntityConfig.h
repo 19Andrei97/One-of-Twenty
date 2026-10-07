@@ -17,6 +17,33 @@ struct EntityConfig
     int thirst_decay_per_hour{ 5 };
     int sleep_gain_per_hour{ 2 };
 
+    // Population dynamics: ageing, lethal needs and reproduction. Defaults are
+    // shipped so the simulation runs even with an older config file.
+    struct Survival
+    {
+        // How many entities the scene spawns at the start.
+        int initial_population{ 8 };
+
+        // Hard ceiling on the population, so births cannot run away.
+        int max_population{ 40 };
+
+        // A need counter at or below this kills the entity. Fullness counters
+        // (thirst/hunger) run 100 (comfortable) down to 0 (dire), so 0 means
+        // "dies of starvation/dehydration".
+        int lethal_threshold{ 0 };
+
+        // How many in-game hours an entity lives before dying of old age.
+        int lifespan_hours{ 720 }; // 30 in-game days
+
+        // Reproduction: an entity gives birth when it is at least this
+        // comfortable (1 = every need satisfied) and enough hours have passed
+        // since the settlement's last birth.
+        float birth_comfort{ 0.8f };
+        int birth_cooldown_hours{ 48 };
+    };
+
+    Survival survival{};
+
     // Weighted decision policy (thresholds, biases, idle tolerance).
     EntityDecision::Config decision{};
 
@@ -49,6 +76,18 @@ inline EntityConfig loadEntityConfig(const std::string& path)
 
     const auto& decision = js.at("decision");
     cfg.decision.idle_tolerance = decision.value("idle_tolerance", cfg.decision.idle_tolerance);
+
+    if (js.contains("survival"))
+    {
+        const auto& survival = js.at("survival");
+        auto& s = cfg.survival;
+        s.initial_population   = survival.value("initial_population", s.initial_population);
+        s.max_population       = survival.value("max_population", s.max_population);
+        s.lethal_threshold     = survival.value("lethal_threshold", s.lethal_threshold);
+        s.lifespan_hours       = survival.value("lifespan_hours", s.lifespan_hours);
+        s.birth_comfort        = survival.value("birth_comfort", s.birth_comfort);
+        s.birth_cooldown_hours = survival.value("birth_cooldown_hours", s.birth_cooldown_hours);
+    }
 
     const auto readNeed = [&decision](const char* key, EntityDecision::Config::Need& out)
     {

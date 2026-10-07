@@ -12,8 +12,7 @@ two in sync when a milestone changes status.
 
 ## Current baseline
 
-Milestones 1–4 (technical debt, map depth, entities/simulation, scenes/HUD) are
-complete and folded into the baseline below. The engine core is in place:
+The engine core and the survival loop are in place:
 
 - Window, game loop, scenes (`Scene_Play`, `Scene_Menu`), camera, and an
   EnTT-based ECS (`src/game`, `src/camera`, `src/entity_manager`).
@@ -25,13 +24,21 @@ complete and folded into the baseline below. The engine core is in place:
   authoritative per-tile map, so edits made through `setTileColor` agree with
   what is drawn and what entities query.
 - Data-driven HUD (buttons, sliders, input boxes) loaded from JSON, with named
-  callbacks and multiple levels (`src/hud`, `config/hud_menu_data.json`).
+  callbacks, multiple levels and a persistent stats panel (`src/hud`,
+  `config/hud_menu_data.json`).
 - Weighted, personality-scaled entity decisions over needs and memory, with
   terrain-cost movement and a gather-to-stockpile work loop (`src/entity_manager`).
 - JSON config loading with clear errors, logging via spdlog, a `GameClock`
   driving day/time, and pure helpers (`src/helpers`).
+- **Survival and population dynamics.** Entities age (`CLifespan`) and die of
+  old age; thirst/hunger become lethal once an entity is already struggling;
+  eating and drinking draw on the settlement stockpile; the settlement
+  reproduces when it is comfortable; and population/vital stats reach the HUD.
+  The seeded population founds itself on a habitable coastal site with water
+  and forage in reach, so a run produces a story instead of a static crowd.
 - Unit tests (doctest) across coordinates, `SharedContainer`, `GameClock`,
-  config, map lifetime/determinism, decisions, move cost, HUD and scenes.
+  config, map lifetime/determinism, decisions, move cost, HUD, scenes and
+  survival/population.
 - CI on Linux + Windows plus an ASan/UBSan job (`.github/workflows/build.yml`)
   and a real-game smoke test (`.github/workflows/game-smoke.yml`).
 
@@ -40,7 +47,7 @@ complete and folded into the baseline below. The engine core is in place:
 ## Deferred — Civilization
 
 The long-term goal, parked until the simulation loop below is solid. Revisit
-once survival, pathfinding and the settlement economy exist.
+once pathfinding and the settlement economy exist.
 
 - [ ] Add a city center (`Entity`).
 - [ ] Add AI for civilization politics via llama (`Entity`).
@@ -50,36 +57,29 @@ against an LLM backend behind an interface that is mockable in tests.
 
 ---
 
+## Parked — Persistence and save/load
+
+Set aside for now: the simulation still changes too quickly for a save format to
+be worth freezing. Pick this up once the economy and jobs below have settled.
+
+- [ ] Serialize world state: seed, clock, entities, stockpile, and edited tiles.
+- [ ] Load it back and reconstruct an equivalent simulation.
+- [ ] Keep edits as a log over the seed so a save stays small and deterministic.
+- [ ] Add a version field and reject incompatible saves with a clear error.
+- [ ] Unit-test round-trip: save, load, and compare state and determinism.
+
+**Done when:** a saved game reloads to the same population, stockpile and map.
+
+---
+
 ## Proposed milestones
 
-Ordered by dependency: each milestone makes the next one possible. The first
-two are the highest value because they close the core simulation loop.
+Ordered by dependency: each milestone makes the next one possible.
 
-### Milestone 1 — Survival and population dynamics
+### Milestone 1 — Pathfinding and collision
 
-Today entities never die from needs, never reproduce, and nothing consumes the
-stockpile, so population is static. Finish the loop so a run produces a story.
-
-- [ ] Actually age entities: `CLifespan` is emplaced but never decremented, so
-      nothing ever reaches the removal path. Drive it from the clock.
-- [ ] Make needs lethal: at zero thirst/hunger (and full sleep debt) an entity
-      dies, is removed, and the settlement population drops.
-- [ ] Consume the stockpile: eating/drinking should draw from stored units when
-      available instead of always succeeding, so gathering has a purpose.
-- [ ] Add reproduction or immigration so population can recover, gated on
-      settlement comfort (food/water stock and housing).
-- [ ] Expose population and vital stats (births, deaths, stock) for tests and
-      the HUD.
-- [ ] Unit-test the loop: a starved entity dies, a supplied settlement grows,
-      and the stockpile drains when it is eaten.
-
-**Done when:** running the game for several simulated days changes the
-population, and the rules are covered by deterministic unit tests.
-
-### Milestone 2 — Pathfinding and collision
-
-Entities walk in a straight line to their target and ignore terrain, so they
-cross oceans and mountains. Make movement physical.
+Entities still walk in a straight line to their target and ignore terrain, so
+they cross oceans and mountains. Make movement physical.
 
 - [ ] Implement a grid path (A* or a flow field) over the `MoveCost` map so
       entities route around water and prefer cheap ground.
@@ -94,7 +94,7 @@ cross oceans and mountains. Make movement physical.
 **Done when:** a target across water is reached only via a land route, and paths
 are tested without a renderer.
 
-### Milestone 3 — Settlement economy and jobs
+### Milestone 2 — Settlement economy and jobs
 
 Turn "gather the nearest resource" into production with roles and buildings.
 
@@ -102,6 +102,8 @@ Turn "gather the nearest resource" into production with roles and buildings.
       animal types) are defined but unused; bind jobs to them.
 - [ ] Add recipes / production chains that convert raw stock (wood, stone, clay,
       iron, silver) into goods, so different resources matter.
+- [ ] Make food a real resource: foraging, farms and spoilage, so hunger is
+      supplied by production rather than the current tile fallback.
 - [ ] Add a stockpile HUD panel showing counts and rates over time.
 - [ ] Add placeable buildings on tiles, reusing `setTileColor` and the chunk
       mesh rebuild so structures render and persist in the world.
@@ -110,6 +112,23 @@ Turn "gather the nearest resource" into production with roles and buildings.
 
 **Done when:** a settlement produces a surplus from specialized jobs, visible in
 the HUD and verified by tests.
+
+### Milestone 3 — Survival depth: health, illness and shelter
+
+The survival loop is binary today (alive until a need hits zero). Give it
+gradients and recovery so a run has texture.
+
+- [ ] Add health as a slow resource separate from the needs, damaged by
+      starvation/dehydration and restored by eating and resting.
+- [ ] Add shelter/housing: a bed to sleep in and a home tile, so sleep and
+      reproduction depend on more than raw comfort.
+- [ ] Add illness/weather events that drain health and spread between close
+      entities, with a simple cure (herbs/medicine) to counter them.
+- [ ] Unit-test the health curve: starving lowers health, feeding restores it,
+      and a sheltered entity recovers faster than an exposed one.
+
+**Done when:** an entity can be sick-but-alive and recover, and the HUD shows
+health alongside the needs.
 
 ### Milestone 4 — Presentation and UX
 
@@ -126,19 +145,7 @@ Make the simulation legible and pleasant to watch.
 **Done when:** the game communicates its own state without debug overlays, and
 the menu can start and configure a run.
 
-### Milestone 5 — Persistence and save/load
-
-Nothing survives a restart today; a run cannot be resumed or shared.
-
-- [ ] Serialize world state: seed, clock, entities, stockpile, and edited tiles.
-- [ ] Load it back and reconstruct an equivalent simulation.
-- [ ] Keep edits as a log over the seed so a save stays small and deterministic.
-- [ ] Add a version field and reject incompatible saves with a clear error.
-- [ ] Unit-test round-trip: save, load, and compare state and determinism.
-
-**Done when:** a saved game reloads to the same population, stockpile and map.
-
-### Milestone 6 — Performance and scale
+### Milestone 5 — Performance and scale
 
 Prepare for hundreds of entities without frame drops.
 
@@ -150,6 +157,22 @@ Prepare for hundreds of entities without frame drops.
 - [ ] Set and test a target: e.g. 500 entities at 60 fps on the CI machine.
 
 **Done when:** the benchmark target is met and guarded by a test.
+
+### Milestone 6 — Observability and tuning
+
+The simulation is hard to balance by eye. Make its behaviour measurable.
+
+- [ ] Add a lightweight event log (births, deaths, gathers, discoveries) with
+      cause and in-game timestamp, queryable in tests.
+- [ ] Record a run's population/stockpile over time and expose a headless
+      summary, so a balance change can be compared against a baseline.
+- [ ] Support reloading `entity_data.json` at runtime so tuning does not need a
+      rebuild.
+- [ ] Unit-test that a given config produces the expected steady-state
+      population band over a fixed number of simulated days.
+
+**Done when:** a balance change can be justified by numbers rather than by
+watching the window.
 
 ---
 

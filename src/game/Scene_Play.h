@@ -25,6 +25,8 @@ class Scene_Play : public Scene
 
 	void sMovement();
 	void sCollision();
+	// Push the current population/stockpile readout into the HUD.
+	void refreshStats();
 
 public:
 	Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& config);

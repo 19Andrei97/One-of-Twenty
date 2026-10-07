@@ -307,6 +307,9 @@ void Hud::render(sf::RenderTarget& window)
 
 	if (info_box && isLevelVisible(0))
 		info_box->draw(window);
+
+	if (m_stats && isLevelVisible(0))
+		m_stats->draw(window);
 }
 
 // ACCESSORIES
@@ -321,6 +324,17 @@ void Hud::infoBox(std::vector<std::string> info)
 			info,
 			m_camera
 		);	
+}
+
+void Hud::stats(const std::vector<std::string>& lines)
+{
+	// Refresh the persistent panel in place; rebuild only on the first call.
+	// The top-left corner keeps it clear of the bottom-anchored selection box.
+	if (!m_stats)
+		m_stats = std::make_unique<CInfoBox>(240.f, 0.f, m_font, std::vector<std::string>{}, m_camera,
+		                                     sf::Color(0, 0, 0, 128), sf::Color::White, 16U, false);
+
+	m_stats->setLines(lines);
 }
 
 // INPUTS

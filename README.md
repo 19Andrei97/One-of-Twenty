@@ -166,33 +166,41 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 ## TODO
 
-See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The completed items
-below (milestones 1-4) are folded into the current baseline; the new work starts
-at milestone 1 of the roadmap.
+See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core and the
+survival loop are folded into the baseline; the new work starts at milestone 1
+of the roadmap.
 
 ### Next milestones
-- [ ] Survival and population dynamics (ageing, lethal needs, stockpile
-  consumption, reproduction, population stats).
 - [ ] Pathfinding and collision (grid paths over `MoveCost`, working
   `sCollision`, graceful failure for unreachable targets).
-- [ ] Settlement economy and jobs (entity-type roles, recipes/production,
-  stockpile HUD, placeable buildings).
+- [ ] Settlement economy and jobs (entity-type roles, recipes/production, food as
+  a resource, stockpile HUD, placeable buildings).
+- [ ] Survival depth (health, illness/weather, shelter/housing).
 - [ ] Presentation and UX (day/night lighting, sprites and camera follow,
   minimap and stats overlay, real menu, audio).
-- [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
-  versioned saves, round-trip tests).
 - [ ] Performance and scale (indexed resource queries, spatial entity index,
   incremental memory, headless benchmark in CI).
+- [ ] Observability and tuning (event log, run summaries, runtime config reload).
+
+### Parked
+- [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
+  versioned saves, round-trip tests). Deferred until the economy settles.
 
 ### Deferred
 - [ ] Add a city center.
 - [ ] Add AI through llama for civilization politics.
 
-### Completed (milestones 1-4)
+### Completed
 
 Folded into the baseline; kept here as a record. See the roadmap for the new
 work.
 
+- [x] **Survival and population dynamics.** Entities age via `CLifespan` and die
+  of old age; thirst/hunger turn lethal once an entity is already struggling;
+  eating/drinking draw on the stockpile; the settlement reproduces when
+  comfortable; population and vitals reach the HUD. Movement no longer overshoots
+  its target, so entities actually arrive to drink and eat, and the seeded
+  population founds itself on a habitable coastal site (rivers enabled).
 - [x] **Technical debt.** Removed unnecessary heap use (unused `sf::Text`
   member, heap `Camera::cInput`, per-tile color lookup, second tile grid);
   documented the chunk-map lock order and stopped taking the mutex around the
