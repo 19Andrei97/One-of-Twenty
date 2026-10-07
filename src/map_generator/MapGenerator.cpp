@@ -18,6 +18,11 @@ Elements MapGenerator::elementAtTile(const sf::Vector2i& tile) const {
 	float warpY = coord_f.y + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
 	float continent = (m_noise_continent.GetNoise(warpX * m_cont_multiplier, warpY * m_cont_multiplier) + 1.0f) * 0.5f;
 
+	// Remap the raw [0,1] continent field into the configured depth/height
+	// range before any threshold is applied, so the same thresholds read as
+	// different peaks. The default [0,1] is an identity transform.
+	continent = m_height_min + (m_height_max - m_height_min) * continent;
+
 	// Island shaping: pull the coast inward so the world is surrounded by water.
 	if (m_island.enabled)
 		continent *= islandFalloff(tile);

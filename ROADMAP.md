@@ -75,7 +75,7 @@ structural split is last (it is refactoring, not new behavior).
       `island.falloff` apply a radial falloff to the continent field.
 - [x] Add rivers (`MapGenerator`). `river.enabled` / `river.freq` /
       `river.threshold` carve a dedicated noise field into land tiles.
-- [ ] Add configurable depth and height ranges (`MapGenerator`).
+- [x] Add configurable depth and height ranges (`MapGenerator`). `height_range.min`/`max` remap the continent field before thresholds; the default `[0,1]` is an identity transform.
 - [ ] Use a distinct noise map per resource so deposits don't overlap
       (`MapGenerator`).
 

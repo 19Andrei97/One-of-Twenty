@@ -173,7 +173,8 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
 - [x] Add rivers (`river.enabled` / `river.freq` / `river.threshold`).
 - [x] Change map on entity action. `tile_types` is authoritative; the mesh is
   rebuilt on edit and queries floor to the containing chunk (`chunkOf`).
-- Add possibility to increase depths and heights.
+- [x] Increase depths and heights. `height_range.min`/`max` remap the
+  continent field before biome thresholds are applied.
 - FIX: different noise map for each resource?
 - Improve getting resources for entities.
 - [x] Update chunk unload to double check if no entity or changes are present.

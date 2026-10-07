@@ -106,6 +106,12 @@ private:
 	Option<float>		m_island;		// falloff + edge thresholds
 	Option<RiverParams>	m_river;	// river carving noise + width
 
+	// Depth/height range the continent field is remapped into. Defaults to the
+	// full [0,1] so the classic map is unchanged; shrinking it lowers the peaks
+	// (and raising min floods the lowlands) without touching the noise itself.
+	float					m_height_min{ 0.0f };
+	float					m_height_max{ 1.0f };
+
 	std::unordered_map<Elements, sf::Color>		m_biomes;
 	std::unordered_map<Elements, float>			m_thresholds;
 
@@ -178,6 +184,14 @@ public:
 			m_river.enabled = true;
 			m_river.value.threshold = js_map["river"].value("threshold", 0.03f);
 			m_river_freq = js_map["river"].value("freq", 0.01f);
+		}
+
+		if (js_map.contains("height_range"))
+		{
+			m_height_min = js_map["height_range"].value("min", 0.0f);
+			m_height_max = js_map["height_range"].value("max", 1.0f);
+			if (m_height_max < m_height_min)
+				std::swap(m_height_min, m_height_max);
 		}
 
 		m_cont_multiplier = static_cast<float>(js_map["cont_multiplier"]);

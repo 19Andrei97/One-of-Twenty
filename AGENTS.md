@@ -58,7 +58,8 @@ A run that is killed by `timeout` (exit 124) is a success; check
   tile space so terrain does not depend on `tile_size`.
 - `generateChunk(tiles_per_side, tile_position)` takes the tile position
   directly; islands and rivers are opt-in via `island.*` / `river.*` in
-  `config/map_data.json` and default to off.
+  `config/map_data.json` and default to off. `height_range.min`/`max` remap
+  the continent field before thresholds (default `[0,1]` = identity).
 - A chunk's `tile_types` is the authoritative per-tile map: `elementAtTile`
   only seeds it at generation, and `buildChunkVertices` derives the drawn mesh
   from it. Edit tiles through `setTileColor` (which rebuilds the mesh) rather

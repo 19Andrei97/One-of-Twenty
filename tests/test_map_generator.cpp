@@ -428,3 +428,63 @@ TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
 
     CHECK(tileRegionHas(testColor));
 }
+
+TEST_CASE("height_range caps peaks and floors the lowlands")
+{
+    sf::Font font;
+    int frames = 0;
+
+    // A narrow range well below the snow/mountain thresholds must remove every
+    // high biome and, with a min above the ocean thresholds, flood the lowlands.
+    const std::string flatConfig = makeVariantConfig("height_narrow", [](nlohmann::json& js) {
+        js["island"]["enabled"] = false;
+        js["river"]["enabled"] = false;
+        js["height_range"]["min"] = 0.0;
+        js["height_range"]["max"] = 0.3;
+    });
+
+    auto generator = std::make_unique<MapGenerator>(font, frames, flatConfig);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    const int tileSize = generator->getTileSize();
+    int high = 0;
+    int water = 0;
+    int total = 0;
+    constexpr int range = 1500;
+    for (int x = -range; x <= range; x += 3 * tileSize)
+    {
+        for (int y = -range; y <= range; y += 3 * tileSize)
+        {
+            const Elements e = generator->getBiomeElement({ x, y });
+            ++total;
+            if (isWater(*generator, { x, y })) ++water;
+            if (e == Elements::muntain || e == Elements::snow) ++high;
+        }
+    }
+
+    // Max 0.3 sits below the sand threshold (0.5), so no tile is above the beach.
+    CHECK(high == 0);
+    CHECK(water > 0);
+    CHECK(total > 0);
+
+    // Raising the floor above the ocean band turns the shallow sea into land:
+    // the same seed gets strictly less water than the baseline.
+    const std::string floodConfig = makeVariantConfig("height_flood", [](nlohmann::json& js) {
+        js["island"]["enabled"] = false;
+        js["river"]["enabled"] = false;
+        js["height_range"]["min"] = 0.5;
+        js["height_range"]["max"] = 1.0;
+    });
+
+    auto flooded = std::make_unique<MapGenerator>(font, frames, floodConfig);
+    flooded->setSeed(2024);
+    flooded->setNoises();
+
+    int floodedWater = 0;
+    for (int x = -range; x <= range; x += 3 * tileSize)
+        for (int y = -range; y <= range; y += 3 * tileSize)
+            if (isWater(*flooded, { x, y })) ++floodedWater;
+
+    CHECK(floodedWater == 0);
+}
