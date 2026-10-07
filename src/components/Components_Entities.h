@@ -108,11 +108,6 @@ struct CMemory
 
     CMemory(){}
 
-    void rememberLocation(const sf::Vector2i& pos, const Elements& type)
-    {
-        locations[type] = pos;
-    }
-
     void rememberLocation(const std::unordered_map<Elements, sf::Vector2i>& map)
     {
         for(auto& [key, val] : map)
@@ -191,7 +186,6 @@ struct CTransform
 {
     float           speed{ 0.f };
 	sf::Vector2i    pos{ 0, 0 };
-    sf::Vector2i    target{ 0, 0 };
 
 	CTransform(const sf::Vector2i& p, const float v)
 		: pos(p), speed(v)
@@ -210,15 +204,6 @@ struct CShape
 		//circle.setOutlineThickness(thickness);
 		circle.setOrigin({ radius, radius });
 	}
-};
-
-struct CCollision
-{
-	float radius;
-
-	CCollision(float r)
-		: radius(r) 
-    {}
 };
 
 struct CVision
@@ -246,7 +231,6 @@ struct CInput
 	bool down{ false };
 	bool left{ false };
 	bool right{ false };
-	bool shoot{ false };
 
 	CInput() {}
 };

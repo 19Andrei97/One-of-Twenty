@@ -16,13 +16,12 @@ public:
 	CInput		cInput;
 
 	// SETTERS
-	void setCamera(int width, int height);
 	void move(float x, float y);
 	void zoomIn();
 	void zoomOut();
 
 	// GETTERS
-	const sf::View& getCamera()		{ return m_camera; };
-	const float		getVelocity()		{ return m_velocity; };
+	const sf::View& getCamera() const { return m_camera; }
+	float getVelocity() const { return m_velocity; }
 	sf::IntRect		getWorldBounds() const;
 };

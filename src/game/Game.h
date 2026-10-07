@@ -49,8 +49,6 @@ public:
 	const sf::RenderWindow& getWindow() const { return m_window; }
 	sf::Font& getFont() { return m_font; }
 	const sf::Font& getFont() const { return m_font; }
-	const nlohmann::json& getConfig() const { return m_config; }
 	float getDeltaTime() const { return m_deltaTime; }
-	int getCurrentFrame() const { return m_currentFrame; }
 };
 

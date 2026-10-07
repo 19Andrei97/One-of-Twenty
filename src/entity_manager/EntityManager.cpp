@@ -33,7 +33,6 @@ void EntityManager::update()
         {
                 m_registry->destroy(entity);
                 m_entity_idle.erase(entity);
-                --m_total_entities;
         }
 
         // UPDATE ENTITIES
@@ -392,26 +391,12 @@ void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
         m_registry->emplace<CEntityInfo>(entity, 60, 40);
 
         m_entity_idle[entity] = 0;
-        ++m_total_entities;
-}
-
-// Add a moving action with assosciated target position.
-void EntityManager::nextTarget(const EntityType& type, sf::Vector2i& target)
-{
-        m_registry->view<CActionsQueue, CTransform, CType>().each([&](auto entity, auto& queue, auto& trs, auto& tp)
-        {
-
-                if (tp.type == type)
-                        queue.actions.push_back(std::make_shared<CMoving>( ActionTypes::Moving, target ));
-
-        });
 }
 
 // HELPER FUNCTION
 void EntityManager::addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color)
 {
-        vec.emplace_back(sf::Text{ m_font });
-        vec.back().setString(s);
+        vec.emplace_back(m_font, s);
         vec.back().setCharacterSize(size);
         vec.back().setFillColor(color);
 }

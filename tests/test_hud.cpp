@@ -44,20 +44,13 @@ TEST_CASE("Hud registers default callbacks and checks existence")
     hud.init();
 
     CHECK(hud.hasButtonCallback("random"));
-    CHECK(hud.hasButtonCallback("random_seed"));
     CHECK(hud.hasButtonCallback("cycle_hud"));
-    CHECK(hud.hasButtonCallback("next_hud_level"));
 
     CHECK(hud.hasSliderCallback("continent_frequency"));
-    CHECK(hud.hasSliderCallback("cont_freq"));
     CHECK(hud.hasSliderCallback("cont_multiplier"));
-    CHECK(hud.hasSliderCallback("cont_mult"));
     CHECK(hud.hasSliderCallback("warp_frequency"));
-    CHECK(hud.hasSliderCallback("warp_freq"));
     CHECK(hud.hasSliderCallback("mineral_frequency"));
-    CHECK(hud.hasSliderCallback("mineral_freq"));
     CHECK(hud.hasSliderCallback("mineral_multiplier"));
-    CHECK(hud.hasSliderCallback("mineral_mult"));
 
     CHECK_FALSE(hud.hasButtonCallback("non_existent_btn"));
     CHECK_FALSE(hud.hasSliderCallback("non_existent_sld"));
@@ -212,6 +205,8 @@ TEST_CASE("Hud multiple levels filter widgets during render and input")
 
     CHECK(hud.getMaxLevel() == 2);
     CHECK(hud.getLevel() == 0);
+    CHECK(hud.getSliderCount() == 0);
+    CHECK(hud.getInputCount() == 0);
 
     // At Level 0: Only level 0 is visible in Layered mode
     CHECK(hud.getVisibleButtonCount() == 1);
@@ -273,6 +268,9 @@ TEST_CASE("Main hud_menu_data.json loads successfully with named functions")
 
     CHECK(hud.getButtonCount() > 0);
     CHECK(hud.getSliderCount() > 0);
+    CHECK(hud.getVisibleButtonCount() == hud.getButtonCount());
+    CHECK(hud.getVisibleSliderCount() == hud.getSliderCount());
+    CHECK(hud.getVisibleInputCount() == hud.getInputCount());
 
     // Check that button_random has functionName "random" or valid name
     const auto& buttons = hud.getButtons();

@@ -37,9 +37,9 @@ std::string mapConfigPath()
 #endif
 }
 
-std::unique_ptr<MapGenerator> makeGenerator(sf::Font& font, int& frames)
+std::unique_ptr<MapGenerator> makeGenerator(int& frames)
 {
-    return std::make_unique<MapGenerator>(font, frames, mapConfigPath());
+    return std::make_unique<MapGenerator>(frames, mapConfigPath());
 }
 
 // Copy the real map config, apply a patch, and return the temp file path. This
@@ -69,12 +69,11 @@ bool isWater(MapGenerator& generator, const sf::Vector2i& world)
 
 TEST_CASE("MapGenerator constructs and destructs without touching freed members")
 {
-    sf::Font font;
     int frames = 0;
 
     for (int i = 0; i < 5; ++i)
     {
-        auto generator = makeGenerator(font, frames);
+        auto generator = makeGenerator(frames);
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
         // generator goes out of scope here; workers must be joined first.
     }
@@ -84,14 +83,13 @@ TEST_CASE("MapGenerator constructs and destructs without touching freed members"
 
 TEST_CASE("biome colors are deterministic for a fixed seed")
 {
-    sf::Font font;
     int frames = 0;
 
-    auto a = makeGenerator(font, frames);
+    auto a = makeGenerator(frames);
     a->setSeed(123456);
     a->setNoises();
 
-    auto b = makeGenerator(font, frames);
+    auto b = makeGenerator(frames);
     b->setSeed(123456);
     b->setNoises();
 
@@ -102,14 +100,13 @@ TEST_CASE("biome colors are deterministic for a fixed seed")
 
 TEST_CASE("different seeds produce a different map")
 {
-    sf::Font font;
     int frames = 0;
 
-    auto a = makeGenerator(font, frames);
+    auto a = makeGenerator(frames);
     a->setSeed(1);
     a->setNoises();
 
-    auto b = makeGenerator(font, frames);
+    auto b = makeGenerator(frames);
     b->setSeed(999999);
     b->setNoises();
 
@@ -124,10 +121,9 @@ TEST_CASE("different seeds produce a different map")
 
 TEST_CASE("element lookup is stable within a tile and follows the grid")
 {
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
     generator->setSeed(2024);
     generator->setNoises();
 
@@ -152,7 +148,6 @@ TEST_CASE("element lookup is stable within a tile and follows the grid")
 
 TEST_CASE("island mode surrounds the origin with water")
 {
-    sf::Font font;
     int frames = 0;
 
     const std::string config = makeVariantConfig("island", [](nlohmann::json& js) {
@@ -160,7 +155,7 @@ TEST_CASE("island mode surrounds the origin with water")
         js["island"]["falloff"] = 0.4;
     });
 
-    auto generator = std::make_unique<MapGenerator>(font, frames, config);
+    auto generator = std::make_unique<MapGenerator>(frames, config);
     generator->setSeed(2024);
     generator->setNoises();
 
@@ -187,7 +182,6 @@ TEST_CASE("island mode surrounds the origin with water")
 
 TEST_CASE("rivers carve water into otherwise dry land")
 {
-    sf::Font font;
     int frames = 0;
 
     // Compare the same seed with rivers off and on: rivers must only add water,
@@ -203,11 +197,11 @@ TEST_CASE("rivers carve water into otherwise dry land")
         js["river"]["threshold"] = 0.06;
     });
 
-    auto plain = std::make_unique<MapGenerator>(font, frames, plainConfig);
+    auto plain = std::make_unique<MapGenerator>(frames, plainConfig);
     plain->setSeed(2024);
     plain->setNoises();
 
-    auto river = std::make_unique<MapGenerator>(font, frames, riverConfig);
+    auto river = std::make_unique<MapGenerator>(frames, riverConfig);
     river->setSeed(2024);
     river->setNoises();
 
@@ -240,10 +234,9 @@ TEST_CASE("rivers carve water into otherwise dry land")
 
 TEST_CASE("setChunkUnload reports when no chunk is loaded")
 {
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
 
     // Nothing has been streamed yet, so there is no chunk to pin.
     CHECK_FALSE(generator->setChunkUnload({ 8, 8 }, false));
@@ -261,10 +254,9 @@ TEST_CASE("render streams chunks and shuts down cleanly")
     }
 #endif
 
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
     generator->setSeed(42);
     generator->setNoises();
 
@@ -350,10 +342,9 @@ TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
     }
 #endif
 
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
     generator->setSeed(42);
     generator->setNoises();
 
@@ -445,10 +436,9 @@ TEST_CASE("tile cost reads the authoritative tile and is always positive")
     }
 #endif
 
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
     generator->setSeed(42);
     generator->setNoises();
 
@@ -497,7 +487,6 @@ TEST_CASE("tile cost reads the authoritative tile and is always positive")
 
 TEST_CASE("height_range caps peaks and floors the lowlands")
 {
-    sf::Font font;
     int frames = 0;
 
     // A narrow range well below the snow/mountain thresholds must remove every
@@ -509,7 +498,7 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
         js["height_range"]["max"] = 0.3;
     });
 
-    auto generator = std::make_unique<MapGenerator>(font, frames, flatConfig);
+    auto generator = std::make_unique<MapGenerator>(frames, flatConfig);
     generator->setSeed(2024);
     generator->setNoises();
 
@@ -525,7 +514,7 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
             const Elements e = generator->getBiomeElement({ x, y });
             ++total;
             if (isWater(*generator, { x, y })) ++water;
-            if (e == Elements::muntain || e == Elements::snow) ++high;
+            if (e == Elements::mountain || e == Elements::snow) ++high;
         }
     }
 
@@ -543,7 +532,7 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
         js["height_range"]["max"] = 1.0;
     });
 
-    auto flooded = std::make_unique<MapGenerator>(font, frames, floodConfig);
+    auto flooded = std::make_unique<MapGenerator>(frames, floodConfig);
     flooded->setSeed(2024);
     flooded->setNoises();
 
@@ -557,10 +546,9 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
 
 TEST_CASE("each resource uses its own noise field")
 {
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
     generator->setSeed(2024);
     generator->setNoises();
 
@@ -602,10 +590,9 @@ TEST_CASE("map queries read the authoritative tile map")
     }
 #endif
 
-    sf::Font font;
     int frames = 0;
 
-    auto generator = makeGenerator(font, frames);
+    auto generator = makeGenerator(frames);
     generator->setSeed(42);
     generator->setNoises();
 
@@ -689,4 +676,39 @@ TEST_CASE("terrain sampling is deterministic and seed-dependent without a render
     // World lookup floors into the owning tile.
     const int ts = config.tile_size_px;
     CHECK(a.elementAtWorld({ ts, ts }) == a.elementAtTile({ 1, 1 }));
+}
+
+// getResourcesWithinBoundary scans a tile grid, so it must agree with the
+// authoritative per-tile lookup on every candidate it reports, including edits.
+TEST_CASE("getResourcesWithinBoundary reports the authoritative nearest resource")
+{
+    int frames = 0;
+
+    auto generator = makeGenerator(frames);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    const int tileSize = generator->getTileSize();
+    const sf::Vector2i center{ 4 * tileSize, 4 * tileSize };
+    const float radius = static_cast<float>(tileSize) * 3.f;
+
+    const auto resources = generator->getResourcesWithinBoundary(center, radius);
+
+    for (const auto& [element, world] : resources)
+    {
+        // Reported tiles carry the same element the authoritative lookup does.
+        CHECK(generator->getElementAtWorld(world) == element);
+        CHECK(Resources::isResource(element));
+    }
+
+    // An edit to a nearby tile must be visible to the scan, which proves it
+    // reads the stored tile map rather than a fresh noise sample.
+    const sf::Vector2i edited = center + sf::Vector2i(tileSize, 0);
+    if (generator->setTileColor(edited, Elements::test))
+    {
+        const auto after = generator->getResourcesWithinBoundary(center, radius);
+        const auto it = after.find(Elements::test);
+        if (it != after.end())
+            CHECK(generator->getElementAtWorld(it->second) == Elements::test);
+    }
 }

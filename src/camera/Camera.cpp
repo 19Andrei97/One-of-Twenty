@@ -8,12 +8,6 @@ Camera::Camera(int width, int height)
 	m_camera.setCenter(sf::Vector2f(width / 2.f, height / 2.f)); // This set the camera to the center
 }
 
-void Camera::setCamera(int width, int height)
-{
-	m_camera.setSize(sf::Vector2f(width, height));
-	m_camera.setCenter(sf::Vector2f(width / 2.f, height / 2.f)); // This set the camera to the center
-}
-
 sf::IntRect Camera::getWorldBounds() const
 {
 	sf::Vector2i pos	= static_cast<sf::Vector2i>(m_camera.getCenter());

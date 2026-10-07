@@ -55,8 +55,6 @@ private:
 	int& i_frames;
 
 	// DEBUG variables
-	sf::Font        d_font;
-	bool            d_noise_val{ false };
 	bool            d_wire_frame{ false };
 
 	// GENERATE MAP SUPPORT FUNCTIONS
@@ -77,11 +75,10 @@ public:
 	bool m_reset{ false };
 
 	// CONSTRUCTORS
-	MapGenerator(sf::Font& font, int& frames, const std::string& map_file)
+	MapGenerator(int& frames, const std::string& map_file)
 		: m_config(loadMapConfig(map_file))
 		, m_seed(m_config.seed)
 		, m_terrain(m_config)
-		, d_font(font)
 		, i_frames(frames)
 	{
 		c_chunk_tiles = m_config.chunk_tile_size;
@@ -125,7 +122,6 @@ public:
 	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 
 	// DEBUG
-	void setDebugNoiseView(bool status) { d_noise_val = status; }
 	void setDebugWireFrame(bool status) { d_wire_frame = status; }
 	void print()
 	{
@@ -155,6 +151,5 @@ public:
 	sf::Vector2i   getLocationWithinBound(sf::Vector2i& pos, float radius);
 	std::unordered_map<Elements, sf::Vector2i> getResourcesWithinBoundary(const sf::Vector2i& pos, float radius) const;
 
-	bool getDebugNoiseStatus() const { return d_noise_val; }
 	bool getDebugWireFrame()   const { return d_wire_frame; }
 };

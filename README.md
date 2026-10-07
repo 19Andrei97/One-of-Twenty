@@ -166,74 +166,50 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 ## TODO
 
-See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
+See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The completed items
+below (milestones 1-4) are folded into the current baseline; the new work starts
+at milestone 1 of the roadmap.
 
-### General
-- [x] Re-check all objects for dynamic allocation of big objects. Removed the
-  unused `sf::Text` member, the heap-allocated `Camera::cInput`, the per-tile
-  color lookup in `generateChunk`, and the second (bit-packed) tile grid.
-- [x] Thread-safe access to the shared chunk map is guarded by a single mutex;
-  lock ordering documented and the mutex is no longer taken around the
-  self-locking ready container. Revisit with a finer-grained or lock-free
-  structure if contention grows.
+### Next milestones
+- [ ] Survival and population dynamics (ageing, lethal needs, stockpile
+  consumption, reproduction, population stats).
+- [ ] Pathfinding and collision (grid paths over `MoveCost`, working
+  `sCollision`, graceful failure for unreachable targets).
+- [ ] Settlement economy and jobs (entity-type roles, recipes/production,
+  stockpile HUD, placeable buildings).
+- [ ] Presentation and UX (day/night lighting, sprites and camera follow,
+  minimap and stats overlay, real menu, audio).
+- [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
+  versioned saves, round-trip tests).
+- [ ] Performance and scale (indexed resource queries, spatial entity index,
+  incremental memory, headless benchmark in CI).
 
-### Components
-- [x] Convert HUD components into classes. `CButton`, `CInputBox`, `CSlider`
-  and `CInfoBox` now own their shapes/text and handle placement, hit testing,
-  drawing and input; `Hud` just drives them.
+### Deferred
+- [ ] Add a city center.
+- [ ] Add AI through llama for civilization politics.
 
-### HUD
-- [x] Implement multiple HUD levels. Widgets support configurable levels with
-  layered and exact display modes, and level navigation.
-- [x] Bind HUD elements to functions by name instead of numeric id, so config
-  and enums cannot drift apart. `Hud` registers and resolves string callbacks.
+### Completed (milestones 1-4)
 
-### MapGenerator
-Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
-- [x] Convert all coords to tile space; use world coords only on render. Chunks
-  are keyed by tile position and noise is sampled per tile.
-- [x] Add option to create an island (`island.enabled` / `island.falloff`).
-- [x] Add rivers (`river.enabled` / `river.freq` / `river.threshold`).
-- [x] Change map on entity action. `tile_types` is authoritative; the mesh is
-  rebuilt on edit and queries floor to the containing chunk (`chunkOf`).
-- [x] Increase depths and heights. `height_range.min`/`max` remap the
-  continent field before biome thresholds are applied.
-- [x] Distinct noise map per resource. Clay/iron/silver each read their own
-  field; `getResourceValue()` exposes a field's value.
-- [x] Improve getting resources for entities. Queries go through
-  `getElementAtWorld` (authoritative tile map, post-edit state).
-- [x] Update chunk unload to double check if no entity or changes are present.
-  Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and
-  is only evicted once released.
-- [x] Split the class into chunk store / streamer / renderer. Terrain
-  sampling is now a standalone `GenerateTerrain` over a `MapConfig` value
-  type; `Chunk.h` holds the chunk store types. Public API unchanged.
+Folded into the baseline; kept here as a record. See the roadmap for the new
+work.
 
-### Game
-- [x] Implement a `Scene` class, pass inputs to scenes. Abstract `Scene` base
-  with `Scene_Play` and `Scene_Menu`; `Game` routes loop updates, rendering,
-  and inputs to the active scene.
-- [x] Expose the logger level through `config.json` (key `logger.level`).
-
-### Entity
-- [x] Improve `CMemory` component — `findNearest` picks the closest remembered
-  water (ocean) or food (forageable land) tile instead of only water/hill.
-- [x] Improve `CBasicNeeds` — counters clamp to `[0, 100]` via
-  `applyHourlyDecay`/`satisfy`, with per-hour rates from
-  `config/entity_data.json`.
-- [x] Implement weights-based decisions for entities — `EntityDecision` scales
-  each need's urgency by `CPersonality` traits and a config bias, picks the
-  strongest above threshold, and wanders when contented.
-- [x] Improve `CVision` component debug circle (radius now drives exploration too).
-- [x] Improve Tile Cost calculation — `helpers/MoveCost.h` maps each terrain
-  element to a positive movement multiplier (water slowest, deposits/forest/hill
-  slower, ground fastest); `getTileCost` reads the authoritative tile and never
-  returns 0.
-- [x] Provide actions to advance society — contented entities take up
-  `Need::Work` and gather the nearest remembered resource via `CGather` /
-  `CInventory`, banking units into a settlement stockpile.
-- ADD city center.
-- Add ai through llama for civilization politics.
+- [x] **Technical debt.** Removed unnecessary heap use (unused `sf::Text`
+  member, heap `Camera::cInput`, per-tile color lookup, second tile grid);
+  documented the chunk-map lock order and stopped taking the mutex around the
+  self-locking ready container; converted HUD widgets into classes; added
+  `setChunkUnload()` with a pin check; exposed `logger.level` in `config.json`.
+- [x] **Map depth.** Tile-space coordinates end to end; `tile_types` is
+  authoritative and edits rebuild the chunk mesh; island/river/height-range
+  options; one noise field per resource; `getElementAtWorld` for post-edit
+  queries; split sampling into `GenerateTerrain` + `MapConfig` + `Chunk.h`.
+- [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; `CMemory`
+  finds the nearest water/food; `EntityDecision` scales need urgency by
+  personality and config bias; vision drives memory and exploration; `MoveCost`
+  gives every element a positive cost; `CGather`/`CInventory` bank work into a
+  settlement stockpile.
+- [x] **Game structure and HUD.** Abstract `Scene` with `Scene_Play` and
+  `Scene_Menu`; multiple HUD levels with layered/exact modes; HUD callbacks
+  bound by name instead of numeric id.
 
 ---
 

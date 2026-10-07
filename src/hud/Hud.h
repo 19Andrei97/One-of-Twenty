@@ -49,7 +49,7 @@ public:
 	};
 
 private:
-	sf::Font&						m_font;
+	const sf::Font&						m_font;
 	std::string						m_file;
 	sf::View						m_camera;
 	std::shared_ptr<MapGenerator>	m_map;
@@ -73,7 +73,7 @@ private:
 public:
 
 	// CONSTRUCTOR & INITIATOR
-	Hud(sf::Font& font, std::shared_ptr<MapGenerator> map, const std::string& file, float window_x, float window_y);
+	Hud(const sf::Font& font, std::shared_ptr<MapGenerator> map, const std::string& file, float window_x, float window_y);
 
 	void init();
 

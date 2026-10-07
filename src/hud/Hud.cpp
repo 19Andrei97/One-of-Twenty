@@ -4,7 +4,7 @@
 
 #include "Hud.h"
 
-Hud::Hud(sf::Font& font, std::shared_ptr<MapGenerator> map, const std::string& file, float window_x, float window_y)
+Hud::Hud(const sf::Font& font, std::shared_ptr<MapGenerator> map, const std::string& file, float window_x, float window_y)
 	: m_font(font)
 	, m_map(map)
 	, m_file(file)
@@ -15,117 +15,58 @@ Hud::Hud(sf::Font& font, std::shared_ptr<MapGenerator> map, const std::string& f
 
 void Hud::registerDefaultCallbacks()
 {
-	// Map actions
-	registerButtonCallback("random", [this]() {
-		if (m_map)
-		{
-			m_map->setSeed();
-			m_map->m_reset = true;
-		}
-	});
+        // Only the names the shipped config actually uses are registered; an
+        // unknown name in the config simply binds no callback.
 
-	registerButtonCallback("random_seed", [this]() {
-		if (m_map)
-		{
-			m_map->setSeed();
-			m_map->m_reset = true;
-		}
-	});
+        // Changing a noise parameter invalidates the loaded chunks, so mark the
+        // map for a reset as well.
+        const auto onMapChanged = [this]()
+        {
+                if (m_map)
+                        m_map->m_reset = true;
+        };
 
-	registerButtonCallback("cycle_hud", [this]() {
-		cycleLevel();
-	});
+        // Map actions
+        registerButtonCallback("random", [this, onMapChanged]() {
+                if (m_map)
+                        m_map->setSeed();
+                onMapChanged();
+        });
 
-	registerButtonCallback("cycle_hud_level", [this]() {
-		cycleLevel();
-	});
+        registerButtonCallback("cycle_hud", [this]() {
+                cycleLevel();
+        });
 
-	registerButtonCallback("next_hud_level", [this]() {
-		nextLevel();
-	});
+        // Sliders
+        registerSliderCallback("continent_frequency", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setContFreq(val);
+                onMapChanged();
+        });
 
-	// Sliders
-	registerSliderCallback("continent_frequency", [this](float val) {
-		if (m_map)
-		{
-			m_map->setContFreq(val);
-			m_map->m_reset = true;
-		}
-	});
-	registerSliderCallback("cont_freq", [this](float val) {
-		if (m_map)
-		{
-			m_map->setContFreq(val);
-			m_map->m_reset = true;
-		}
-	});
+        registerSliderCallback("cont_multiplier", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setContMult(val);
+                onMapChanged();
+        });
 
-	registerSliderCallback("continent_multiplier", [this](float val) {
-		if (m_map)
-		{
-			m_map->setContMult(val);
-			m_map->m_reset = true;
-		}
-	});
-	registerSliderCallback("cont_multiplier", [this](float val) {
-		if (m_map)
-		{
-			m_map->setContMult(val);
-			m_map->m_reset = true;
-		}
-	});
-	registerSliderCallback("cont_mult", [this](float val) {
-		if (m_map)
-		{
-			m_map->setContMult(val);
-			m_map->m_reset = true;
-		}
-	});
+        registerSliderCallback("warp_frequency", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setWarpFreq(val);
+                onMapChanged();
+        });
 
-	registerSliderCallback("warp_frequency", [this](float val) {
-		if (m_map)
-		{
-			m_map->setWarpFreq(val);
-			m_map->m_reset = true;
-		}
-	});
-	registerSliderCallback("warp_freq", [this](float val) {
-		if (m_map)
-		{
-			m_map->setWarpFreq(val);
-			m_map->m_reset = true;
-		}
-	});
+        registerSliderCallback("mineral_frequency", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setMineralFreq(val);
+                onMapChanged();
+        });
 
-	registerSliderCallback("mineral_frequency", [this](float val) {
-		if (m_map)
-		{
-			m_map->setMineralFreq(val);
-			m_map->m_reset = true;
-		}
-	});
-	registerSliderCallback("mineral_freq", [this](float val) {
-		if (m_map)
-		{
-			m_map->setMineralFreq(val);
-			m_map->m_reset = true;
-		}
-	});
-
-	registerSliderCallback("mineral_multiplier", [this](float val) {
-		if (m_map)
-		{
-			m_map->setMineralMult(val);
-			m_map->m_reset = true;
-		}
-	});
-	registerSliderCallback("mineral_mult", [this](float val) {
-		if (m_map)
-		{
-			m_map->setMineralMult(val);
-			m_map->m_reset = true;
-		}
-	});
+        registerSliderCallback("mineral_multiplier", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setMineralMult(val);
+                onMapChanged();
+        });
 }
 
 void Hud::init()
