@@ -44,6 +44,9 @@ A run that is killed by `timeout` (exit 124) is a success; check
   correct tile). Keep them as the single source of truth for conversions.
 - Load config files with `loadJsonFile()` (`helpers/Config.h`) so missing or
   malformed files raise a clear `std::runtime_error`.
+- The logger level comes from `logger.level` in `config.json`; parse it with
+  `Logger::levelFromString()` (`helpers/Logger.h`, a namespace), which is
+  case-insensitive and throws on an unknown value.
 - The chunk map `c_chunks` is shared with worker threads; guard access with
   `t_mutex`. Prefer `LOG_TRACE` for anything on a hot path.
 - `generateChunk` receives the chunk pixel size (`c_chunk_size * c_chunk_size`)

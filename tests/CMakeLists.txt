@@ -4,6 +4,7 @@ add_executable(unit_tests
     test_shared_container.cpp
     test_game_clock.cpp
     test_config.cpp
+    test_logger.cpp
     test_map_generator.cpp
 )
 
@@ -23,6 +24,7 @@ target_compile_definitions(unit_tests PRIVATE
 target_link_libraries(unit_tests PRIVATE
     doctest::doctest
     nlohmann_json::nlohmann_json
+    spdlog::spdlog
     SFML::System
     SFML::Graphics
     SFML::Window

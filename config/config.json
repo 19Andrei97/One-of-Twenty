@@ -21,6 +21,7 @@
 	},
 
 	"logger": {
-		"file": "logs/game.log"
+		"file": "logs/game.log",
+		"level": "debug"
 	}
 }
