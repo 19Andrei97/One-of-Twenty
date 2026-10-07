@@ -116,6 +116,11 @@ struct CMemory
 {
     std::unordered_map<Elements, sf::Vector2i> locations;
 
+    // The tile the memory was last refreshed at. The vision scan is the
+    // expensive part of an entity's update and the remembered set changes
+    // slowly, so refresh on entering a new tile rather than every frame.
+    std::optional<sf::Vector2i> last_scan_tile;
+
     CMemory(){}
 
     void rememberLocation(const std::unordered_map<Elements, sf::Vector2i>& map)
@@ -310,6 +315,21 @@ struct CGather : public CAction
 struct CActionsQueue
 {
     std::list<std::shared_ptr<CAction>> actions;
+};
+
+// The route an entity is following, in world (pixel) positions: the corners of
+// the tiles returned by the pathfinder, minus the tile it already stands on.
+// The front element is the current waypoint. Empty means "no route": movement
+// then falls back to a straight line to the action's target.
+struct CPath
+{
+    std::vector<sf::Vector2i> waypoints;
+
+    CPath() = default;
+
+    bool empty() const noexcept { return waypoints.empty(); }
+    sf::Vector2i current() const { return waypoints.front(); }
+    void advance() { waypoints.erase(waypoints.begin()); }
 };
 
 // HUD 

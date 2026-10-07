@@ -13,6 +13,10 @@ namespace MoveCost
 {
     inline constexpr float kDefault{ 1.0f };
 
+    // Cheapest possible entry cost. Callers that need a finite upper bound on
+    // path length (or a node budget) can divide a tile distance by this.
+    inline constexpr float kMin{ 0.15f };
+
     inline constexpr float moveCost(const Elements element) noexcept
     {
         switch (element)

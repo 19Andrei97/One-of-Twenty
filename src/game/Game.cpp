@@ -99,6 +99,14 @@ void Game::run()
 	{
 		m_deltaTime = m_clock.restart().asSeconds();
 
+		// Clamp the frame delta: the first frame measures the whole startup
+		// (window, fonts, map generation), and a hitch or a dragged window can be
+		// seconds long. Feeding that to the clock would jump the simulation hours
+		// ahead in one step, so needs decay past the point where entities can
+		// react and the settlement starves.
+		constexpr float kMaxDeltaSeconds{ 0.1f };
+		m_deltaTime = std::min(m_deltaTime, kMaxDeltaSeconds);
+
 		if (m_currentScene)
 		{
 			m_currentScene->update(m_deltaTime);

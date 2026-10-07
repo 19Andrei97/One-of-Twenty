@@ -150,6 +150,14 @@ public:
 	std::vector<std::string> getPositionInfo(sf::Vector2i pos);
 	sf::Vector2i   getLocationWithinBound(sf::Vector2i& pos, float radius);
 	std::unordered_map<Elements, sf::Vector2i> getResourcesWithinBoundary(const sf::Vector2i& pos, float radius) const;
+        // Copy the elements of a square block of tiles into `out`, keyed by
+        // relative coordinate (0..side-1). Takes the chunk-map lock once for the
+        // whole block, so a caller that needs many tile reads (pathfinding) does
+        // not re-lock per tile. `side` is clamped to kMaxTileBlock; the number of
+        // tiles actually copied is returned.
+        static constexpr int kMaxTileBlock = 256;
+        int copyTileBlock(const sf::Vector2i& topLeftTile, int side,
+                          std::unordered_map<sf::Vector2i, Elements, Vector2iHash>& out) const;
 
 	bool getDebugWireFrame()   const { return d_wire_frame; }
 };

@@ -166,21 +166,29 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 ## TODO
 
-See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core and the
-survival loop are folded into the baseline; the new work starts at milestone 1
-of the roadmap.
+See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core, the
+survival loop and pathfinding are folded into the baseline; the new work starts
+at milestone 1 of the roadmap.
 
 ### Next milestones
-- [ ] Pathfinding and collision (grid paths over `MoveCost`, working
-  `sCollision`, graceful failure for unreachable targets).
 - [ ] Settlement economy and jobs (entity-type roles, recipes/production, food as
   a resource, stockpile HUD, placeable buildings).
-- [ ] Survival depth (health, illness/weather, shelter/housing).
-- [ ] Presentation and UX (day/night lighting, sprites and camera follow,
-  minimap and stats overlay, real menu, audio).
+- [ ] Threats and defense (wildlife, combat, walls) — gives survival a reason.
+- [ ] Social bonds and society (kinship, relationships, roles, leadership) —
+  the "one of twenty" premise.
 - [ ] Performance and scale (indexed resource queries, spatial entity index,
   incremental memory, headless benchmark in CI).
-- [ ] Observability and tuning (event log, run summaries, runtime config reload).
+- [ ] Observability and tuning (event log, run summaries, runtime config reload,
+  interrupt a busy entity when a need turns critical).
+- [ ] Presentation and UX (day/night lighting, sprites and camera follow,
+  minimap and stats overlay, real menu, audio).
+
+### On the side
+- [x] **Survival and population dynamics** (implemented). Kept here for now
+  rather than as an active milestone: entities age and die, needs are lethal
+  when an entity is already struggling, and the settlement reproduces. Follow-up
+  work (health, illness/weather, shelter/housing, survival interrupts) is listed
+  in [ROADMAP.md](ROADMAP.md).
 
 ### Parked
 - [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
@@ -192,20 +200,22 @@ of the roadmap.
 
 ### Completed
 
-Folded into the baseline; kept here as a record. See the roadmap for the new
-work.
+Retired from the roadmap; kept here as a record.
 
-- [x] **Survival and population dynamics.** Entities age via `CLifespan` and die
-  of old age; thirst/hunger turn lethal once an entity is already struggling;
-  eating/drinking draw on the stockpile; the settlement reproduces when
-  comfortable; population and vitals reach the HUD. Movement no longer overshoots
-  its target, so entities actually arrive to drink and eat, and the seeded
-  population founds itself on a habitable coastal site (rivers enabled).
+- [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes
+  entities over the `MoveCost` map, so they go around water and prefer cheap
+  ground; movement follows the route (`CPath`) and falls back to a straight line
+  for short or unreachable hops. `Scene_Play::sCollision` keeps the settlement
+  out of the sea and separates overlapping entities, and the game loop clamps the
+  frame delta so a slow frame cannot jump the clock hours ahead.
 - [x] **Technical debt.** Removed unnecessary heap use (unused `sf::Text`
   member, heap `Camera::cInput`, per-tile color lookup, second tile grid);
   documented the chunk-map lock order and stopped taking the mutex around the
   self-locking ready container; converted HUD widgets into classes; added
-  `setChunkUnload()` with a pin check; exposed `logger.level` in `config.json`.
+  `setChunkUnload()` with a pin check; exposed `logger.level` in `config.json`;
+  removed the dead `Scene_Play::spawnEntities`; and refreshed entity memory only
+  when an entity enters a new tile, which cuts the per-frame vision scan from
+  every entity every frame to roughly once per tile traversed.
 - [x] **Map depth.** Tile-space coordinates end to end; `tile_types` is
   authoritative and edits rebuild the chunk mesh; island/river/height-range
   options; one noise field per resource; `getElementAtWorld` for post-edit
