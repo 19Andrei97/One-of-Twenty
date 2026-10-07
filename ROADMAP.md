@@ -140,13 +140,22 @@ implemented and covered by unit and integration tests.*
 
 Give the game room to hold multiple screens and menus.
 
-- [ ] Implement a `Scene` class and route inputs through scenes (`Game`).
-- [ ] Implement multiple HUD levels (`HUD`).
-- [ ] Bind HUD elements to functions by name instead of numeric id, so config
-      and enums cannot drift apart (`HUD`).
+- [x] Implement a `Scene` class and route inputs through scenes (`Game`).
+      Added abstract `Scene` base class, concrete `Scene_Play` and `Scene_Menu`,
+      and refactored `Game` to manage scenes and delegate updates, rendering,
+      and event routing to the active scene.
+- [x] Implement multiple HUD levels (`HUD`). Widgets are assigned levels,
+      filtered in `render()` and `input()`, and controlled via `setLevel()`,
+      `getLevel()`, `nextLevel()`, `prevLevel()`, and `cycleLevel()` with
+      layered/exact modes.
+- [x] Bind HUD elements to functions by name instead of numeric id, so config
+      and enums cannot drift apart (`HUD`). Removed numeric `Function` enums;
+      `Hud` now registers and looks up callbacks by string name.
 
 **Done when:** the HUD layout in `config/hud_menu_data.json` drives named
-callbacks, and the `Function` enums in `src/hud/Hud.h` no longer encode ids.
+callbacks, and the `Function` enums in `src/hud/Hud.h` no longer encode ids. —
+*met: named callbacks drive HUD bindings, multiple HUD levels are implemented,
+and Scene base class routes game input and rendering.*
 
 ## Milestone 5 — Civilization
 

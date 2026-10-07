@@ -50,6 +50,7 @@ public:
         : m_rect({ width, height })
         , m_offset(pos)
     {
+        m_rect.setPosition(pos);
         m_rect.setFillColor(fill);
         m_rect.setOutlineColor(outline);
         m_rect.setOutlineThickness(thickness);
@@ -66,7 +67,7 @@ public:
 
     bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
     {
-        return m_rect.getGlobalBounds().contains(point - viewOrigin);
+        return sf::FloatRect(m_offset, m_rect.getSize()).contains(point - viewOrigin);
     }
 
     void draw(sf::RenderTarget& target, const sf::Vector2f& viewOrigin)
@@ -104,6 +105,7 @@ public:
     )
         : m_rect({ width, height }), m_offset(pos_v), m_placeholder(placeholder_v)
     {
+        m_rect.setPosition(pos_v);
         m_rect.setFillColor(fill);
         m_rect.setOutlineColor(outline);
         m_rect.setOutlineThickness(thickness);
@@ -128,7 +130,7 @@ public:
 
     bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
     {
-        return m_rect.getGlobalBounds().contains(point - viewOrigin);
+        return sf::FloatRect(m_offset, m_rect.getSize()).contains(point - viewOrigin);
     }
 
     void handleText(const sf::Event::TextEntered& event)
@@ -205,10 +207,12 @@ public:
 
         m_bar.setSize({ width, height });
         m_bar.setFillColor(barColor);
+        m_bar.setPosition(pos_v);
 
         m_handle.setRadius(height);
         m_handle.setFillColor(handleColor);
         m_handle.setOrigin({ height, height });
+        m_handle.setPosition(pos_v);
     }
 
     void setOnChange(std::function<void(float)> callback) { m_onChange = std::move(callback); }
@@ -221,7 +225,9 @@ public:
     bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
     {
         const sf::Vector2f local = point - viewOrigin;
-        return m_handle.getGlobalBounds().contains(local) || m_bar.getGlobalBounds().contains(local);
+        const float r = m_handle.getRadius();
+        const sf::FloatRect hitBox({ m_offset.x - r, m_offset.y - r }, { m_bar.getSize().x + 2 * r, m_bar.getSize().y + 2 * r });
+        return hitBox.contains(local);
     }
 
     void beginDrag() { m_active = true; }

@@ -8,6 +8,8 @@ add_executable(unit_tests
     test_map_generator.cpp
     test_entity_decision.cpp
     test_move_cost.cpp
+    test_hud.cpp
+    test_scene.cpp
 )
 
 # The helper headers under test are header-only; expose them directly.
@@ -16,6 +18,10 @@ target_include_directories(unit_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/helpers
     ${CMAKE_SOURCE_DIR}/src/pch
     ${CMAKE_SOURCE_DIR}/src/entity_manager
+    ${CMAKE_SOURCE_DIR}/src/hud
+    ${CMAKE_SOURCE_DIR}/src/game
+    ${CMAKE_SOURCE_DIR}/src/camera
+    ${CMAKE_SOURCE_DIR}/src/components
 )
 
 # Tests read config/map_data.json; ctest runs from the build tree, so bake in
@@ -33,6 +39,8 @@ target_link_libraries(unit_tests PRIVATE
     SFML::Window
     MapGenerator
     EntityManager
+    Hud
+    Game
 )
 
 if(OpenGL_FOUND)

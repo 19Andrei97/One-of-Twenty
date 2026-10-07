@@ -183,9 +183,10 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
   drawing and input; `Hud` just drives them.
 
 ### HUD
-- Implement multiples HUD levels.
-- Bind HUD elements to functions by name instead of by numeric id, so config
-  and enums cannot drift apart.
+- [x] Implement multiple HUD levels. Widgets support configurable levels with
+  layered and exact display modes, and level navigation.
+- [x] Bind HUD elements to functions by name instead of numeric id, so config
+  and enums cannot drift apart. `Hud` registers and resolves string callbacks.
 
 ### MapGenerator
 Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
@@ -209,7 +210,9 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
   type; `Chunk.h` holds the chunk store types. Public API unchanged.
 
 ### Game
-- Implement a `Scene` class, pass inputs to scenes.
+- [x] Implement a `Scene` class, pass inputs to scenes. Abstract `Scene` base
+  with `Scene_Play` and `Scene_Menu`; `Game` routes loop updates, rendering,
+  and inputs to the active scene.
 - [x] Expose the logger level through `config.json` (key `logger.level`).
 
 ### Entity
