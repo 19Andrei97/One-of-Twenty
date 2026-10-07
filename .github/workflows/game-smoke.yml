@@ -39,14 +39,15 @@ jobs:
       - name: Build
         run: cmake --build build -j"$(nproc)"
 
-      - name: Install streamer Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r tools/stream/requirements.txt
-
       - name: Run game on a virtual display and inject input
         run: |
-          python3 tools/ci/smoke_test.py \
+          # Ubuntu 24.04 marks the system Python as externally managed (PEP 668),
+          # so install into a virtualenv rather than the system interpreter.
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -r tools/stream/requirements.txt
+          python tools/ci/smoke_test.py \
             --binary build/bin/OneOfTwenty \
             --stream \
             --artifacts artifacts
