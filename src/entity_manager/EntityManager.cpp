@@ -30,17 +30,27 @@ void EntityManager::update()
 
         if (m_last_survival_tick < 0)
                 m_last_survival_tick = hourIndex * 60 - 60; // run the first hour too
+        if (m_last_frame_minutes < 0)
+                m_last_frame_minutes = now;
+
+        // Movement is measured in in-game time, not real time: an entity covers the
+        // same ground per in-game hour whatever the clock speed, so speeding the
+        // clock up does not outrun the walk to water. A paused clock advances no
+        // minutes, so entities freeze with it.
+        const float gameHours = static_cast<float>(now - m_last_frame_minutes)
+                              / static_cast<float>(GameTime::kMinutesPerHour);
+        m_last_frame_minutes = now;
 
         // The clock can advance several in-game hours in a single frame (and wraps
         // at midnight), so step hour by hour instead of watching the hour-of-day,
         // which would skip most hours and never fire on a wrap.
         for (std::int64_t hour = m_last_survival_tick / 60 + 1; hour <= hourIndex; ++hour)
         {
-                const int hourOfDay = static_cast<int>(hour % 24);
                 decayNeeds(hour);
                 ageEntities();
-                killTheDying(hourOfDay);
-                tryBirths(hour);
+                applyHealth();
+                killTheDying();
+                tryBirths();
         }
         m_last_survival_tick = now;
 
@@ -59,6 +69,13 @@ void EntityManager::update()
         {
                 m_registry->destroy(entity);
                 m_entity_idle.erase(entity);
+        }
+
+        if (!toDestroy.empty())
+        {
+                m_deaths += static_cast<int>(toDestroy.size());
+                LOG_INFO("Population: {} died (population now {}).",
+                         toDestroy.size(), static_cast<int>(m_registry->view<CType>().size()));
         }
 
         // UPDATE ENTITIES
@@ -91,9 +108,20 @@ void EntityManager::update()
                 if (!path.empty() && path.waypoints.back() != action->target)
                         path.waypoints.clear();
 
-                // The point to walk toward: the next waypoint when routing, else the
-                // action's target (straight-line fallback).
-                const auto stepToward = [&](const sf::Vector2i& goal)
+                // Distance budget for this frame, in pixels. Measured in in-game
+                // hours so an entity covers the same ground per in-game hour whatever
+                // the clock speed. The budget is spent across as many waypoints as it
+                // reaches: at high speeds a frame spans several in-game hours, and
+                // advancing a single waypoint per frame would leave entities crawling
+                // while the clock raced ahead.
+                float budget = trs.speed * gameHours;
+                if (budget <= 0.f)
+                        return;
+
+                // Walk toward the next waypoint (when routing) or the action's target
+                // (straight-line fallback), spending from the frame budget. Returns
+                // true once the goal is reached.
+                const auto stepToward = [&](const sf::Vector2i& goal) -> bool
                 {
                         const sf::Vector2i toTarget = goal - trs.pos;
                         const float distance = std::sqrt(static_cast<float>(toTarget.x * toTarget.x + toTarget.y * toTarget.y));
@@ -108,10 +136,11 @@ void EntityManager::update()
                         // the remaining distance would overshoot and the entity would
                         // oscillate forever, never "arriving" to drink or eat.
                         const float cost{ m_map->getTileCost(trs.pos) };
-                        const float step = std::min(trs.speed * m_delta_time * cost, distance);
+                        const float step = std::min(budget * cost, distance);
                         if (step >= distance)
                         {
                                 trs.pos = goal;
+                                budget -= distance / cost;
                                 return true;
                         }
 
@@ -128,30 +157,38 @@ void EntityManager::update()
                                         delta.y = (toTarget.y > 0) ? 1 : -1;
                         }
                         trs.pos += delta;
+                        budget -= step / cost;
                         return false;
                 };
 
-                // Prefer the routed waypoint. If the waypoint is reached, advance the
-                // path; when the final waypoint is reached the entity stands on the
-                // target tile and the move action is done.
-                if (!path.empty())
+                // Chain waypoints while the frame budget lasts. The guard stops a
+                // pathological route from spinning.
+                for (int guard = 0; guard < 4096 && budget > 0.f; ++guard)
                 {
-                        if (stepToward(path.current()))
+                        if (!path.empty())
                         {
+                                if (!stepToward(path.current()))
+                                        break; // budget spent before reaching it
+
                                 std::lock_guard<std::mutex> lock(m_mutex);
                                 path.advance();
                                 if (path.empty())
+                                {
                                         queue.actions.pop_front();
+                                        break;
+                                }
+                                continue;
                         }
-                        return;
-                }
 
-                // No route yet (or one could not be found): walk straight at the
-                // target. This is also the path for a target on the entity's own tile.
-                if (stepToward(action->target))
-                {
-                        std::lock_guard<std::mutex> lock(m_mutex);
-                        queue.actions.pop_front();
+                        // No route yet (or none could be found): walk straight at the
+                        // target. This is also the path for a target on the entity's
+                        // own tile.
+                        if (stepToward(action->target))
+                        {
+                                std::lock_guard<std::mutex> lock(m_mutex);
+                                queue.actions.pop_front();
+                        }
+                        break;
                 }
         });
 
@@ -232,8 +269,10 @@ void EntityManager::update()
         });
 
         // Update Entity info box
-        m_registry->view<CActionsQueue, CBasicNeeds, CEntityInfo>().each([&](auto entity, auto& queue, auto& needs, auto& info)
+        m_registry->view<CActionsQueue, CBasicNeeds, CHealth, CEntityInfo>().each([&](auto entity, auto& queue, auto& needs, auto& health, auto& info)
         {
+                        const std::string healthLine = "Health: " + std::to_string(health.value);
+
                         if (info.text.empty())
                         {
                                 // Hunger
@@ -244,43 +283,47 @@ void EntityManager::update()
 
                                 // Sleep
                                 addTextToEntityInfo(info.text, "Sleep: " + std::to_string(needs.sleep), info.size, info.text_color);
+
+                                // Health
+                                addTextToEntityInfo(info.text, "Health: " + std::to_string(health.value), info.size, info.text_color);
                         }
                         else
                         {
                                 info.text[0].setString("Hunger: " + std::to_string(needs.hunger));
                                 info.text[1].setString("Thirst: " + std::to_string(needs.thirst));
                                 info.text[2].setString("Sleep: " + std::to_string(needs.sleep));
+                                info.text[3].setString(healthLine);
 
                                 // Update current action
-                                if(info.text.size() < 4)
+                                if(info.text.size() < 5)
                                         addTextToEntityInfo(info.text, "Idle.", info.size, info.text_color);
 
                                 if (queue.actions.empty())
                                 {
-                                        info.text[3].setString("Idle.");
+                                        info.text[4].setString("Idle.");
                                         return;
                                 }
 
                                 switch (static_cast<int>(queue.actions.front()->action_name))
                                 {
                                 case static_cast<int>(ActionTypes::Moving):
-                                        info.text[3].setString("Moving.");
+                                        info.text[4].setString("Moving.");
                                         break;
                                 case static_cast<int>(ActionTypes::Eating):
-                                        info.text[3].setString("Eating.");
+                                        info.text[4].setString("Eating.");
                                         break;
                                 case static_cast<int>(ActionTypes::Sleeping):
-                                        info.text[3].setString("Sleeping.");
+                                        info.text[4].setString("Sleeping.");
                                         break;
                                 case static_cast<int>(ActionTypes::Drinking):
-                                        info.text[3].setString("Drinking.");
+                                        info.text[4].setString("Drinking.");
                                         break;
                                 case static_cast<int>(ActionTypes::Gathering):
-                                        info.text[3].setString("Gathering.");
+                                        info.text[4].setString("Gathering.");
                                         break;
 
                                 default:
-                                        info.text[3].setString("Idle.");
+                                        info.text[4].setString("Idle.");
                                 }
                         }
         });
@@ -613,69 +656,80 @@ void EntityManager::ageEntities()
         });
 }
 
-void EntityManager::killTheDying(const int hour)
+void EntityManager::applyHealth()
 {
-        std::vector<entt::entity> dying;
+        const auto& survival = m_config.survival;
 
-        m_registry->view<CLifespan, CBasicNeeds>().each([&](auto entity, CLifespan& life, CBasicNeeds& needs)
+        m_registry->view<CBasicNeeds, CHealth>().each([&](auto, CBasicNeeds& needs, CHealth& health)
         {
-                const bool starved = EntityVitals::isStarving(needs, m_config.survival.lethal_threshold);
-                const bool aged = EntityVitals::isAged(life);
-                // A comfortable entity cannot die from a need that was emptied in a
-                // single catch-up step; it only dies once it was already struggling.
-                if ((starved && !needs.healthy()) || aged)
-                {
-                        life.remaining = 0; // so the existing removal pass destroys it
-                        dying.push_back(entity);
-                }
+                const int delta = EntityVitals::healthChange(needs,
+                                                             survival.lethal_threshold,
+                                                             survival.starvation_damage_per_hour,
+                                                             survival.health_regen_per_hour);
+                if (delta > 0)
+                        health.heal(delta);
+                else if (delta < 0)
+                        health.damage(-delta);
         });
-
-        // Count a death once per entity: the removal pass destroys them next, so
-        // this list is not revisited.
-        m_deaths += static_cast<int>(dying.size());
-        if (!dying.empty())
-        {
-                LOG_INFO("Population: {} died at hour {} (population now {}).",
-                         dying.size(), hour, static_cast<int>(m_registry->view<CType>().size() - dying.size()));
-        }
 }
 
-void EntityManager::tryBirths(const int hour)
+void EntityManager::killTheDying()
+{
+        // Mark the dead; the removal pass below destroys them and tallies the
+        // deaths. Marking is idempotent and deliberately does not count here: a
+        // single frame can step several hours, so counting per hour-step would
+        // charge one entity's death to every hour it was already marked.
+        m_registry->view<CLifespan, CHealth>().each([&](auto entity, CLifespan& life, CHealth& health)
+        {
+                if (EntityVitals::isAged(life) || !health.isAlive())
+                        life.remaining = 0;
+        });
+}
+
+void EntityManager::tryBirths()
 {
         const auto& survival = m_config.survival;
 
         const int population = static_cast<int>(m_registry->view<CType>().size());
-        if (population == 0 || population >= survival.max_population)
+        if (population == 0)
                 return;
 
-        if (hour - m_last_birth_hour < survival.birth_cooldown_hours)
-                return;
+        // Every entity carries its own reproduction timer, so growth scales with
+        // the number of comfortable adults instead of one settlement-wide
+        // cooldown. Collect the births first: creating entities mid-view would
+        // invalidate the iteration.
+        std::vector<sf::Vector2i> spawns;
 
-        // A birth needs at least one comfortable parent; that is the "settlement
-        // comfort" gate. Find the most comfortable entity and, if it clears the
-        // bar, add a newborn at its position.
-        entt::entity parent = entt::null;
-        float best = -1.f;
-        sf::Vector2i spawn{ 0, 0 };
-
-        m_registry->view<CTransform, CBasicNeeds>().each([&](auto entity, CTransform& trs, CBasicNeeds& needs)
+        m_registry->view<CReproduction, CBasicNeeds, CTransform>()
+                .each([&](auto, CReproduction& repro, CBasicNeeds& needs, CTransform& trs)
         {
-                const float c = EntityVitals::comfort(needs);
-                if (c > best)
+                if (repro.cooldown_hours > 0)
                 {
-                        best = c;
-                        parent = entity;
-                        spawn = trs.pos;
+                        --repro.cooldown_hours;
+                        return;
                 }
+
+                if (population + static_cast<int>(spawns.size()) >= survival.max_population)
+                        return;
+
+                if (EntityVitals::comfort(needs) < survival.birth_comfort)
+                        return;
+
+                repro.cooldown_hours = survival.birth_interval_hours;
+                spawns.push_back(trs.pos);
         });
 
-        if (parent == entt::null || best < survival.birth_comfort)
-                return;
+        for (const auto& spawn : spawns)
+        {
+                addEntity(EntityType::Human_Generic, spawn);
+                ++m_births;
+        }
 
-        addEntity(EntityType::Human_Generic, spawn);
-        ++m_births;
-        m_last_birth_hour = hour;
-        LOG_INFO("Population: a child was born at hour {} (population now {}).", hour, population + 1);
+        if (!spawns.empty())
+        {
+                LOG_INFO("Population: {} born (population now {}).",
+                         spawns.size(), population + static_cast<int>(spawns.size()));
+        }
 }
 
 void EntityManager::render(sf::RenderTarget& window)
@@ -741,7 +795,7 @@ void EntityManager::render(sf::RenderTarget& window)
 
 /// MANAGING ENTITIES //////////////////////////////////////////////////////////////
 
-void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
+entt::entity EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
 {
         auto entity = m_registry->create();
 
@@ -752,13 +806,18 @@ void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
         m_registry->emplace<CVision>(entity);
         m_registry->emplace<CMemory>(entity);
         m_registry->emplace<CBasicNeeds>(entity);
+        m_registry->emplace<CHealth>(entity);
         m_registry->emplace<CPersonality>(entity);
         m_registry->emplace<CActionsQueue>(entity);
         m_registry->emplace<CPath>(entity);
         m_registry->emplace<CInventory>(entity);
         m_registry->emplace<CEntityInfo>(entity, 60, 40);
+        // A newborn (or a fresh founder) waits a full interval before its first
+        // child, so reproduction is paced rather than immediate.
+        m_registry->emplace<CReproduction>(entity, m_config.survival.birth_interval_hours);
 
         m_entity_idle[entity] = 0;
+        return entity;
 }
 
 void EntityManager::seedPopulation()
@@ -768,9 +827,21 @@ void EntityManager::seedPopulation()
 
         m_seeded_population = true;
         const sf::Vector2i spawn = findHabitableSpawn();
-        LOG_INFO("Seeding population of {} at ({},{}).", m_config.survival.initial_population, spawn.x, spawn.y);
-        for (int i = 0; i < m_config.survival.initial_population; ++i)
-                addEntity(EntityType::Human_Generic, spawn);
+        const int count = m_config.survival.initial_population;
+        LOG_INFO("Seeding population of {} at ({},{}).", count, spawn.x, spawn.y);
+        for (int i = 0; i < count; ++i)
+        {
+                const entt::entity entity = addEntity(EntityType::Human_Generic, spawn);
+
+                // Spread the founders across a range of ages and reproduction
+                // timers so the settlement does not age or breed in lockstep: the
+                // first dies at 40% of a lifespan, the last at 100%.
+                auto& life = m_registry->get<CLifespan>(entity);
+                life.remaining = m_config.survival.lifespan_hours * (4 + 6 * i / std::max(1, count)) / 10;
+
+                auto& repro = m_registry->get<CReproduction>(entity);
+                repro.cooldown_hours = m_config.survival.birth_interval_hours * (i + 1) / std::max(1, count);
+        }
 }
 
 sf::Vector2i EntityManager::findHabitableSpawn() const
@@ -885,6 +956,14 @@ std::optional<CBasicNeeds> EntityManager::firstNeeds() const
         if (view.begin() == view.end())
                 return std::nullopt;
         return view.get<CBasicNeeds>(*view.begin());
+}
+
+std::optional<int> EntityManager::firstHealth() const
+{
+        auto view = m_registry->view<CHealth>();
+        if (view.begin() == view.end())
+                return std::nullopt;
+        return view.get<CHealth>(*view.begin()).value;
 }
 
 std::optional<ActionTypes> EntityManager::firstAction() const

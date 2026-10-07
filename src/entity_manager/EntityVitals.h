@@ -33,4 +33,19 @@ namespace EntityVitals
     return std::clamp(static_cast<float>(worst) / static_cast<float>(CBasicNeeds::kMax), 0.f, 1.f);
 }
 
+// How health moves over one in-game hour: draining while starving or dehydrated,
+// slowly recovering once the entity is comfortable again, and holding steady in
+// between. Returning a signed delta keeps the rule pure and easy to test.
+[[nodiscard]] inline int healthChange(const CBasicNeeds& needs,
+                                      const int lethal_threshold,
+                                      const int damage_per_hour,
+                                      const int regen_per_hour) noexcept
+{
+    if (isStarving(needs, lethal_threshold))
+        return -damage_per_hour;
+    if (needs.healthy())
+        return regen_per_hour;
+    return 0;
+}
+
 } // namespace EntityVitals

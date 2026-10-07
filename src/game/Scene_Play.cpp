@@ -8,11 +8,13 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 {
 	// IN GAME CLOCK
 	LOG_DEBUG("Creating in Game Clock.");
-	m_game_clock = std::make_shared<GameClock>(120.f);
+	m_game_clock = std::make_shared<GameClock>();
+	const auto time_cfg = data.value("time", nlohmann::json::object());
+	m_game_clock->setSpeedIndex(time_cfg.value("speed_index", 1)); // 1 hour/s
 	// Start mid-morning: a midnight start would put the settlement to sleep for
 	// its first hours, before it has found food or water.
-	m_game_clock->setTime(8, 0);
-	m_game_clock->onNewDay([&]() 
+	m_game_clock->setTime(time_cfg.value("start_hour", 8), time_cfg.value("start_minute", 0));
+	m_game_clock->onNewDay([&]()
 		{
 			LOG_INFO("New day. Passed: {}", m_game_clock->getDays());
 		});
@@ -24,7 +26,9 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 	// HUD
 	LOG_DEBUG("Creating HUD.");
 	m_hud = std::make_unique<Hud>(font, m_map, data["hud"]["file"], static_cast<float>(data["window"]["width"]), static_cast<float>(data["window"]["height"]));
+	m_hud->setClock(m_game_clock);
 	m_hud->init();
+	registerTimeControls();
 
 	// CAMERA
 	LOG_DEBUG("Creating Camera.");
@@ -48,6 +52,7 @@ void Scene_Play::update(float deltaTime)
 	}
 
 	refreshStats();
+	refreshTimeReadout();
 
 	++m_currentFrame;
 }
@@ -57,17 +62,40 @@ void Scene_Play::refreshStats()
 	if (!m_hud || !m_entity_manager || !m_game_clock)
 		return;
 
-	const auto day = m_game_clock->getDays();
-	const auto hour = m_game_clock->getHour();
-
 	m_hud->stats({
-		"Day " + std::to_string(day) + "  " + (hour < 10 ? "0" : "") + std::to_string(hour) + ":00",
+		m_game_clock->formatDate(),
 		"Population: " + std::to_string(m_entity_manager->population()) + " / " + std::to_string(m_entity_manager->maxPopulation()),
 		"Births: " + std::to_string(m_entity_manager->births()),
 		"Deaths: " + std::to_string(m_entity_manager->deaths()),
 		"Stockpile: " + std::to_string(m_entity_manager->totalStockpile()),
 		"Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
 	});
+}
+
+void Scene_Play::refreshTimeReadout()
+{
+	if (!m_hud || !m_game_clock)
+		return;
+
+	const std::string status = m_paused ? "Paused" : m_game_clock->getSpeedLabel();
+	m_hud->timeReadout({
+		m_game_clock->formatDate() + "  " + m_game_clock->formatClock(),
+		"Speed: " + status,
+	});
+
+	// The pause control doubles as play; keep its label in step with the state.
+	m_hud->setButtonLabel("time_pause", m_paused ? "Play" : "Pause");
+}
+
+void Scene_Play::registerTimeControls()
+{
+	if (!m_hud || !m_game_clock)
+		return;
+
+	// Slower/faster act on the clock directly (bound by the HUD). Pause is
+	// overridden here so the scene's own paused flag, which also gates
+	// movement and collision, stays in step with the clock.
+	m_hud->registerButtonCallback("time_pause", [this]() { togglePaused(); });
 }
 
 void Scene_Play::setPaused(bool paused)
@@ -141,9 +169,19 @@ void Scene_Play::sUserInput(const sf::Event& event)
 	// KEYBOARD LOGIC
 	if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>())
 	{
-		if (keyPressed->code == sf::Keyboard::Key::P)
+		if (keyPressed->code == sf::Keyboard::Key::P || keyPressed->code == sf::Keyboard::Key::Space)
 		{
 			togglePaused();
+		}
+		else if (keyPressed->code == sf::Keyboard::Key::LBracket)
+		{
+			if (m_game_clock)
+				m_game_clock->slower();
+		}
+		else if (keyPressed->code == sf::Keyboard::Key::RBracket)
+		{
+			if (m_game_clock)
+				m_game_clock->faster();
 		}
 		else if (keyPressed->code == sf::Keyboard::Key::Escape)
 		{
@@ -226,7 +264,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 	// MOUSE BUTTONS LOGIC
 	if (const auto* mousePressed = event.getIf<sf::Event::MouseButtonPressed>())
 	{
-		if (!m_paused && m_game)
+		if (m_game)
 		{
 			switch (mousePressed->button)
 			{
@@ -234,13 +272,15 @@ void Scene_Play::sUserInput(const sf::Event& event)
 			{
 				auto pixel = sf::Mouse::getPosition(m_game->getWindow());
 
+				// The HUD stays live while paused, so its Pause/Play and speed
+				// controls can always be clicked.
 				if (m_hud)
 				{
 					sf::Vector2f guiPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());
 					m_hud->input(*mousePressed, guiPos);
 				}
 
-				if (m_camera && m_map)
+				if (!m_paused && m_camera && m_map)
 				{
 					sf::Vector2f worldPos = m_game->getWindow().mapPixelToCoords(pixel, m_camera->getCamera());
 					if (m_hud)
@@ -259,7 +299,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 	// MOUSE CLICK RELEASED
 	if (const auto* mouseReleased = event.getIf<sf::Event::MouseButtonReleased>())
 	{
-		if (!m_paused && m_game && m_hud)
+		if (m_game && m_hud)
 		{
 			if (mouseReleased->button == sf::Mouse::Button::Left)
 			{
@@ -273,7 +313,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 	// MOUSE MOVING
 	if (const auto* mouseMoved = event.getIf<sf::Event::MouseMoved>())
 	{
-		if (!m_paused && m_game && m_hud)
+		if (m_game && m_hud)
 		{
 			auto pixel = sf::Mouse::getPosition(m_game->getWindow());
 			sf::Vector2f mouseHudPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());

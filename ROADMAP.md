@@ -33,14 +33,22 @@ The engine core and the survival loop are in place:
   they go around oceans and prefer cheap ground. `Scene_Play::sCollision` keeps
   the settlement out of the sea and separates overlapping entities, and
   unreachable targets fall back to exploring rather than stalling.
-- JSON config loading with clear errors, logging via spdlog, a `GameClock`
-  driving day/time, and pure helpers (`src/helpers`).
+- JSON config loading with clear errors, logging via spdlog, and pure helpers
+  (`src/helpers`). A `GameClock` drives a 360-day calendar (year/month/day),
+  tracks time to the minute, and runs at a selectable speed from 12 min/s up
+  to 1 month/s, with pause/resume and a speed label for the HUD.
+- **Time management HUD.** A compact top-right panel shows the date, clock
+  and speed, with slower/pause/faster buttons wired to the clock, so a run
+  can be watched slowly or fast-forwarded over a lifetime.
 - **Survival and population dynamics.** Entities age (`CLifespan`) and die of
-  old age; thirst/hunger become lethal once an entity is already struggling;
-  eating and drinking draw on the settlement stockpile; the settlement
-  reproduces when it is comfortable; and population/vital stats reach the HUD.
-  The seeded population founds itself on a habitable coastal site with water
-  and forage in reach, so a run produces a story instead of a static crowd.
+  old age; starvation and dehydration drain `CHealth` (a slow resource separate
+  from the needs) while a comfortable entity recovers; eating and drinking draw
+  on the settlement stockpile; comfortable adults reproduce on their own timer
+  (`CReproduction`); and population/vital stats reach the HUD. Movement and the
+  survival systems both run on in-game time, so the clock speed never outruns
+  the walk to water and pausing freezes the settlement. The seeded population
+  founds itself on a habitable coastal site with water and forage in reach, so a
+  run produces a story instead of a static crowd.
 - Unit tests (doctest) across coordinates, `SharedContainer`, `GameClock`,
   config, map lifetime/determinism, decisions, move cost, HUD, scenes and
   survival/population.
@@ -84,14 +92,14 @@ Implemented and kept out of the active sequence for now: the survival loop runs
 the settlement reproduces). The follow-ups below stay parked until the economy
 and observability milestones land, because tuning them needs measurement.
 
-- [ ] Add health as a slow resource separate from the needs, damaged by
+- [x] Add health as a slow resource separate from the needs, damaged by
       starvation/dehydration and restored by eating and resting.
 - [ ] Add shelter/housing: a bed to sleep in and a home tile, so sleep and
       reproduction depend on more than raw comfort.
 - [ ] Add illness/weather events that drain health and spread between close
       entities, with a simple cure (herbs/medicine) to counter them.
-- [ ] Unit-test the health curve: starving lowers health, feeding restores it,
-      and a sheltered entity recovers faster than an exposed one.
+- [x] Unit-test the health curve: starving lowers health and a comfortable
+      entity recovers it.
 
 **Done when:** an entity can be sick-but-alive and recover, and the HUD shows
 health alongside the needs.

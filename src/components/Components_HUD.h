@@ -33,6 +33,7 @@ class CButton
     sf::RectangleShape        m_rect;
     sf::Text m_text;
     sf::Vector2f              m_offset;
+    std::string               m_label;
     std::function<void()>     m_onClick;
 
 public:
@@ -49,6 +50,7 @@ public:
     )
         : m_rect({ width, height })
         , m_offset(pos)
+        , m_label(label)
         , m_text(font)
     {
         m_rect.setPosition(pos);
@@ -56,12 +58,16 @@ public:
         m_rect.setOutlineColor(outline);
         m_rect.setOutlineThickness(thickness);
 
-        m_text.setString(label);
+        m_text.setString(m_label);
         m_text.setCharacterSize(charSize);
         m_text.setFillColor(sf::Color::Black);
     }
 
     void setOnClick(std::function<void()> callback) { m_onClick = std::move(callback); }
+
+    // Buttons that reflect state (e.g. Pause/Play) can relabel themselves.
+    void setLabel(const std::string& label) { m_label = label; m_text.setString(m_label); }
+    const std::string& getLabel() const { return m_label; }
 
     void activate() { if (m_onClick) m_onClick(); }
 
@@ -288,10 +294,12 @@ public:
         const sf::Color& fill = { 0, 0, 0, 128 }, // black 50% transparent
         const sf::Color& text_color = sf::Color::White,
         unsigned int charSize = 16U,
-        bool anchored_bottom = true
+        bool anchored_bottom = true,
+        float x = 0.f,
+        float y = 0.f
     )
         : m_rect({ width, height })
-        , m_pos({ 0, anchored_bottom ? view.getSize().y - height : 0.f })
+        , m_pos({ x, anchored_bottom ? view.getSize().y - height - y : y })
         , m_font(&font)
         , m_charSize(charSize)
         , m_textColor(text_color)

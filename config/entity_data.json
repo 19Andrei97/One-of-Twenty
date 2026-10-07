@@ -7,11 +7,13 @@
 
     "survival": {
         "initial_population": 8,
-        "max_population": 40,
+        "max_population": 120,
         "lethal_threshold": 0,
-        "lifespan_hours": 720,
+        "lifespan_years": 65,
+        "birth_interval_days": 300,
         "birth_comfort": 0.8,
-        "birth_cooldown_hours": 48
+        "starvation_damage_per_hour": 4,
+        "health_regen_per_hour": 1
     },
 
     "decision": {

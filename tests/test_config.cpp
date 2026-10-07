@@ -46,3 +46,18 @@ TEST_CASE("malformed JSON throws instead of aborting")
     CHECK_THROWS_AS(loadJsonFile(path), std::runtime_error);
     std::remove(path.c_str());
 }
+
+TEST_CASE("the shipped config exposes a time block")
+{
+#ifdef ONE_OF_TWENTY_SOURCE_DIR
+    const std::string path = std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/config.json";
+#else
+    const std::string path = "config/config.json";
+#endif
+    const auto data = loadJsonFile(path);
+
+    CHECK(data.contains("time"));
+    CHECK(data["time"]["start_hour"].get<int>() >= 0);
+    CHECK(data["time"]["start_minute"].get<int>() >= 0);
+    CHECK(data["time"]["speed_index"].get<int>() >= 0);
+}

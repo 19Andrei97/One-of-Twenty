@@ -284,3 +284,27 @@ TEST_CASE("Main hud_menu_data.json loads successfully with named functions")
         CHECK(hud.hasSliderCallback(sld.functionName));
     }
 }
+
+TEST_CASE("Hud exposes the time-management controls and can relabel them")
+{
+    sf::Font font;
+    Hud hud(font, nullptr, hudSourcePath(), 1280.f, 720.f);
+    hud.init();
+
+    CHECK(hud.hasButtonCallback("time_slower"));
+    CHECK(hud.hasButtonCallback("time_pause"));
+    CHECK(hud.hasButtonCallback("time_faster"));
+
+    // The Pause button doubles as Play; the scene relabels it as state flips.
+    hud.setButtonLabel("time_pause", "Play");
+    for (const auto& b : hud.getButtons())
+    {
+        if (b.functionName == "time_pause" && b.widget)
+            CHECK(b.widget->getLabel() == "Play");
+    }
+
+    // The readout panels are refreshed in place every frame and must not throw
+    // even before any lines are supplied.
+    CHECK_NOTHROW(hud.timeReadout({ "Year 1, Spring, Day 1  08:00", "Speed: 1 hour/s" }));
+    CHECK_NOTHROW(hud.stats({ "Year 1, Spring, Day 1" }));
+}

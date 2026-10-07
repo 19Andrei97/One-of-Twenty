@@ -185,10 +185,10 @@ at milestone 1 of the roadmap.
 
 ### On the side
 - [x] **Survival and population dynamics** (implemented). Kept here for now
-  rather than as an active milestone: entities age and die, needs are lethal
-  when an entity is already struggling, and the settlement reproduces. Follow-up
-  work (health, illness/weather, shelter/housing, survival interrupts) is listed
-  in [ROADMAP.md](ROADMAP.md).
+  rather than as an active milestone: entities age and die, starvation and
+  dehydration drain health while a comfortable entity recovers, and comfortable
+  adults reproduce. Follow-up work (illness/weather, shelter/housing, survival
+  interrupts) is listed in [ROADMAP.md](ROADMAP.md).
 
 ### Parked
 - [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
@@ -228,6 +228,11 @@ Retired from the roadmap; kept here as a record.
 - [x] **Game structure and HUD.** Abstract `Scene` with `Scene_Play` and
   `Scene_Menu`; multiple HUD levels with layered/exact modes; HUD callbacks
   bound by name instead of numeric id.
+- [x] **Time management.** `GameClock` keeps a 360-day calendar (year/month/day)
+  and runs from 12 min/s up to 1 month/s, with pause/resume and a speed label.
+  A compact top-right HUD panel shows the date, clock and speed next to
+  slower/pause/faster buttons, and the simulation is driven by in-game time so a
+  fast clock never outruns the walk to water and pausing freezes the world.
 
 ---
 

@@ -137,3 +137,37 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
   inside either, and compute the chunk key before locking.
 - Roadmap status lives in `ROADMAP.md`; completed milestones are folded into
   "Current baseline", and `README.md` mirrors the same list.
+
+## Simulation time
+
+- `GameClock` (`src/helpers/GameClock.h`) is a header-only clock with a 360-day
+  calendar (`GameTime::kDaysPerYear`; year/month/day helpers) tracked to the
+  minute. `update(realDelta)` scales by `m_timeScale` in *in-game minutes per
+  real second*; speed presets run 12 min/s to 1 month/s, with `faster`/`slower`
+  stepping between them and `getSpeedLabel()` for the HUD. `setTime` jumps to a
+  time of day (the game starts at 08:00 so the settlement does not sleep through
+  its first hours).
+- The whole simulation is driven by *in-game* time, not the real frame delta.
+  `EntityManager::update()` measures elapsed minutes from the clock timestamp
+  (`m_last_frame_minutes`) and steps survival hour by hour; movement spends a
+  `speed * gameHours` pixel budget per frame. Never reintroduce a real-time
+  factor into entity movement: at high clock speeds it would starve the
+  settlement before it could walk to water, and a paused clock must freeze it.
+- `EntityManager::update()` may advance several in-game hours in one frame (and
+  the timestamp wraps at midnight), so step `hour = last/60 + 1 .. now/60`; do
+  not key survival systems off the hour-of-day.
+- Population dynamics live in `EntityManager` (`decayNeeds`, `ageEntities`,
+  `applyHealth`, `killTheDying`, `tryBirths`). Death is deferred to a removal
+  pass that tallies `m_deaths` once, because `killTheDying` only marks entities
+  and is idempotent across hour-steps. Reproduction is per entity
+  (`CReproduction`) rather than a settlement-wide cooldown.
+- `CHealth` is a slow resource separate from the needs: starvation drains it,
+  comfort regenerates it, and death happens at zero. Keep this indirection so a
+  need emptied in one coarse step does not kill a healthy entity instantly.
+- `config/entity_data.json` `survival` accepts both the newer friendly units
+  (`lifespan_years`, `birth_interval_days`) and the older hours keys
+  (`lifespan_hours`, `birth_cooldown_hours`); keep both loadable.
+- Time HUD: `Hud` owns the `time_slower`/`time_faster`/`time_pause` callbacks
+  (registered in `registerDefaultCallbacks`, acting on the clock set via
+  `setClock`). `Scene_Play` overrides `time_pause` so its own `m_paused` flag
+  stays in step with the clock. The HUD stays interactive while paused.

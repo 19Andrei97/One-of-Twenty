@@ -33,6 +33,21 @@ void Hud::registerDefaultCallbacks()
                 onMapChanged();
         });
 
+        // Time management. These act on the clock when one is attached; the scene
+        // overrides time_pause to keep its own pause state in step.
+        registerButtonCallback("time_slower", [this]() {
+                if (m_clock)
+                        m_clock->slower();
+        });
+        registerButtonCallback("time_faster", [this]() {
+                if (m_clock)
+                        m_clock->faster();
+        });
+        registerButtonCallback("time_pause", [this]() {
+                if (m_clock)
+                        m_clock->togglePause();
+        });
+
         registerButtonCallback("cycle_hud", [this]() {
                 cycleLevel();
         });
@@ -310,6 +325,9 @@ void Hud::render(sf::RenderTarget& window)
 
 	if (m_stats && isLevelVisible(0))
 		m_stats->draw(window);
+
+	if (m_time_panel && isLevelVisible(0))
+		m_time_panel->draw(window);
 }
 
 // ACCESSORIES
@@ -335,6 +353,30 @@ void Hud::stats(const std::vector<std::string>& lines)
 		                                     sf::Color(0, 0, 0, 128), sf::Color::White, 16U, false);
 
 	m_stats->setLines(lines);
+}
+
+void Hud::timeReadout(const std::vector<std::string>& lines)
+{
+	// A compact panel pinned to the top-right, clear of the settlement stats on
+	// the left and the selection info box at the bottom.
+	constexpr float kWidth{ 260.f };
+	constexpr float kMargin{ 16.f };
+	const float x = m_camera.getSize().x - kWidth - kMargin;
+
+	if (!m_time_panel)
+		m_time_panel = std::make_unique<CInfoBox>(kWidth, 0.f, m_font, std::vector<std::string>{}, m_camera,
+		                                          sf::Color(0, 0, 0, 160), sf::Color::White, 16U, false, x, kMargin);
+
+	m_time_panel->setLines(lines);
+}
+
+void Hud::setButtonLabel(const std::string& functionName, const std::string& label)
+{
+	for (auto& b : buttons)
+	{
+		if (b.functionName == functionName && b.widget)
+			b.widget->setLabel(label);
+	}
 }
 
 // INPUTS
