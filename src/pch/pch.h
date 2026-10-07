@@ -7,6 +7,7 @@
 #include <memory>
 #include <cmath>
 #include <future>
+#include <array>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -19,6 +20,8 @@
 #include "Logger.h"
 #include "Config.h"
 #include "CoordMath.h"
+#include "MoveCost.h"
+#include "Resources.h"
 #include "GameClock.h"
 #include "SharedContainer.h"
 

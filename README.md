@@ -213,13 +213,23 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
 - [x] Expose the logger level through `config.json` (key `logger.level`).
 
 ### Entity
-- Improve CVision component debug circle.
-- Improve CMemory component (currently remembers only water and hill).
+- [x] Improve `CMemory` component — `findNearest` picks the closest remembered
+  water (ocean) or food (forageable land) tile instead of only water/hill.
+- [x] Improve `CBasicNeeds` — counters clamp to `[0, 100]` via
+  `applyHourlyDecay`/`satisfy`, with per-hour rates from
+  `config/entity_data.json`.
+- [x] Implement weights-based decisions for entities — `EntityDecision` scales
+  each need's urgency by `CPersonality` traits and a config bias, picks the
+  strongest above threshold, and wanders when contented.
+- [x] Improve `CVision` component debug circle (radius now drives exploration too).
+- [x] Improve Tile Cost calculation — `helpers/MoveCost.h` maps each terrain
+  element to a positive movement multiplier (water slowest, deposits/forest/hill
+  slower, ground fastest); `getTileCost` reads the authoritative tile and never
+  returns 0.
+- [x] Provide actions to advance society — contented entities take up
+  `Need::Work` and gather the nearest remembered resource via `CGather` /
+  `CInventory`, banking units into a settlement stockpile.
 - ADD city center.
-- Provide actions to advance society.
-- Improve Tile Cost calculation.
-- Improve CBasicNeeds.
-- Implement weights-based decisions for entities.
 - Add ai through llama for civilization politics.
 
 ---
