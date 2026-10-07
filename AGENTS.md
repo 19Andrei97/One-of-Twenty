@@ -84,6 +84,12 @@ so the render test can create a GL context. A third job builds with ASan+UBSan
 (`-DONE_OF_TWENTY_SANITIZE=ON`) and runs the same suite with the suppression
 files in `tests/`.
 
+`.github/workflows/game-smoke.yml` runs the real game on Xvfb, injects input and
+asserts the frame changes, then exercises the browser streamer over HTTP
+(`tools/ci/smoke_test.py`). `tools/stream/stream_server.py` streams an X display
+to a browser for interactive play; it is X11-only and needs `python-xlib` +
+`Pillow` (`tools/stream/requirements.txt`).
+
 # Instructions for AI Agents
 
 ## Role & Conduct

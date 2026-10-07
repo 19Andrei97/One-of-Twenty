@@ -1,0 +1,61 @@
+name: game-smoke
+
+# Runs the actual game head-lessly and checks it renders and responds to input.
+# GitHub-hosted runners have no browser to attach to, so this is the CI half of
+# "run the game": it drives Xvfb + XTEST. To actually *play* it in a browser,
+# run tools/stream/stream_server.py locally (see tools/stream/README.md); this
+# job exercises that same streamer over HTTP so it cannot rot unnoticed.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Linux (render + input smoke)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build and headless-display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git \
+            libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libudev-dev libfreetype-dev libgl1-mesa-dev \
+            libflac-dev libvorbis-dev libopenal-dev \
+            xvfb
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Install streamer Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r tools/stream/requirements.txt
+
+      - name: Run game on a virtual display and inject input
+        run: |
+          python3 tools/ci/smoke_test.py \
+            --binary build/bin/OneOfTwenty \
+            --stream \
+            --artifacts artifacts
+
+      - name: Upload frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-smoke-frames
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
