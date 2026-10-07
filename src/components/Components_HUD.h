@@ -265,8 +265,18 @@ public:
 class CInfoBox
 {
     sf::RectangleShape                     m_rect;
-    std::vector<sf::Text> m_text;
+    std::vector<sf::Text>                  m_text;
     sf::Vector2f                           m_pos;
+    const sf::Font*                        m_font{ nullptr };
+    unsigned int                           m_charSize{ 16U };
+    sf::Color                              m_textColor{ sf::Color::White };
+    float                                  m_width{ 0.f };
+    float                                  m_lineHeight{ 20.f };
+
+    void resizeToFit(size_t lineCount)
+    {
+        m_rect.setSize({ m_width, static_cast<float>(lineCount) * m_lineHeight + 40.f });
+    }
 
 public:
     CInfoBox(
@@ -277,24 +287,48 @@ public:
         sf::View& view,
         const sf::Color& fill = { 0, 0, 0, 128 }, // black 50% transparent
         const sf::Color& text_color = sf::Color::White,
-        unsigned int charSize = 16U
+        unsigned int charSize = 16U,
+        bool anchored_bottom = true
     )
         : m_rect({ width, height })
-        , m_pos({ 0, view.getSize().y - height })
+        , m_pos({ 0, anchored_bottom ? view.getSize().y - height : 0.f })
+        , m_font(&font)
+        , m_charSize(charSize)
+        , m_textColor(text_color)
+        , m_width(width)
     {
         m_rect.setPosition(m_pos);
         m_rect.setFillColor(fill);
 
-        for (auto& el : text)
-        {
-            m_text.emplace_back(font);
-            m_text.back().setString(el);
-            m_text.back().setCharacterSize(charSize);
-            m_text.back().setFillColor(text_color);
-        }
+        setLines(text);
     }
 
     bool empty() const { return m_text.empty(); }
+
+    // Refresh the lines in place, reusing the existing sf::Text objects and
+    // growing the box only when the line count changes. Panels that update every
+    // frame therefore allocate nothing in the steady state.
+    void setLines(const std::vector<std::string>& lines)
+    {
+        const size_t previous = m_text.size();
+
+        while (m_text.size() < lines.size())
+        {
+            m_text.emplace_back(*m_font);
+            m_text.back().setCharacterSize(m_charSize);
+            m_text.back().setFillColor(m_textColor);
+        }
+
+        for (size_t i = 0; i < lines.size(); ++i)
+            m_text[i].setString(lines[i]);
+
+        // Shrink without resize(): sf::Text is not default-constructible in SFML 3.
+        while (m_text.size() > lines.size())
+            m_text.pop_back();
+
+        if (lines.size() != previous)
+            resizeToFit(lines.size());
+    }
 
     void draw(sf::RenderTarget& target)
     {

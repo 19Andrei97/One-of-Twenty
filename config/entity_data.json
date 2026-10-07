@@ -5,6 +5,15 @@
         "sleep_gain_per_hour": 2
     },
 
+    "survival": {
+        "initial_population": 8,
+        "max_population": 40,
+        "lethal_threshold": 0,
+        "lifespan_hours": 720,
+        "birth_comfort": 0.8,
+        "birth_cooldown_hours": 48
+    },
+
     "decision": {
         "idle_tolerance": 3,
         "thirst": { "threshold": 0.20, "bias": 1.0 },

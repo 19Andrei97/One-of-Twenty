@@ -9,6 +9,9 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 	// IN GAME CLOCK
 	LOG_DEBUG("Creating in Game Clock.");
 	m_game_clock = std::make_shared<GameClock>(120.f);
+	// Start mid-morning: a midnight start would put the settlement to sleep for
+	// its first hours, before it has found food or water.
+	m_game_clock->setTime(8, 0);
 	m_game_clock->onNewDay([&]() 
 		{
 			LOG_INFO("New day. Passed: {}", m_game_clock->getDays());
@@ -30,6 +33,7 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");
 	m_entity_manager = std::make_unique<EntityManager>(font, m_map, m_game_clock, m_deltaTime, data["entity"]["file"]);
+	m_entity_manager->seedPopulation();
 }
 
 void Scene_Play::update(float deltaTime)
@@ -43,7 +47,27 @@ void Scene_Play::update(float deltaTime)
 		sCollision();
 	}
 
+	refreshStats();
+
 	++m_currentFrame;
+}
+
+void Scene_Play::refreshStats()
+{
+	if (!m_hud || !m_entity_manager || !m_game_clock)
+		return;
+
+	const auto day = m_game_clock->getDays();
+	const auto hour = m_game_clock->getHour();
+
+	m_hud->stats({
+		"Day " + std::to_string(day) + "  " + (hour < 10 ? "0" : "") + std::to_string(hour) + ":00",
+		"Population: " + std::to_string(m_entity_manager->population()) + " / " + std::to_string(m_entity_manager->maxPopulation()),
+		"Births: " + std::to_string(m_entity_manager->births()),
+		"Deaths: " + std::to_string(m_entity_manager->deaths()),
+		"Stockpile: " + std::to_string(m_entity_manager->totalStockpile()),
+		"Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
+	});
 }
 
 void Scene_Play::setPaused(bool paused)

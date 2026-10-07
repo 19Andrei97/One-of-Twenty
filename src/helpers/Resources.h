@@ -13,8 +13,15 @@ namespace Resources
         return element == Elements::ocean;
     }
 
-    // Forageable/gatherable land: the tiles an entity can work to produce a
-    // resource for the settlement.
+    // Edible land: the tiles an entity forages to satisfy hunger. Kept apart
+    // from the workable deposits below so eating draws from food, not ore.
+    inline constexpr bool isFood(const Elements element) noexcept
+    {
+        return element == Elements::forest || element == Elements::hill;
+    }
+
+    // Workable land: the tiles an entity can gather to produce a settlement
+    // resource.
     inline constexpr bool isGatherable(const Elements element) noexcept
     {
         switch (element)
@@ -30,10 +37,17 @@ namespace Resources
         }
     }
 
+    // Consumable: what eating and drinking withdraw from the settlement stores.
+    // Water is drunk straight from the tile; food is eaten from the stockpile.
+    inline constexpr bool isConsumable(const Elements element) noexcept
+    {
+        return isWater(element) || isFood(element);
+    }
+
     // Any tile worth remembering so an entity knows where to go: water to drink,
-    // gatherables to work.
+    // food to eat, gatherables to work.
     inline constexpr bool isResource(const Elements element) noexcept
     {
-        return isWater(element) || isGatherable(element);
+        return isConsumable(element) || isGatherable(element);
     }
 }

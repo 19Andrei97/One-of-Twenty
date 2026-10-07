@@ -16,7 +16,7 @@
     },
 
     "river": {
-        "enabled": false,
+        "enabled": true,
         "freq": 0.01,
         "threshold": 0.03
     },

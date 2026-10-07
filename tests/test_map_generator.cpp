@@ -153,6 +153,8 @@ TEST_CASE("island mode surrounds the origin with water")
     const std::string config = makeVariantConfig("island", [](nlohmann::json& js) {
         js["island"]["enabled"] = true;
         js["island"]["falloff"] = 0.4;
+        // Isolate island shaping from rivers, which also cut water into land.
+        js["river"]["enabled"] = false;
     });
 
     auto generator = std::make_unique<MapGenerator>(frames, config);

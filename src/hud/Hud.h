@@ -63,6 +63,9 @@ private:
 	std::vector<InputItem>			inputs;
 	std::vector<SliderItem>			sliders;
 	std::unique_ptr<CInfoBox>		info_box;
+	// Persistent settlement readout (population, stockpile), refreshed each frame
+	// from the scene. Kept apart from the hover/selection info box.
+	std::unique_ptr<CInfoBox>	m_stats;
 
 	std::unordered_map<std::string, ButtonCallback> m_buttonCallbacks;
 	std::unordered_map<std::string, SliderCallback> m_sliderCallbacks;
@@ -120,6 +123,9 @@ public:
 
 	// HUD ACCESSORIES
 	void infoBox(std::vector<std::string> info);
+
+	// Refresh the persistent settlement readout (population, stockpile).
+	void stats(const std::vector<std::string>& lines);
 
 	// INPUTS
 	void input(const sf::Event::TextEntered& event);

@@ -71,7 +71,7 @@ struct CBasicNeeds
     int hunger{ kMax };
     int sleep{ 0 };
 
-    int last_update{ 0 };
+    std::int64_t last_update{ 0 };
 
     CBasicNeeds() {}
 
@@ -90,6 +90,16 @@ struct CBasicNeeds
         if (which == 0) thirst = kMax;
         else if (which == 1) hunger = kMax;
         else sleep = 0;
+    }
+
+    // Whether any need is still comfortable. Survival needs decay at a fixed rate
+    // per in-game hour; when a single frame advances several hours at once (a slow
+    // frame, a high time scale) an entity can run from comfortable to empty before
+    // it gets a chance to act. Death is only allowed once a need has been seen
+    // low, so such a jump cannot kill an otherwise healthy entity.
+    [[nodiscard]] bool healthy() const noexcept
+    {
+        return thirst > kMax / 4 && hunger > kMax / 4 && sleep < kMax * 3 / 4;
     }
 };
 
@@ -132,7 +142,7 @@ struct CMemory
 
     static bool isFood(const Elements element) noexcept
     {
-        return Resources::isGatherable(element);
+        return Resources::isFood(element);
     }
 
     // Closest remembered location of the given kind, if any. Iterates the

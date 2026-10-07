@@ -7,6 +7,11 @@
 
 namespace
 {
+// Distance (world units) at which a move counts as arrived. Targets are tile
+// corners on the same lattice as entity positions, so this only has to absorb
+// the integer truncation left by a fractional step.
+constexpr float kArriveDistance{ 1.0f };
+
 // Does the queue already hold an action of this kind (planned or in progress)?
 bool queueHasAction(const CActionsQueue& queue, const ActionTypes type)
 {
@@ -18,6 +23,25 @@ bool queueHasAction(const CActionsQueue& queue, const ActionTypes type)
 
 void EntityManager::update()
 {
+        const std::int64_t now = m_game_clock->getTimestamp();
+        const std::int64_t hourIndex = now / 60;
+
+        if (m_last_survival_tick < 0)
+                m_last_survival_tick = hourIndex * 60 - 60; // run the first hour too
+
+        // The clock can advance several in-game hours in a single frame (and wraps
+        // at midnight), so step hour by hour instead of watching the hour-of-day,
+        // which would skip most hours and never fire on a wrap.
+        for (std::int64_t hour = m_last_survival_tick / 60 + 1; hour <= hourIndex; ++hour)
+        {
+                const int hourOfDay = static_cast<int>(hour % 24);
+                decayNeeds(hour);
+                ageEntities();
+                killTheDying(hourOfDay);
+                tryBirths(hour);
+        }
+        m_last_survival_tick = now;
+
         // REMOVE ENTITIES
         std::vector<entt::entity> toDestroy;
 
@@ -51,42 +75,53 @@ void EntityManager::update()
 
                 if(auto action = std::dynamic_pointer_cast<CMoving>(queue.actions.front()))
                 {
-                        sf::Vector2i direction = action->target - trs.pos;
-                        float distance = sqrt(direction.x * direction.x + direction.y * direction.y);
+                        const sf::Vector2i toTarget = action->target - trs.pos;
+                        const float distance = std::sqrt(static_cast<float>(toTarget.x * toTarget.x + toTarget.y * toTarget.y));
 
-                        if (distance > 0.5f)
+                        // Within a pixel of the target counts as arrived; snapping keeps
+                        // the integer position from oscillating around it.
+                        if (distance <= kArriveDistance)
                         {
-                                // Normalizing
-                                direction.x /= distance;
-                                direction.y /= distance;
-
-                                // Tile cost
-                                float cost{ m_map->getTileCost(trs.pos) };
-
-                                // Updating position
                                 std::lock_guard<std::mutex> lock(m_mutex);
-                                trs.pos.x += direction.x * trs.speed * m_delta_time * cost;
-                                trs.pos.y += direction.y * trs.speed * m_delta_time * cost;
+                                trs.pos = action->target;
+                                queue.actions.pop_front();
                         }
                         else
                         {
-                                std::lock_guard<std::mutex> lock(m_mutex);
-                                queue.actions.pop_front();
+                                // Tile cost
+                                const float cost{ m_map->getTileCost(trs.pos) };
+
+                                // Never step past the target: a frame that moves further
+                                // than the remaining distance would overshoot and the
+                                // entity would oscillate forever, never "arriving" to
+                                // drink or eat.
+                                const float step = std::min(trs.speed * m_delta_time * cost, distance);
+                                if (step >= distance)
+                                {
+                                        std::lock_guard<std::mutex> lock(m_mutex);
+                                        trs.pos = action->target;
+                                        queue.actions.pop_front();
+                                }
+                                else
+                                {
+                                        sf::Vector2i delta{
+                                                static_cast<int>(std::lround(toTarget.x / distance * step)),
+                                                static_cast<int>(std::lround(toTarget.y / distance * step)) };
+                                        // Rounding a sub-pixel step can yield (0,0); nudge one
+                                        // pixel along the dominant axis so progress is guaranteed.
+                                        if (delta.x == 0 && delta.y == 0)
+                                        {
+                                                if (std::abs(toTarget.x) >= std::abs(toTarget.y))
+                                                        delta.x = (toTarget.x > 0) ? 1 : -1;
+                                                else
+                                                        delta.y = (toTarget.y > 0) ? 1 : -1;
+                                        }
+
+                                        std::lock_guard<std::mutex> lock(m_mutex);
+                                        trs.pos += delta;
+                                }
                         }
                 }
-        });
-
-        // Hourly needs decay
-        const int hour = m_game_clock->getHour();
-        m_registry->view<CBasicNeeds, CPersonality>().each([&](auto entity, auto& needs, auto&)
-        {
-                if (hour == needs.last_update)
-                        return;
-
-                needs.applyHourlyDecay(m_config.thirst_decay_per_hour,
-                                       m_config.hunger_decay_per_hour,
-                                       m_config.sleep_gain_per_hour);
-                needs.last_update = hour;
         });
 
         // Finish actions that have run their course, restoring the need they serve
@@ -102,6 +137,10 @@ void EntityManager::update()
                 if (auto action = std::dynamic_pointer_cast<CEating>(front); action
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
+                        // Prefer drawing from the settlement stores; when they are
+                        // empty the entity foraged the tile directly, so the meal
+                        // still satisfies hunger.
+                        consumeFromStockpile(Elements::forest) || consumeFromStockpile(Elements::hill);
                         needs.satisfy(1);
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -109,6 +148,7 @@ void EntityManager::update()
                 else if (auto action = std::dynamic_pointer_cast<CDrinking>(front); action
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
+                        consumeFromStockpile(Elements::ocean);
                         needs.satisfy(0);
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -311,6 +351,105 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
         }
 }
 
+bool EntityManager::consumeFromStockpile(Elements element)
+{
+        const auto it = m_stockpile.find(element);
+        if (it == m_stockpile.end() || it->second <= 0)
+                return false;
+
+        --it->second;
+        return true;
+}
+
+// Population dynamics ////////////////////////////////////////////////////////////
+
+void EntityManager::decayNeeds(const std::int64_t hourIndex)
+{
+        m_registry->view<CBasicNeeds>().each([&](auto, CBasicNeeds& needs)
+        {
+                if (needs.last_update == hourIndex)
+                        return;
+
+                needs.applyHourlyDecay(m_config.thirst_decay_per_hour,
+                                       m_config.hunger_decay_per_hour,
+                                       m_config.sleep_gain_per_hour);
+                needs.last_update = static_cast<int>(hourIndex);
+        });
+}
+
+void EntityManager::ageEntities()
+{
+        m_registry->view<CLifespan>().each([&](auto entity, CLifespan& life)
+        {
+                --life.remaining;
+        });
+}
+
+void EntityManager::killTheDying(const int hour)
+{
+        std::vector<entt::entity> dying;
+
+        m_registry->view<CLifespan, CBasicNeeds>().each([&](auto entity, CLifespan& life, CBasicNeeds& needs)
+        {
+                const bool starved = EntityVitals::isStarving(needs, m_config.survival.lethal_threshold);
+                const bool aged = EntityVitals::isAged(life);
+                // A comfortable entity cannot die from a need that was emptied in a
+                // single catch-up step; it only dies once it was already struggling.
+                if ((starved && !needs.healthy()) || aged)
+                {
+                        life.remaining = 0; // so the existing removal pass destroys it
+                        dying.push_back(entity);
+                }
+        });
+
+        // Count a death once per entity: the removal pass destroys them next, so
+        // this list is not revisited.
+        m_deaths += static_cast<int>(dying.size());
+        if (!dying.empty())
+        {
+                LOG_INFO("Population: {} died at hour {} (population now {}).",
+                         dying.size(), hour, static_cast<int>(m_registry->view<CType>().size() - dying.size()));
+        }
+}
+
+void EntityManager::tryBirths(const int hour)
+{
+        const auto& survival = m_config.survival;
+
+        const int population = static_cast<int>(m_registry->view<CType>().size());
+        if (population == 0 || population >= survival.max_population)
+                return;
+
+        if (hour - m_last_birth_hour < survival.birth_cooldown_hours)
+                return;
+
+        // A birth needs at least one comfortable parent; that is the "settlement
+        // comfort" gate. Find the most comfortable entity and, if it clears the
+        // bar, add a newborn at its position.
+        entt::entity parent = entt::null;
+        float best = -1.f;
+        sf::Vector2i spawn{ 0, 0 };
+
+        m_registry->view<CTransform, CBasicNeeds>().each([&](auto entity, CTransform& trs, CBasicNeeds& needs)
+        {
+                const float c = EntityVitals::comfort(needs);
+                if (c > best)
+                {
+                        best = c;
+                        parent = entity;
+                        spawn = trs.pos;
+                }
+        });
+
+        if (parent == entt::null || best < survival.birth_comfort)
+                return;
+
+        addEntity(EntityType::Human_Generic, spawn);
+        ++m_births;
+        m_last_birth_hour = hour;
+        LOG_INFO("Population: a child was born at hour {} (population now {}).", hour, population + 1);
+}
+
 void EntityManager::render(sf::RenderTarget& window)
 {
         // ENTITIES
@@ -379,7 +518,7 @@ void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
         auto entity = m_registry->create();
 
         m_registry->emplace<CType>(entity, type);
-        m_registry->emplace<CLifespan>(entity, 100);
+        m_registry->emplace<CLifespan>(entity, m_config.survival.lifespan_hours);
         m_registry->emplace<CTransform>(entity, spawn, 100.f);
         m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
         m_registry->emplace<CVision>(entity);
@@ -391,6 +530,114 @@ void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
         m_registry->emplace<CEntityInfo>(entity, 60, 40);
 
         m_entity_idle[entity] = 0;
+}
+
+void EntityManager::seedPopulation()
+{
+        if (m_seeded_population)
+                return;
+
+        m_seeded_population = true;
+        const sf::Vector2i spawn = findHabitableSpawn();
+        LOG_INFO("Seeding population of {} at ({},{}).", m_config.survival.initial_population, spawn.x, spawn.y);
+        for (int i = 0; i < m_config.survival.initial_population; ++i)
+                addEntity(EntityType::Human_Generic, spawn);
+}
+
+sf::Vector2i EntityManager::findHabitableSpawn() const
+{
+        // The world origin is inland on most seeds, far from any water, so a
+        // settlement founded there starves before it can find a drink. Find the
+        // nearest coast, then a land tile with both water and forage inside an
+        // entity's vision, so the settlement is self-sufficient.
+        const int tileSize = m_map->getTileSize();
+        const float reach = CVision{}.radius;
+        const int reachTiles = static_cast<int>(reach / static_cast<float>(tileSize));
+
+        // Cache tile elements: the search touches the same neighbourhood many
+        // times and every uncached read locks the chunk map.
+        std::unordered_map<std::uint64_t, Elements> cache;
+        const auto elementAt = [&](const int tx, const int ty)
+        {
+                // Combine the two signed tile coordinates into one key. Build it
+                // unsigned: shifting a negative signed value left is undefined
+                // behaviour (UBSan flags it). The high 32 bits hold tx, the low 32
+                // hold ty, both via their bit pattern.
+                const std::uint64_t key = (static_cast<std::uint64_t>(static_cast<std::uint32_t>(tx)) << 32)
+                                        | static_cast<std::uint32_t>(ty);
+                const auto it = cache.find(key);
+                if (it != cache.end())
+                        return it->second;
+                const Elements e = m_map->getElementAtWorld(sf::Vector2i(tx * tileSize, ty * tileSize));
+                cache.emplace(key, e);
+                return e;
+        };
+
+        // Nearest water tile, expanding ring by ring. Stop at the first ring that
+        // holds any water: it is the closest coast, and later rings are farther.
+        std::optional<sf::Vector2i> coast;
+        constexpr int kMaxRing = 256;
+        for (int ring = 0; ring <= kMaxRing && !coast; ++ring)
+        {
+                for (int dx = -ring; dx <= ring && !coast; ++dx)
+                        for (int dy = -ring; dy <= ring && !coast; ++dy)
+                        {
+                                if (std::max(std::abs(dx), std::abs(dy)) != ring)
+                                        continue;
+                                if (Resources::isWater(elementAt(dx, dy)))
+                                        coast = sf::Vector2i{ dx, dy };
+                        }
+        }
+        if (!coast)
+                return { 0, 0 };
+
+        // Near that coast, prefer the closest land tile that also has forage
+        // within reach. Fall back to the closest land tile if none does, so the
+        // settlement can at least drink.
+        const auto foodWithinReach = [&](const int cx, const int cy)
+        {
+                for (int ox = -reachTiles; ox <= reachTiles; ++ox)
+                        for (int oy = -reachTiles; oy <= reachTiles; ++oy)
+                        {
+                                if (std::hypot(static_cast<float>(ox), static_cast<float>(oy)) * tileSize > reach)
+                                        continue;
+                                if (Resources::isFood(elementAt(cx + ox, cy + oy)))
+                                        return true;
+                        }
+                return false;
+        };
+
+        sf::Vector2i bestLand{ 0, 0 };
+        float bestLandDist = 0.f;
+        sf::Vector2i bestFoodLand{ 0, 0 };
+        float bestFoodDist = 0.f;
+        for (int ox = -reachTiles; ox <= reachTiles; ++ox)
+        {
+                for (int oy = -reachTiles; oy <= reachTiles; ++oy)
+                {
+                        const float dist = std::hypot(static_cast<float>(ox), static_cast<float>(oy)) * tileSize;
+                        if (dist < 1.f || dist > reach - tileSize)
+                                continue;
+                        const int tx = coast->x + ox;
+                        const int ty = coast->y + oy;
+                        if (Resources::isWater(elementAt(tx, ty)))
+                                continue;
+
+                        if (bestLandDist == 0.f || dist < bestLandDist)
+                        {
+                                bestLandDist = dist;
+                                bestLand = sf::Vector2i{ tx, ty };
+                        }
+                        if ((bestFoodDist == 0.f || dist < bestFoodDist) && foodWithinReach(tx, ty))
+                        {
+                                bestFoodDist = dist;
+                                bestFoodLand = sf::Vector2i{ tx, ty };
+                        }
+                }
+        }
+
+        const sf::Vector2i chosen = (bestFoodDist > 0.f) ? bestFoodLand : bestLand;
+        return sf::Vector2i{ chosen.x * tileSize, chosen.y * tileSize };
 }
 
 // HELPER FUNCTION

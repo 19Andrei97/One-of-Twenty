@@ -24,6 +24,14 @@ public:
     void setTimeScale(float scale) { m_timeScale = scale; }
     void pause(bool p) { m_paused = p; }
 
+    // Jump to a given time of day, used to start a run in daylight rather than at
+    // midnight (when a settlement would otherwise spend its first hours asleep).
+    void setTime(int hour, int minute = 0)
+    {
+        m_hour = ((hour % 24) + 24) % 24;
+        m_minute = ((minute % 60) + 60) % 60;
+    }
+
     // GETTERS
     int getHour() const { return m_hour; }
     int getMinute() const { return m_minute; }
