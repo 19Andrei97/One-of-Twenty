@@ -8,7 +8,9 @@ add_executable(unit_tests
     test_map_generator.cpp
     test_entity_decision.cpp
     test_entity_vitals.cpp
+    test_entity_pathing.cpp
     test_move_cost.cpp
+    test_pathfinding.cpp
     test_hud.cpp
     test_scene.cpp
 )

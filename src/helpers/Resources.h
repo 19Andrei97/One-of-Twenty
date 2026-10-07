@@ -13,6 +13,15 @@ namespace Resources
         return element == Elements::ocean;
     }
 
+    // Any water, including the deep ocean an entity cannot stand in. Used by
+    // collision and pathing to keep entities out of the sea.
+    inline constexpr bool isOcean(const Elements element) noexcept
+    {
+        return element == Elements::ocean
+            || element == Elements::deep_ocean
+            || element == Elements::very_deep_ocean;
+    }
+
     // Edible land: the tiles an entity forages to satisfy hunger. Kept apart
     // from the workable deposits below so eating draws from food, not ore.
     inline constexpr bool isFood(const Elements element) noexcept

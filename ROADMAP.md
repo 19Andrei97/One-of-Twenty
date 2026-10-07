@@ -28,6 +28,11 @@ The engine core and the survival loop are in place:
   `config/hud_menu_data.json`).
 - Weighted, personality-scaled entity decisions over needs and memory, with
   terrain-cost movement and a gather-to-stockpile work loop (`src/entity_manager`).
+- **Pathfinding and collision.** Entities route over the terrain cost map with a
+  pure A* (`helpers/Pathfinding.h`) instead of walking in a straight line, so
+  they go around oceans and prefer cheap ground. `Scene_Play::sCollision` keeps
+  the settlement out of the sea and separates overlapping entities, and
+  unreachable targets fall back to exploring rather than stalling.
 - JSON config loading with clear errors, logging via spdlog, a `GameClock`
   driving day/time, and pure helpers (`src/helpers`).
 - **Survival and population dynamics.** Entities age (`CLifespan`) and die of
@@ -47,7 +52,7 @@ The engine core and the survival loop are in place:
 ## Deferred — Civilization
 
 The long-term goal, parked until the simulation loop below is solid. Revisit
-once pathfinding and the settlement economy exist.
+once the settlement economy exists.
 
 - [ ] Add a city center (`Entity`).
 - [ ] Add AI for civilization politics via llama (`Entity`).
@@ -72,27 +77,35 @@ be worth freezing. Pick this up once the economy and jobs below have settled.
 
 ---
 
-## Proposed milestones
+## Milestones
 
-Ordered by dependency: each milestone makes the next one possible.
+Ordered by dependency: each milestone makes the next one possible. Milestone 1
+is complete; the rest are planned.
 
 ### Milestone 1 — Pathfinding and collision
 
 Entities still walk in a straight line to their target and ignore terrain, so
 they cross oceans and mountains. Make movement physical.
 
-- [ ] Implement a grid path (A* or a flow field) over the `MoveCost` map so
+- [x] Implement a grid path (A* or a flow field) over the `MoveCost` map so
       entities route around water and prefer cheap ground.
-- [ ] Follow the path in the movement system instead of aiming at the target
+- [x] Follow the path in the movement system instead of aiming at the target
       directly; keep `CMoving` as the intent, add the route behind it.
-- [ ] Implement `Scene_Play::sCollision` (currently empty): keep entities out of
+- [x] Implement `Scene_Play::sCollision` (currently empty): keep entities out of
       water and separate overlapping entities.
-- [ ] Make unreachable targets fail gracefully (re-plan, then re-decide).
-- [ ] Unit-test pathfinding on a small cost grid, including a case where the
+- [x] Make unreachable targets fail gracefully (re-plan, then re-decide).
+- [x] Unit-test pathfinding on a small cost grid, including a case where the
       straight line is blocked and the path detours.
 
 **Done when:** a target across water is reached only via a land route, and paths
 are tested without a renderer.
+
+**Follow-up (moved to Milestone 6).** A vision-radius trip takes several
+in-game hours at the default `timeScale` of 120, and an entity committed to a
+non-survival action does not re-prioritize when a need turns critical, so the
+starting settlement can lose members on its first day. This is a balance
+problem, not a pathing one: drinking and eating do fire (needs reset on
+arrival). Address it with the tuning work below.
 
 ### Milestone 2 — Settlement economy and jobs
 
@@ -168,6 +181,8 @@ The simulation is hard to balance by eye. Make its behaviour measurable.
       summary, so a balance change can be compared against a baseline.
 - [ ] Support reloading `entity_data.json` at runtime so tuning does not need a
       rebuild.
+- [ ] Let a busy entity interrupt its current action when a survival need turns
+      critical, so a long trip does not kill it (see the Milestone 1 follow-up).
 - [ ] Unit-test that a given config produces the expected steady-state
       population band over a fixed number of simulated days.
 

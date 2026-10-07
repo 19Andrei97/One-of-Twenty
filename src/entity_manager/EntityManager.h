@@ -47,8 +47,24 @@ class EntityManager
                 Elements     element;
         };
 
+        // Scratch tile block reused by findRoute so routing does not allocate a
+        // map per call.
+        std::unordered_map<sf::Vector2i, Elements, Vector2iHash> m_tile_block;
+
         // Private function
         void addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color);
+
+        // A* route from one world position to another. Returns the world-space
+        // waypoints (tile corners, excluding the tile the entity already stands
+        // on), `nullopt` when already on the target tile, or an empty vector when
+        // no land route exists. The search is bounded to a window around the two
+        // ends, so a very long trip falls back to a straight line and re-plans.
+        std::optional<std::vector<sf::Vector2i>> findRoute(const sf::Vector2i& from, const sf::Vector2i& to);
+
+        // Queue a move to `target`, computing a route and storing it on `path`.
+        // Returns false (and queues nothing) when no land route exists.
+        bool queueMoveTo(const sf::Vector2i& from, const sf::Vector2i& target,
+                         CPath& path, CActionsQueue& queue);
 
         // Nearest remembered gatherable tile, rarest material first. Empty when
         // nothing workable has been remembered yet.
@@ -73,7 +89,8 @@ class EntityManager
                             const sf::Vector2i& pos,
                             float visionRadius,
                             const CMemory& memory,
-                            CActionsQueue& queue);
+                            CActionsQueue& queue,
+                            CPath& path);
 
 public:
 
@@ -98,6 +115,10 @@ public:
         // what the game uses until there is a city center).
         void addEntity(const EntityType& type, const sf::Vector2i& spawn = { 0, 0 });
 
+        // Push entities out of the ocean and apart from each other. Called once
+        // per frame from Scene_Play::sCollision.
+        void resolveCollisions();
+
         // Spawn the configured starting population and enable population dynamics.
         // Kept separate from the constructor so tests can start from zero and add
         // entities explicitly.
@@ -115,6 +136,10 @@ public:
         std::optional<CBasicNeeds>  firstNeeds() const;
         std::optional<ActionTypes>  firstAction() const;
         int                         entityCount() const;
+
+        // World positions of every live entity, for tests that need to reason
+        // about where the settlement actually stands.
+        std::vector<sf::Vector2i>   entityPositions() const;
 
         // Settlement totals, accumulated as gathers complete.
         int stockpile(const Elements element) const;

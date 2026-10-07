@@ -312,6 +312,21 @@ struct CActionsQueue
     std::list<std::shared_ptr<CAction>> actions;
 };
 
+// The route an entity is following, in world (pixel) positions: the corners of
+// the tiles returned by the pathfinder, minus the tile it already stands on.
+// The front element is the current waypoint. Empty means "no route": movement
+// then falls back to a straight line to the action's target.
+struct CPath
+{
+    std::vector<sf::Vector2i> waypoints;
+
+    CPath() = default;
+
+    bool empty() const noexcept { return waypoints.empty(); }
+    sf::Vector2i current() const { return waypoints.front(); }
+    void advance() { waypoints.erase(waypoints.begin()); }
+};
+
 // HUD 
 class CEntityInfo
 {

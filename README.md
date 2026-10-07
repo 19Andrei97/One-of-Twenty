@@ -166,13 +166,11 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 ## TODO
 
-See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core and the
-survival loop are folded into the baseline; the new work starts at milestone 1
-of the roadmap.
+See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core, the
+survival loop and pathfinding are folded into the baseline; the new work starts
+at milestone 2 of the roadmap.
 
 ### Next milestones
-- [ ] Pathfinding and collision (grid paths over `MoveCost`, working
-  `sCollision`, graceful failure for unreachable targets).
 - [ ] Settlement economy and jobs (entity-type roles, recipes/production, food as
   a resource, stockpile HUD, placeable buildings).
 - [ ] Survival depth (health, illness/weather, shelter/housing).
@@ -180,7 +178,8 @@ of the roadmap.
   minimap and stats overlay, real menu, audio).
 - [ ] Performance and scale (indexed resource queries, spatial entity index,
   incremental memory, headless benchmark in CI).
-- [ ] Observability and tuning (event log, run summaries, runtime config reload).
+- [ ] Observability and tuning (event log, run summaries, runtime config reload,
+  interrupt a busy entity when a need turns critical).
 
 ### Parked
 - [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
@@ -201,6 +200,12 @@ work.
   comfortable; population and vitals reach the HUD. Movement no longer overshoots
   its target, so entities actually arrive to drink and eat, and the seeded
   population founds itself on a habitable coastal site (rivers enabled).
+- [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes
+  entities over the `MoveCost` map, so they go around water and prefer cheap
+  ground; movement follows the route (`CPath`) and falls back to a straight line
+  for short or unreachable hops. `Scene_Play::sCollision` keeps the settlement
+  out of the sea and separates overlapping entities, and the game loop clamps the
+  frame delta so a slow frame cannot jump the clock hours ahead.
 - [x] **Technical debt.** Removed unnecessary heap use (unused `sf::Text`
   member, heap `Camera::cInput`, per-tile color lookup, second tile grid);
   documented the chunk-map lock order and stopped taking the mutex around the

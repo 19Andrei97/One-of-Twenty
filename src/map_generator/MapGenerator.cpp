@@ -479,6 +479,35 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
         return MoveCost::moveCost(element);
 }
 
+int MapGenerator::copyTileBlock(const sf::Vector2i& topLeftTile, const int side,
+                                std::unordered_map<sf::Vector2i, Elements, Vector2iHash>& out) const
+{
+        out.clear();
+        const int n = std::clamp(side, 1, kMaxTileBlock);
+        out.reserve(static_cast<std::size_t>(n) * n);
+
+        // One lock for the whole block: pathfinding reads many tiles at once, and
+        // per-tile locking (via getElementAtWorld) would thrash the mutex.
+        std::lock_guard<std::mutex> lock(t_mutex);
+        for (int y = 0; y < n; ++y)
+        {
+                for (int x = 0; x < n; ++x)
+                {
+                        const sf::Vector2i tile{ topLeftTile.x + x, topLeftTile.y + y };
+                        const auto chunkIt = c_chunks.find(chunkOf(tile));
+                        Elements element = m_terrain.elementAtTile(tile);
+                        if (chunkIt != c_chunks.end() && chunkIt->second)
+                        {
+                                const auto tileIt = chunkIt->second->tile_types.find(tile);
+                                if (tileIt != chunkIt->second->tile_types.end())
+                                        element = tileIt->second;
+                        }
+                        out[tile - topLeftTile] = element;
+                }
+        }
+        return n * n;
+}
+
 /*
 *       Pin or release the chunk containing a world position. A pinned chunk
 *       (unload == false) is kept even when it streams outside the view margin.

@@ -3,6 +3,8 @@
 
 #include "EntityManager.h"
 
+#include "Pathfinding.h"
+
 #include <algorithm>
 
 namespace
@@ -68,59 +70,81 @@ void EntityManager::update()
         });
 
         // Moving
-        m_registry->view<CActionsQueue, CTransform>().each([&](auto entity, auto& queue, auto& trs)
+        m_registry->view<CActionsQueue, CTransform, CPath>().each([&](auto entity, auto& queue, auto& trs, auto& path)
         {
                 if (queue.actions.empty())
                         return;
 
-                if(auto action = std::dynamic_pointer_cast<CMoving>(queue.actions.front()))
+                auto action = std::dynamic_pointer_cast<CMoving>(queue.actions.front());
+                if (!action)
+                        return;
+
+                // If the action's target moved, the route is stale: drop it so the
+                // step below recomputes one.
+                if (!path.empty() && path.waypoints.back() != action->target)
+                        path.waypoints.clear();
+
+                // The point to walk toward: the next waypoint when routing, else the
+                // action's target (straight-line fallback).
+                const auto stepToward = [&](const sf::Vector2i& goal)
                 {
-                        const sf::Vector2i toTarget = action->target - trs.pos;
+                        const sf::Vector2i toTarget = goal - trs.pos;
                         const float distance = std::sqrt(static_cast<float>(toTarget.x * toTarget.x + toTarget.y * toTarget.y));
 
-                        // Within a pixel of the target counts as arrived; snapping keeps
-                        // the integer position from oscillating around it.
                         if (distance <= kArriveDistance)
                         {
-                                std::lock_guard<std::mutex> lock(m_mutex);
-                                trs.pos = action->target;
-                                queue.actions.pop_front();
+                                trs.pos = goal;
+                                return true;
                         }
-                        else
+
+                        // Never step past the target: a frame that moves further than
+                        // the remaining distance would overshoot and the entity would
+                        // oscillate forever, never "arriving" to drink or eat.
+                        const float cost{ m_map->getTileCost(trs.pos) };
+                        const float step = std::min(trs.speed * m_delta_time * cost, distance);
+                        if (step >= distance)
                         {
-                                // Tile cost
-                                const float cost{ m_map->getTileCost(trs.pos) };
-
-                                // Never step past the target: a frame that moves further
-                                // than the remaining distance would overshoot and the
-                                // entity would oscillate forever, never "arriving" to
-                                // drink or eat.
-                                const float step = std::min(trs.speed * m_delta_time * cost, distance);
-                                if (step >= distance)
-                                {
-                                        std::lock_guard<std::mutex> lock(m_mutex);
-                                        trs.pos = action->target;
-                                        queue.actions.pop_front();
-                                }
-                                else
-                                {
-                                        sf::Vector2i delta{
-                                                static_cast<int>(std::lround(toTarget.x / distance * step)),
-                                                static_cast<int>(std::lround(toTarget.y / distance * step)) };
-                                        // Rounding a sub-pixel step can yield (0,0); nudge one
-                                        // pixel along the dominant axis so progress is guaranteed.
-                                        if (delta.x == 0 && delta.y == 0)
-                                        {
-                                                if (std::abs(toTarget.x) >= std::abs(toTarget.y))
-                                                        delta.x = (toTarget.x > 0) ? 1 : -1;
-                                                else
-                                                        delta.y = (toTarget.y > 0) ? 1 : -1;
-                                        }
-
-                                        std::lock_guard<std::mutex> lock(m_mutex);
-                                        trs.pos += delta;
-                                }
+                                trs.pos = goal;
+                                return true;
                         }
+
+                        sf::Vector2i delta{
+                                static_cast<int>(std::lround(toTarget.x / distance * step)),
+                                static_cast<int>(std::lround(toTarget.y / distance * step)) };
+                        // Rounding a sub-pixel step can yield (0,0); nudge one pixel
+                        // along the dominant axis so progress is guaranteed.
+                        if (delta.x == 0 && delta.y == 0)
+                        {
+                                if (std::abs(toTarget.x) >= std::abs(toTarget.y))
+                                        delta.x = (toTarget.x > 0) ? 1 : -1;
+                                else
+                                        delta.y = (toTarget.y > 0) ? 1 : -1;
+                        }
+                        trs.pos += delta;
+                        return false;
+                };
+
+                // Prefer the routed waypoint. If the waypoint is reached, advance the
+                // path; when the final waypoint is reached the entity stands on the
+                // target tile and the move action is done.
+                if (!path.empty())
+                {
+                        if (stepToward(path.current()))
+                        {
+                                std::lock_guard<std::mutex> lock(m_mutex);
+                                path.advance();
+                                if (path.empty())
+                                        queue.actions.pop_front();
+                        }
+                        return;
+                }
+
+                // No route yet (or one could not be found): walk straight at the
+                // target. This is also the path for a target on the entity's own tile.
+                if (stepToward(action->target))
+                {
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        queue.actions.pop_front();
                 }
         });
 
@@ -176,8 +200,8 @@ void EntityManager::update()
 
         // Decide what each entity should do. A busy entity keeps its plan; an idle
         // one asks the weighted policy and starts the winning action.
-        m_registry->view<CActionsQueue, CTransform, CBasicNeeds, CMemory, CPersonality, CVision>()
-                .each([&](auto entity, auto& queue, auto& trs, auto& needs, auto& memory, auto& personality, auto& vision)
+        m_registry->view<CActionsQueue, CTransform, CBasicNeeds, CMemory, CPersonality, CVision, CPath>()
+                .each([&](auto entity, auto& queue, auto& trs, auto& needs, auto& memory, auto& personality, auto& vision, auto& path)
         {
                 int& idle = m_entity_idle[entity];
 
@@ -196,7 +220,7 @@ void EntityManager::update()
                         return;
                 }
 
-                if (startActionFor(need, trs.pos, vision.radius, memory, queue))
+                if (startActionFor(need, trs.pos, vision.radius, memory, queue, path))
                         idle = 0;
         });
 
@@ -257,18 +281,55 @@ void EntityManager::update()
 }
 
 // Translate a decision into queued actions. A need with a remembered target
-// walks there first; a need with no memory (or a wander decision) walks to a
-// random reachable tile so the entity explores and refreshes its memory.
+// walks there first (routed around water); a need with no memory (or a wander
+// decision) walks to a random land tile so the entity explores and refreshes its
+// memory. Targets that no land route reaches fall back to exploring.
 bool EntityManager::startActionFor(const EntityDecision::Need need,
                                    const sf::Vector2i& pos,
                                    const float visionRadius,
                                    const CMemory& memory,
-                                   CActionsQueue& queue)
+                                   CActionsQueue& queue,
+                                   CPath& path)
 {
-        const auto exploreTarget = [&]()
+        // Water is not walkable, so a drink target is approached from the nearest
+        // land tile. The closest water tile can itself be ringed by ocean, so
+        // expand outward instead of only checking its 8 neighbours, otherwise the
+        // route fails and the entity wanders instead of drinking.
+        const auto approachLand = [&](const sf::Vector2i& target) -> sf::Vector2i
+        {
+                if (!Resources::isOcean(m_map->getElementAtWorld(target)))
+                        return target;
+                const int ts = m_map->getTileSize();
+                const sf::Vector2i targetTile = CoordMath::worldToTile(target, ts);
+                for (int ring = 1; ring <= 6; ++ring)
+                {
+                        for (int dx = -ring; dx <= ring; ++dx)
+                                for (int dy = -ring; dy <= ring; ++dy)
+                                {
+                                        if (std::max(std::abs(dx), std::abs(dy)) != ring)
+                                                continue;
+                                        const sf::Vector2i candidate =
+                                                CoordMath::tileToWorld(targetTile + sf::Vector2i{ dx, dy }, ts);
+                                        if (!Resources::isOcean(m_map->getElementAtWorld(candidate)))
+                                                return candidate;
+                                }
+                }
+                return target;
+        };
+
+        // Walk to a random land tile in vision, routing when possible and falling
+        // back to a straight line otherwise, so exploration never stalls.
+        const auto queueExplore = [&]() -> bool
         {
                 sf::Vector2i from = pos;
-                return m_map->getLocationWithinBound(from, visionRadius);
+                const int ts = m_map->getTileSize();
+                // Snap to a tile corner: routes are built between tile corners, and
+                // the move target must match the route's last waypoint.
+                const sf::Vector2i target =
+                        CoordMath::tileToWorld(CoordMath::worldToTile(m_map->getLocationWithinBound(from, visionRadius), ts), ts);
+                if (!queueMoveTo(pos, target, path, queue))
+                        queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, target));
+                return true;
         };
 
         switch (need)
@@ -280,15 +341,14 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
 
                         if (auto target = memory.findNearest(pos, MemoryKind::Water))
                         {
-                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, *target));
-                                queue.actions.push_back(std::make_shared<CDrinking>(ActionTypes::Drinking, m_game_clock->getTimestamp()));
+                                if (queueMoveTo(pos, approachLand(*target), path, queue))
+                                {
+                                        queue.actions.push_back(std::make_shared<CDrinking>(ActionTypes::Drinking, m_game_clock->getTimestamp()));
+                                        return true;
+                                }
                         }
-                        else
-                        {
-                                // Nothing to drink is remembered yet: go look for some.
-                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, exploreTarget()));
-                        }
-                        return true;
+                        // Nothing drinkable is reachable: go look for some.
+                        return queueExplore();
                 }
 
                 case EntityDecision::Need::Hunger:
@@ -298,14 +358,13 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
 
                         if (auto target = memory.findNearest(pos, MemoryKind::Food))
                         {
-                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, *target));
-                                queue.actions.push_back(std::make_shared<CEating>(ActionTypes::Eating, m_game_clock->getTimestamp()));
+                                if (queueMoveTo(pos, *target, path, queue))
+                                {
+                                        queue.actions.push_back(std::make_shared<CEating>(ActionTypes::Eating, m_game_clock->getTimestamp()));
+                                        return true;
+                                }
                         }
-                        else
-                        {
-                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, exploreTarget()));
-                        }
-                        return true;
+                        return queueExplore();
                 }
 
                 case EntityDecision::Need::Sleep:
@@ -324,16 +383,14 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
 
                         if (auto target = settleElements(memory))
                         {
-                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, target->pos));
-                                queue.actions.push_back(std::make_shared<CGather>(ActionTypes::Gathering, target->pos, target->element,
-                                                                                  m_game_clock->getTimestamp()));
+                                if (queueMoveTo(pos, target->pos, path, queue))
+                                {
+                                        queue.actions.push_back(std::make_shared<CGather>(ActionTypes::Gathering, target->pos, target->element,
+                                                                                          m_game_clock->getTimestamp()));
+                                        return true;
+                                }
                         }
-                        else
-                        {
-                                // Nothing workable is remembered yet: explore to find some.
-                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, exploreTarget()));
-                        }
-                        return true;
+                        return queueExplore();
                 }
 
                 case EntityDecision::Need::Wander:
@@ -341,13 +398,177 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                         if (queueHasAction(queue, ActionTypes::Moving))
                                 return false;
 
-                        queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, exploreTarget()));
-                        return true;
+                        return queueExplore();
                 }
 
                 case EntityDecision::Need::None:
                 default:
                         return false;
+        }
+}
+
+// A* route between two world positions. Returns the world-space waypoints
+// (tile corners, excluding the tile the entity already stands on), `nullopt`
+// when both ends share a tile, or an empty vector when no land route exists.
+std::optional<std::vector<sf::Vector2i>> EntityManager::findRoute(const sf::Vector2i& from, const sf::Vector2i& to)
+{
+        const int ts = m_map->getTileSize();
+        const sf::Vector2i startTile = CoordMath::worldToTile(from, ts);
+        const sf::Vector2i goalTile = CoordMath::worldToTile(to, ts);
+        if (startTile == goalTile)
+                return std::nullopt;
+
+        // Bound the search to a window around the two ends. A window keeps the
+        // scan (and its tile copy) small; a trip longer than it fails and the
+        // caller falls back to a straight line, re-planning as it goes.
+        constexpr int kWindow = MapGenerator::kMaxTileBlock;
+        const int spanX = std::abs(startTile.x - goalTile.x);
+        const int spanY = std::abs(startTile.y - goalTile.y);
+        if (spanX >= kWindow || spanY >= kWindow)
+                return std::vector<sf::Vector2i>{};
+
+        const int margin = std::max(4, std::max(spanX, spanY) / 4);
+        const int side = std::min(kWindow, std::max(spanX, spanY) + margin * 2 + 1);
+        const sf::Vector2i topLeft{ std::min(startTile.x, goalTile.x) - margin,
+                                    std::min(startTile.y, goalTile.y) - margin };
+
+        m_map->copyTileBlock(topLeft, side, m_tile_block);
+        const auto& block = m_tile_block;
+        // Outside the copied window is unknown; treat it as impassable so the
+        // search cannot wander off the snapshot.
+        const auto elementAt = [&](const sf::Vector2i& tile) -> Elements
+        {
+                const auto it = block.find(tile - topLeft);
+                return (it != block.end()) ? it->second : Elements::very_deep_ocean;
+        };
+
+        const auto path = Pathfinding::findPath(
+                startTile, goalTile,
+                [&](const sf::Vector2i& tile) { return MoveCost::moveCost(elementAt(tile)); },
+                [&](const sf::Vector2i& tile) { return !Resources::isOcean(elementAt(tile)); });
+        if (path.empty())
+                return std::vector<sf::Vector2i>{};
+
+        std::vector<sf::Vector2i> waypoints;
+        waypoints.reserve(path.size() - 1);
+        for (std::size_t i = 1; i < path.size(); ++i)
+                waypoints.push_back(CoordMath::tileToWorld(path[i], ts));
+        return waypoints;
+}
+
+bool EntityManager::queueMoveTo(const sf::Vector2i& from, const sf::Vector2i& target,
+                                CPath& path, CActionsQueue& queue)
+{
+        auto route = findRoute(from, target);
+        if (!route)
+        {
+                // Same tile: a move with no route still lets movement finish it.
+                path.waypoints.clear();
+        }
+        else if (route->empty())
+        {
+                return false; // no land route to the target
+        }
+        else
+        {
+                path.waypoints = *route;
+        }
+
+        queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, target));
+        return true;
+}
+
+void EntityManager::resolveCollisions()
+{
+        const int ts = m_map->getTileSize();
+
+        // Keep entities out of the ocean. An entity that ends up on a water tile
+        // (pushed there, or spawned in a corner) steps back to the nearest land
+        // tile in its 8-neighbourhood.
+        m_registry->view<CTransform>().each([&](auto, CTransform& trs)
+        {
+                const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, ts);
+                const sf::Vector2i center = CoordMath::tileToWorld(tile, ts);
+                if (!Resources::isOcean(m_map->getElementAtWorld(center)))
+                        return;
+
+                const sf::Vector2i offset = trs.pos - center;
+                static constexpr sf::Vector2i kAround[8]{ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+                                                          { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
+                for (const auto& d : kAround)
+                {
+                        const sf::Vector2i candidate = center + sf::Vector2i{ d.x * ts, d.y * ts };
+                        if (!Resources::isOcean(m_map->getElementAtWorld(candidate)))
+                        {
+                                trs.pos = candidate + offset;
+                                return;
+                        }
+                }
+        });
+
+        // Separate overlapping entities with a symmetric push.
+        constexpr int kMinSeparation = 12;
+        std::vector<std::pair<entt::entity, sf::Vector2i>> positions;
+        m_registry->view<CTransform>().each([&](auto entity, CTransform& trs)
+        {
+                positions.emplace_back(entity, trs.pos);
+        });
+
+        for (std::size_t i = 0; i < positions.size(); ++i)
+        {
+                for (std::size_t j = i + 1; j < positions.size(); ++j)
+                {
+                        const sf::Vector2i d = positions[j].second - positions[i].second;
+                        const int dist2 = d.x * d.x + d.y * d.y;
+                        if (dist2 >= kMinSeparation * kMinSeparation || dist2 == 0)
+                                continue;
+
+                        const float dist = std::sqrt(static_cast<float>(dist2));
+                        const float push = (kMinSeparation - dist) * 0.5f;
+                        const sf::Vector2i shift{
+                                static_cast<int>(std::lround(d.x / dist * push)),
+                                static_cast<int>(std::lround(d.y / dist * push)) };
+                        positions[i].second -= shift;
+                        positions[j].second += shift;
+                }
+        }
+
+        // Write back, but never shove an entity into the sea.
+        for (auto& [entity, pos] : positions)
+        {
+                auto& trs = m_registry->get<CTransform>(entity);
+                if (Resources::isOcean(m_map->getElementAtWorld(pos)))
+                        continue;
+                trs.pos = pos;
+        }
+
+        // De-stack: the push above can be blocked by water, leaving entities on
+        // the same spot. Fan each duplicate out to an adjacent land tile that no
+        // already-placed entity occupies, so the settlement does not render as a
+        // single dot and no two entities share a position.
+        static constexpr sf::Vector2i kAround[8]{ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+                                                  { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
+        std::vector<sf::Vector2i> placed;
+        placed.reserve(positions.size());
+        for (const auto& [entity, pos] : positions)
+        {
+                auto& trs = m_registry->get<CTransform>(entity);
+                const bool duplicate = std::find(placed.begin(), placed.end(), trs.pos) != placed.end();
+                if (duplicate)
+                {
+                        const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, ts);
+                        for (const auto& d : kAround)
+                        {
+                                const sf::Vector2i candidate = CoordMath::tileToWorld(tile + d, ts);
+                                if (Resources::isOcean(m_map->getElementAtWorld(candidate)))
+                                        continue;
+                                if (std::find(placed.begin(), placed.end(), candidate) != placed.end())
+                                        continue;
+                                trs.pos = candidate;
+                                break;
+                        }
+                }
+                placed.push_back(trs.pos);
         }
 }
 
@@ -526,6 +747,7 @@ void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
         m_registry->emplace<CBasicNeeds>(entity);
         m_registry->emplace<CPersonality>(entity);
         m_registry->emplace<CActionsQueue>(entity);
+        m_registry->emplace<CPath>(entity);
         m_registry->emplace<CInventory>(entity);
         m_registry->emplace<CEntityInfo>(entity, 60, 40);
 
@@ -673,6 +895,16 @@ std::optional<ActionTypes> EntityManager::firstAction() const
 int EntityManager::entityCount() const
 {
         return static_cast<int>(m_registry->view<CType>().size());
+}
+
+std::vector<sf::Vector2i> EntityManager::entityPositions() const
+{
+        std::vector<sf::Vector2i> positions;
+        m_registry->view<CTransform>().each([&](auto, const CTransform& trs)
+        {
+                positions.push_back(trs.pos);
+        });
+        return positions;
 }
 
 std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMemory& memory) const

@@ -120,6 +120,8 @@ void Scene_Play::sMovement()
 
 void Scene_Play::sCollision()
 {
+        if (m_entity_manager)
+                m_entity_manager->resolveCollisions();
 }
 
 void Scene_Play::sRender(sf::RenderTarget& target)

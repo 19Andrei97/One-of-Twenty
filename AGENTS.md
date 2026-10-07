@@ -55,6 +55,15 @@ A run that is killed by `timeout` (exit 124) is a success; check
   the loaded chunk's `tile_types` (post-edit) and only falls back to noise
   when the chunk is not loaded. `getTileCost` holds `t_mutex`, so it reads
   `tile_types` directly instead of calling the locking accessor.
+- Entity pathfinding is a pure, header-only A* in `helpers/Pathfinding.h`; it
+  takes cost/walkable callables so it is unit-tested without a map.
+  `EntityManager::findRoute` snapshots tiles via `MapGenerator::copyTileBlock`
+  (one lock for a whole block) and turns the tile path into world-space
+  waypoints stored on the entity's `CPath`. Movement follows the waypoints and
+  falls back to a straight line when there is no route. Water is not walkable;
+  a drink target in the sea is approached from the nearest land tile.
+  `Scene_Play::sCollision` calls `EntityManager::resolveCollisions`, which keeps
+  entities on land and separates overlapping ones.
 - Ores use one noise field each (`m_noise_clay`/`iron`/`silver`, seeded apart)
   rather than a shared mineral field; `getResourceValue()` samples a field.
 - The chunk map `c_chunks` is shared with worker threads; guard access with
