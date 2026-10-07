@@ -1,74 +1,107 @@
 
+
 #include <pch.h>
 
 #include "Game.h"
+#include "Scene_Play.h"
+#include "Scene_Menu.h"
 
 // GAME FLOW ////////////////////////////////////////////////////////////
 
 Game::Game(const std::string& path)
 {
-	nlohmann::json data = loadJsonFile(path);
+	m_config = loadJsonFile(path);
 
 	// LOGGER
-	Logger::init(data["logger"]["file"], data["logger"].value("level", std::string{ "debug" }));
+	Logger::init(m_config["logger"]["file"], m_config["logger"].value("level", std::string{ "debug" }));
 
 	// WINDOW AND FRAME
 	sf::State state;
 
-	if (data["window"]["fullscreen"])
+	if (m_config["window"]["fullscreen"])
 		state = sf::State::Fullscreen;
 	else
 		state = sf::State::Windowed;
 
-	m_window.create(sf::VideoMode({ data["window"]["width"], data["window"]["height"] }), "One Of Twenty", state);
-	m_window.setFramerateLimit(data["window"]["frames"]);
-
-	// IN GAME CLOCK
-	LOG_DEBUG("Creating in Game Clock.");
-	m_game_clock = std::make_shared<GameClock>(120.f);
-	m_game_clock->onNewDay([&]() 
-		{
-			LOG_INFO("New day. Passed: {}", m_game_clock->getDays());
-		});
+	m_window.create(sf::VideoMode({ m_config["window"]["width"], m_config["window"]["height"] }), "One Of Twenty", state);
+	m_window.setFramerateLimit(m_config["window"]["frames"]);
 
 	// TEXT AND FONT
 	LOG_DEBUG("Opening font file.");
-	if (!m_font.openFromFile(data["font"]["file"])) {
+	if (!m_font.openFromFile(m_config["font"]["file"])) {
 		std::cerr << "Could not load font!\n";
 	}
 
-	// MAP GENERATION
-	LOG_DEBUG("Creating Map Generator.");
-	m_map = std::make_shared<MapGenerator>(m_font, m_currentFrame, data["map"]["file"]);
-	m_map->setDebugNoiseView(false);
+	// SCENES
+	LOG_DEBUG("Registering scenes.");
+	auto playScene = std::make_shared<Scene_Play>(this, m_font, m_config);
+	registerScene("play", playScene);
 
-	// HUD
-	LOG_DEBUG("Creating HUD.");
-	m_hud = std::make_unique<Hud>(m_font, m_map, data["hud"]["file"], data["window"]["width"], data["window"]["height"]);
-	m_hud->init();
+	auto menuScene = std::make_shared<Scene_Menu>(
+		this, 
+		m_font, 
+		static_cast<float>(m_config["window"]["width"]), 
+		static_cast<float>(m_config["window"]["height"])
+	);
+	registerScene("menu", menuScene);
 
-	// CAMERA
-	LOG_DEBUG("Creating Camera.");
-	m_camera = std::make_unique<Camera>(data["window"]["width"], data["window"]["height"]);
-	m_window.setView(m_camera->getCamera());
+	// Start in the play scene
+	changeScene("play");
+}
 
-	// ENTITIES MANAGER
-	LOG_DEBUG("Creating Entities Manager.");
-	m_entity_manager = std::make_unique<EntityManager>(m_font, m_map, m_game_clock, m_deltaTime, data["entity"]["file"]);
+void Game::registerScene(const std::string& name, std::shared_ptr<Scene> scene)
+{
+	if (scene)
+		scene->setGame(this);
+	m_scenes[name] = scene;
+}
+
+void Game::changeScene(const std::string& name, std::shared_ptr<Scene> scene, bool endCurrent)
+{
+	if (scene)
+	{
+		registerScene(name, scene);
+	}
+
+	auto it = m_scenes.find(name);
+	if (it != m_scenes.end())
+	{
+		if (m_currentScene)
+		{
+			m_currentScene->onExit();
+			if (endCurrent)
+				m_currentScene->end();
+		}
+
+		m_currentSceneName = name;
+		m_currentScene = it->second;
+		if (m_currentScene)
+			m_currentScene->onEnter();
+	}
+}
+
+std::shared_ptr<Scene> Game::getScene(const std::string& name) const
+{
+	auto it = m_scenes.find(name);
+	if (it != m_scenes.end())
+		return it->second;
+	return nullptr;
+}
+
+bool Game::hasScene(const std::string& name) const
+{
+	return m_scenes.find(name) != m_scenes.end();
 }
 
 void Game::run()
 {
-	
-	while (m_running)
+	while (m_running && m_window.isOpen())
 	{
 		m_deltaTime = m_clock.restart().asSeconds();
-		m_game_clock->update(m_deltaTime);
 
-		if (!m_paused)
+		if (m_currentScene)
 		{
-			sMovement();
-			sCollision();
+			m_currentScene->update(m_deltaTime);
 		}
 
 		sUserInput();
@@ -76,72 +109,7 @@ void Game::run()
 
 		++m_currentFrame;
 	}
-
 }
-
-void Game::setPaused()
-{
-	m_paused = !m_paused;
-
-	m_game_clock->pause(m_paused);
-}
-
-// SPAWNS ////////////////////////////////////////////////////////////
-
-void Game::spawnEntities()
-{
-	m_entity_manager->addEntity(EntityType::Human_Generic);
-}
-
-// SYSTEMS ////////////////////////////////////////////////////////////
-
-void Game::sMovement()
-{
-	// Entities Updates
-	m_entity_manager->update();
-
-
-	if (m_camera->cInput.up)
-	{
-		m_camera->move(0, -m_camera->getVelocity() * m_deltaTime);
-		m_current_position.y -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-	} else if (m_camera->cInput.down)
-	{
-		m_camera->move(0, m_camera->getVelocity() * m_deltaTime);
-		m_current_position.y += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-	}
-	if (m_camera->cInput.left)
-	{
-		m_camera->move(-m_camera->getVelocity() * m_deltaTime, 0);
-		m_current_position.x -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-	} else if (m_camera->cInput.right)
-	{
-		m_camera->move(m_camera->getVelocity() * m_deltaTime, 0);
-		m_current_position.x += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-	}
-		
-}
-
-void Game::sCollision()
-{
-
-}
-
-void Game::sRender()
-{
-	m_window.clear();
-
-	m_window.setView(m_camera->getCamera());
-	m_map->render(m_camera->getWorldBounds(), m_window);
-
-	m_entity_manager->render(m_window);
-	
-	m_window.setView(m_hud->getCamera());
-	m_hud->render(m_window);
-
-	m_window.display();
-}
-
 
 void Game::sUserInput()
 {
@@ -152,149 +120,23 @@ void Game::sUserInput()
 			m_running = false;
 		}
 
-		// KEYBOARD LOGIC
-		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+		if (m_currentScene)
 		{
-			if (keyPressed->code == sf::Keyboard::Key::P)
-			{
-				setPaused();
-			}
-
-			if (!m_paused)
-			{
-				if (keyPressed->code == sf::Keyboard::Key::W)
-					m_camera->cInput.up = true;
-				if (keyPressed->code == sf::Keyboard::Key::S)
-					m_camera->cInput.down = true;
-				if (keyPressed->code == sf::Keyboard::Key::A)
-					m_camera->cInput.left = true;
-				if (keyPressed->code == sf::Keyboard::Key::D)
-					m_camera->cInput.right = true;
-				if (keyPressed->code == sf::Keyboard::Key::M)
-					m_map->setSeed();
-				if (keyPressed->code == sf::Keyboard::Key::G)
-					m_map->setDebugWireFrame(true);
-				if (keyPressed->code == sf::Keyboard::Key::Num1)
-					m_entity_manager->addEntity(EntityType::Human_Generic);
-			}
-		}
-
-		if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
-		{
-			if (!m_paused)
-			{
-				switch (keyReleased->code)
-				{
-				case sf::Keyboard::Key::W:
-					m_camera->cInput.up = false;
-					break;
-				case sf::Keyboard::Key::S:
-					m_camera->cInput.down = false;
-					break;
-				case sf::Keyboard::Key::A:
-					m_camera->cInput.left = false;
-					break;
-				case sf::Keyboard::Key::D:
-					m_camera->cInput.right = false;
-					break;
-				case sf::Keyboard::Key::G:
-					m_map->setDebugWireFrame(false);
-					break;
-						
-				default: break;
-				}
-			}
-		}
-
-		// TEXT INPUT LOGIC
-		if (const auto* textEntered = event->getIf<sf::Event::TextEntered>())
-		{
-			m_hud->input(*textEntered);
-		}
-
-		// MOUSE BUTTONS LOGIC
-		if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>())
-		{
-			if (!m_paused)
-			{
-				switch (mousePressed->button)
-				{
-				case sf::Mouse::Button::Left:
-				{
-					auto pixel = sf::Mouse::getPosition(m_window);
-
-					// GUI coords
-					sf::Vector2f guiPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
-					m_hud->input(*mousePressed, guiPos);
-
-					// World coords
-					sf::Vector2f worldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
-					m_hud->infoBox(m_map->getPositionInfo(static_cast<sf::Vector2i>(worldPos)));
-
-					// TEST map change tile
-					m_map->setTileColor(static_cast<sf::Vector2i>(worldPos), Elements::test);
-
-					// TESTING ENTITY MOVING
-					//m_entity_manager->nextTarget(EntityType::Human_Generic, worldPos);
-
-					break;
-				}
-
-				case sf::Mouse::Button::Right:
-				{
-					// Right click logic
-					break;
-				}
-
-				default: break;
-				}
-			}
-		}
-		
-		// MOUSE CLICK RELEASED
-		if (const auto* mousereleased = event->getIf<sf::Event::MouseButtonReleased>())
-		{
-			if (!m_paused)
-			{
-				switch (mousereleased->button)
-				{
-				case sf::Mouse::Button::Left:
-				{
-					auto pixel = sf::Mouse::getPosition(m_window);
-					sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
-					sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
-
-					m_hud->input(*mousereleased, mouseHudPos);
-				}
-				}
-			}
-		}
-
-		// MOUSE MOVING
-		if (const auto* mousemoved = event->getIf<sf::Event::MouseMoved>())
-		{
-			if (!m_paused)
-			{
-				auto pixel = sf::Mouse::getPosition(m_window);
-				sf::Vector2f mouseWorldPos = m_window.mapPixelToCoords(pixel, m_camera->getCamera());
-				sf::Vector2f mouseHudPos = m_window.mapPixelToCoords(pixel, m_hud->getCamera());
-
-				m_hud->input(*mousemoved, mouseHudPos);
-			}
-		}
-
-		// MOUSE WHEEL LOGIC
-		if (const auto* mouseWheel = event->getIf<sf::Event::MouseWheelScrolled>())
-		{
-			if (!m_paused)
-			{
-				if (mouseWheel->delta > 0)
-					m_camera->zoomIn();
-				else
-					m_camera->zoomOut();
-			}
+			m_currentScene->sUserInput(*event);
 		}
 	}
-
 }
+
+void Game::sRender()
+{
+	m_window.clear();
+
+	if (m_currentScene)
+	{
+		m_currentScene->sRender(m_window);
+	}
+
+	m_window.display();
+}
+
 
