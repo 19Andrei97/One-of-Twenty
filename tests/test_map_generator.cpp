@@ -6,8 +6,14 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <set>
 #include <memory>
 #include <thread>
+
+#include <nlohmann/json.hpp>
 
 // MapGenerator owns a BS::thread_pool and worker threads that reference its
 // members. These tests construct and destroy it repeatedly so the sanitizer
@@ -33,6 +39,30 @@ std::string mapConfigPath()
 std::unique_ptr<MapGenerator> makeGenerator(sf::Font& font, int& frames)
 {
     return std::make_unique<MapGenerator>(font, frames, mapConfigPath());
+}
+
+// Copy the real map config, apply a patch, and return the temp file path. This
+// lets generation options be exercised without shipping enabled variants.
+std::string makeVariantConfig(const std::string& name, const std::function<void(nlohmann::json&)>& patch)
+{
+    std::ifstream in(mapConfigPath());
+    REQUIRE(in.good());
+
+    nlohmann::json js;
+    in >> js;
+    patch(js);
+
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / ("one_of_twenty_" + name + ".json");
+    std::ofstream out(path);
+    out << js;
+    return path.string();
+}
+
+// Water is the only biome family with a zero red channel.
+bool isWater(MapGenerator& generator, const sf::Vector2i& world)
+{
+    return generator.getBiomeColor(world).r == 0;
 }
 } // namespace
 
@@ -89,6 +119,122 @@ TEST_CASE("different seeds produce a different map")
                 ++differing;
 
     CHECK(differing > 0);
+}
+
+TEST_CASE("element lookup is stable within a tile and follows the grid")
+{
+    sf::Font font;
+    int frames = 0;
+
+    auto generator = makeGenerator(font, frames);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    const int tileSize = generator->getTileSize();
+    REQUIRE(tileSize > 1);
+
+    // Every pixel inside one tile maps to the same biome (world -> tile).
+    const sf::Vector2i sample{ 5 * tileSize, 7 * tileSize };
+    const Elements base = generator->getBiomeElement(sample);
+    for (int dx = 0; dx < tileSize; ++dx)
+        for (int dy = 0; dy < tileSize; ++dy)
+            CHECK(generator->getBiomeElement({ sample.x + dx, sample.y + dy }) == base);
+
+    // Across a wider area the terrain varies, so the grid really does sample the
+    // noise per tile rather than returning a constant.
+    std::set<int> distinct;
+    for (int tx = -20; tx <= 20; ++tx)
+        for (int ty = -20; ty <= 20; ++ty)
+            distinct.insert(static_cast<int>(generator->getBiomeElement({ tx * tileSize, ty * tileSize })));
+    CHECK(distinct.size() > 1);
+}
+
+TEST_CASE("island mode surrounds the origin with water")
+{
+    sf::Font font;
+    int frames = 0;
+
+    const std::string config = makeVariantConfig("island", [](nlohmann::json& js) {
+        js["island"]["enabled"] = true;
+        js["island"]["falloff"] = 0.4;
+    });
+
+    auto generator = std::make_unique<MapGenerator>(font, frames, config);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    const int tileSize = generator->getTileSize();
+    // The falloff reaches zero at 0.4 chunks; sample far past that.
+    constexpr int edgeTiles = 500;
+
+    int originWater = 0;
+    int edgeWater = 0;
+    constexpr int samples = 7;
+    for (int i = 0; i < samples; ++i)
+    {
+        const int offset = (i - samples / 2) * tileSize * 4;
+        originWater += isWater(*generator, { offset, offset }) ? 1 : 0;
+
+        const int edge = edgeTiles * tileSize;
+        edgeWater += isWater(*generator, { edge + offset, edge + offset }) ? 1 : 0;
+    }
+
+    // Origins should hold some land; the far edge must be fully ocean.
+    CHECK(originWater < samples);
+    CHECK(edgeWater == samples);
+}
+
+TEST_CASE("rivers carve water into otherwise dry land")
+{
+    sf::Font font;
+    int frames = 0;
+
+    // Compare the same seed with rivers off and on: rivers must only add water,
+    // never remove it, and must not drown the whole map.
+    const std::string plainConfig = makeVariantConfig("river_off", [](nlohmann::json& js) {
+        js["island"]["enabled"] = false;
+        js["river"]["enabled"] = false;
+    });
+    const std::string riverConfig = makeVariantConfig("river_on", [](nlohmann::json& js) {
+        js["island"]["enabled"] = false;
+        js["river"]["enabled"] = true;
+        js["river"]["freq"] = 0.01;
+        js["river"]["threshold"] = 0.06;
+    });
+
+    auto plain = std::make_unique<MapGenerator>(font, frames, plainConfig);
+    plain->setSeed(2024);
+    plain->setNoises();
+
+    auto river = std::make_unique<MapGenerator>(font, frames, riverConfig);
+    river->setSeed(2024);
+    river->setNoises();
+
+    const int tileSize = plain->getTileSize();
+    int extraWater = 0;
+    int removedWater = 0;
+    int addedWater = 0;
+    int land = 0;
+    constexpr int range = 1000;
+    for (int x = -range; x <= range; x += 2 * tileSize)
+    {
+        for (int y = -range; y <= range; y += 2 * tileSize)
+        {
+            const bool plainWater = isWater(*plain, { x, y });
+            const bool riverWater = isWater(*river, { x, y });
+
+            if (riverWater && !plainWater) ++extraWater;
+            if (!riverWater && plainWater) ++removedWater;
+            if (riverWater) ++addedWater;
+            else ++land;
+        }
+    }
+
+    // Rivers only convert land to water, and they clearly do so here.
+    CHECK(removedWater == 0);
+    CHECK(extraWater > 0);
+    CHECK(addedWater > 0);
+    CHECK(land > 0);
 }
 
 TEST_CASE("setChunkUnload reports when no chunk is loaded")

@@ -10,6 +10,17 @@
     "warp_freq": 0.007,
     "mineral_freq": 0.004,
 
+    "island": {
+        "enabled": false,
+        "falloff": 0.4
+    },
+
+    "river": {
+        "enabled": false,
+        "freq": 0.01,
+        "threshold": 0.03
+    },
+
     "elements": {
         "0": [0, 0, 90],
         "1": [0, 0, 120],

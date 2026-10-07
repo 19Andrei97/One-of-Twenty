@@ -3,48 +3,69 @@
 #include "MapGenerator.h"
 
 /*
-*	Decide which element belongs at a world coordinate.
+*	Decide which element belongs at a tile coordinate.
+*
+*	The noise is sampled in tile space so the terrain no longer depends on the
+*	pixel tile size (a 16px or 32px tile covers the same world noise). Rivers and
+*	island shaping only run when enabled in config, so the base map is unchanged.
 */
-Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord) {
+Elements MapGenerator::elementAtTile(const sf::Vector2i& tile) const {
 
-	sf::Vector2f coord_f = static_cast<sf::Vector2f>(coord);
+	sf::Vector2f coord_f = static_cast<sf::Vector2f>(tile);
 
 	// Generate noise and wrap for natural environment
 	float warpX = coord_f.x + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
 	float warpY = coord_f.y + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
 	float continent = (m_noise_continent.GetNoise(warpX * m_cont_multiplier, warpY * m_cont_multiplier) + 1.0f) * 0.5f;
 
+	// Island shaping: pull the coast inward so the world is surrounded by water.
+	if (m_island.enabled)
+		continent *= islandFalloff(tile);
+
+	// --- RIVER ---
+	// A river cuts across the map where the river field crosses zero, but only on
+	// land (above the deep ocean) so it does not carve through the seabed.
+	if (m_river.enabled
+		&& continent > m_thresholds.at(Elements::deep_ocean)
+		&& continent < m_thresholds.at(Elements::snow))
+	{
+		const float riverField = m_noise_river.GetNoise(coord_f.x, coord_f.y);
+
+		if (std::abs(riverField) < m_river.value.threshold)
+			return Elements::ocean;
+	}
+
 	// Generate mineral noise
 	float mineral = (m_noise_mineral.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
 
 	// --- OCEAN ---
 
-	if (continent < m_thresholds[Elements::very_deep_ocean]) return Elements::very_deep_ocean;
-	if (continent < m_thresholds[Elements::deep_ocean]) return Elements::deep_ocean;
-	if (continent < m_thresholds[Elements::ocean]) return Elements::ocean;
-	if (continent < m_thresholds[Elements::sand]) return Elements::sand;
+	if (continent < m_thresholds.at(Elements::very_deep_ocean)) return Elements::very_deep_ocean;
+	if (continent < m_thresholds.at(Elements::deep_ocean)) return Elements::deep_ocean;
+	if (continent < m_thresholds.at(Elements::ocean)) return Elements::ocean;
+	if (continent < m_thresholds.at(Elements::sand)) return Elements::sand;
 
 	// --- CONTINENT ---
-	if (continent < m_thresholds[Elements::hill])
+	if (continent < m_thresholds.at(Elements::hill))
 	{
-		if (mineral > m_thresholds[Elements::clay])
+		if (mineral > m_thresholds.at(Elements::clay))
 			return Elements::clay;
 
 		return Elements::hill;
 	}
 
-	if (continent < m_thresholds[Elements::forest])
+	if (continent < m_thresholds.at(Elements::forest))
 	{
-		if (mineral > m_thresholds[Elements::iron])
+		if (mineral > m_thresholds.at(Elements::iron))
 			return Elements::iron;
 
 		return Elements::forest;
 	}
 
 
-	if (continent < m_thresholds[Elements::muntain])
+	if (continent < m_thresholds.at(Elements::muntain))
 	{
-		if (mineral > m_thresholds[Elements::silver])
+		if (mineral > m_thresholds.at(Elements::silver))
 			return Elements::silver;
 
 		return Elements::muntain;
@@ -55,22 +76,50 @@ Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord) {
 }
 
 /*
-*	Decide which color for the biome.
+*	Radial falloff for island generation. Returns 1 near the origin and drops to
+*	0 at the configured edge, so land fades into ocean with a soft coastline.
 */
-sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord) {
-	return m_biomes[getBiomeElement(coord)];
+float MapGenerator::islandFalloff(const sf::Vector2i& tile) const
+{
+	const float x = static_cast<float>(tile.x) / c_chunk_tiles;
+	const float y = static_cast<float>(tile.y) / c_chunk_tiles;
+	const float distance = std::sqrt(x * x + y * y);
+
+	// m_island.value is the distance (in chunks) where land gives way to water.
+	const float edge = std::max(0.001f, m_island.value);
+	return std::clamp(1.0f - distance / edge, 0.0f, 1.0f);
 }
 
 /*
-*	Generate a chunk of terrain based on height and width in tiles. Position is the top left of the chunk in world.
+*	Decide which color for the biome. Coordinates are world pixels.
 */
-std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int height, const int width, const sf::Vector2i& position)
+sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord) {
+	return m_biomes[elementAtWorld(coord)];
+}
+
+/*
+*	Decide which element belongs at a world coordinate.
+*/
+Elements MapGenerator::elementAtWorld(const sf::Vector2i& coord) const {
+	return elementAtTile(worldToTile(coord));
+}
+
+/*
+*	Decide which element belongs at a world coordinate (public entry point).
+*/
+Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord) {
+	return elementAtWorld(coord);
+}
+
+/*
+*	Generate a chunk of terrain, tiles_per_side square. tile_position is the top
+*	left tile of the chunk; pixels are derived only when emitting vertices.
+*/
+std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int tiles_per_side, const sf::Vector2i& tile_position)
 {
 	auto chunk		= std::make_shared<Chunk>();
-	chunk->position = position;
+	chunk->position = tile_position;
 	chunk->vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
-
-	const int tiles_per_side{ height * width / m_tile_size_px };
 
 	const std::size_t tile_count = static_cast<std::size_t>(tiles_per_side) * tiles_per_side;
 
@@ -83,11 +132,11 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 	{
 		for (int tx = 0; tx < tiles_per_side; ++tx)
 		{
-			sf::Vector2i world{ position.x + tx * m_tile_size_px, position.y + ty * m_tile_size_px };
+			const sf::Vector2i tile{ tile_position.x + tx, tile_position.y + ty };
 
-			const Elements element = getBiomeElement(world);
+			const Elements element = elementAtTile(tile);
 			tiles[static_cast<std::size_t>(ty) * tiles_per_side + tx] = { element, m_biomes[element] };
-			chunk->tile_types[sf::Vector2i{ tx, ty }] = element;
+			chunk->tile_types[tile] = element;
 		}
 	}
 
@@ -137,11 +186,13 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 				}
 			}
 
-			// Step 3: emit rectangle
-			float worldX = position.x + x * m_tile_size_px;
-			float worldY = position.y + y * m_tile_size_px;
-			float wpx = bestW * m_tile_size_px;
-			float hpx = bestH * m_tile_size_px;
+			// Step 3: emit rectangle. Tiles are converted to pixels here, the only
+			// place generation touches world coordinates.
+			const sf::Vector2i rectWorld = tileToWorld({ tile_position.x + x, tile_position.y + y });
+			float worldX = static_cast<float>(rectWorld.x);
+			float worldY = static_cast<float>(rectWorld.y);
+			float wpx = static_cast<float>(bestW * m_tile_size_px);
+			float hpx = static_cast<float>(bestH * m_tile_size_px);
 
 			chunk->vertices.append({ {worldX,       worldY},       base });
 			chunk->vertices.append({ {worldX + wpx, worldY},       base });
@@ -176,7 +227,7 @@ void MapGenerator::startChunksGenerator()
 			continue; 
 		} 
 	
-		auto chunk = generateChunk(c_chunk_size, c_chunk_size, *optChunkPos);
+		auto chunk = generateChunk(c_chunk_tiles, *optChunkPos);
 
 		// tc_chunks_ready has its own mutex; taking t_mutex here would only add
 		// contention on the chunk map for no benefit.
@@ -221,8 +272,14 @@ bool chunkInView(const sf::Vector2i& chunkPos, const sf::Vector2i& chunkSize, co
 *	Render chunks based on view boundaries.
 */
 void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& window) {
-	int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
-	sf::Vector2i chunk_alligned_position = getNextChunkPosition(viewBounds.position, num_tiles_per_chunk);
+	// Convert the pixel view into tile space once, then stay in tiles for the
+	// rest of the frame (chunk keys, hit tests, eviction distances).
+	const sf::Vector2i viewTopLeft = worldToTile(viewBounds.position);
+	const sf::Vector2i viewBottomRight = worldToTile(viewBounds.position + viewBounds.size);
+	const sf::Vector2i viewTileSize = viewBottomRight - viewTopLeft;
+
+	const sf::Vector2i chunk_alligned_position = getNextChunkPosition(viewTopLeft, c_chunk_tiles);
+	const sf::IntRect viewTiles{ chunk_alligned_position, viewTileSize };
 
 	// UPDATE in case of changes, only every 20 frames
 	if (m_reset && i_frames % 20 == 0)
@@ -236,9 +293,9 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 		c_chunks.clear();
 	}
 	
-	// Send camera data to worker
+	// Send camera data to worker (tile space)
 	s_camera_position.store(chunk_alligned_position);
-	s_view_size.store(viewBounds.size);
+	s_view_size.store(viewTileSize);
 
 	// Pull ready chunks from worker
 	while (true) 
@@ -260,7 +317,7 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 		{
 			const sf::Vector2i& pos = it->first;
 
-			if (chunkInView(pos, { num_tiles_per_chunk, num_tiles_per_chunk }, viewBounds)) 
+			if (chunkInView(pos, { c_chunk_tiles, c_chunk_tiles }, viewTiles)) 
 			{
 				visibleChunks.push_back(it->second);
 				++it;
@@ -268,14 +325,14 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 			else 
 			{
 				// Calculate chunk distance from view
-				sf::Vector2i chunkCenter = pos + sf::Vector2i(num_tiles_per_chunk / 2, num_tiles_per_chunk / 2);
-				sf::Vector2i viewCenter = viewBounds.position + (viewBounds.size / 2);
+				sf::Vector2i chunkCenter = pos + sf::Vector2i(c_chunk_tiles / 2, c_chunk_tiles / 2);
+				sf::Vector2i viewCenter = viewTiles.position + (viewTiles.size / 2);
 
-				int dx = std::abs(chunkCenter.x - viewCenter.x) / num_tiles_per_chunk;
-				int dy = std::abs(chunkCenter.y - viewCenter.y) / num_tiles_per_chunk;
+				int dx = std::abs(chunkCenter.x - viewCenter.x) / c_chunk_tiles;
+				int dy = std::abs(chunkCenter.y - viewCenter.y) / c_chunk_tiles;
 
-				if (dx > (viewBounds.size.x / num_tiles_per_chunk) / 2 + c_chunk_margin ||
-					dy > (viewBounds.size.y / num_tiles_per_chunk) / 2 + c_chunk_margin) 
+				if (dx > (viewTiles.size.x / c_chunk_tiles) / 2 + c_chunk_margin ||
+					dy > (viewTiles.size.y / c_chunk_tiles) / 2 + c_chunk_margin) 
 				{
 					// Double-check before evicting: a chunk pinned via
 					// setChunkUnload (an entity or a pending change still
@@ -330,20 +387,19 @@ void MapGenerator::fillQueueChunks()
 {
 	while (s_running)
 	{
+		// All positions below are chunk (tile) coordinates.
 		sf::Vector2i alignedPos = s_camera_position.load();
 		sf::Vector2i viewSize	= s_view_size.load();
-		int num_tiles_per_chunk	{ c_chunk_size * c_chunk_size };
-		int num_tile_plus		{ num_tiles_per_chunk * c_chunk_margin };
+		int num_tile_plus		{ c_chunk_tiles * c_chunk_margin };
 
 		// Find missing chunks and add them to the queue
-		for (int y = alignedPos.y - num_tile_plus; y < alignedPos.y + viewSize.y + num_tile_plus; y += num_tiles_per_chunk)
+		for (int y = alignedPos.y - num_tile_plus; y < alignedPos.y + viewSize.y + num_tile_plus; y += c_chunk_tiles)
 		{
-			for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += num_tiles_per_chunk)
+			for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += c_chunk_tiles)
 			{
 				sf::Vector2i chunkPos(x, y); 
-				sf::Vector2i chunkPosTile{ worldToTile(chunkPos)};
 
-				LOG_TRACE("Chunk Position in World: {} {} (tile {} {})", chunkPos.x, chunkPos.y, chunkPosTile.x, chunkPosTile.y);
+				LOG_TRACE("Chunk Position (tile): {} {}", chunkPos.x, chunkPos.y);
 
 				
 				{
@@ -375,6 +431,10 @@ void MapGenerator::setNoises()
 
 	m_noise_mineral.SetSeed(m_seed);
 	m_noise_mineral.SetFrequency(m_mineral_freq);
+
+	// Offset the seed so rivers do not align with the continent or mineral noise.
+	m_noise_river.SetSeed(m_seed + 1);
+	m_noise_river.SetFrequency(m_river_freq);
 }
 
 /*
@@ -384,12 +444,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 {
     std::vector<std::string> result;
 
-    int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
-    sf::Vector2i chunkPos = getNextChunkPosition
-							(
-								sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
-								num_tiles_per_chunk
-							);
+    sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
 
     std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -416,8 +471,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 */
 sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radius)
 {
-	int num_tiles_per_chunk = c_chunk_size * c_chunk_size;
-	sf::Vector2i chunkPos = getNextChunkPosition(pos, num_tiles_per_chunk);
+	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -488,7 +542,7 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 // Return the cost of the tile position.
 float MapGenerator::getTileCost(const sf::Vector2i& pos)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(pos, c_chunk_size * c_chunk_size);
+	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -530,7 +584,7 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 */
 bool MapGenerator::setChunkUnload(const sf::Vector2i& pos, bool unload)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(pos, c_chunk_size * c_chunk_size);
+	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -545,10 +599,7 @@ bool MapGenerator::setChunkUnload(const sf::Vector2i& pos, bool unload)
 //Cambia il colore di una tile specifica nella mappa.
 bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_element)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(
-		sf::Vector2i(static_cast<int>(pos.x), static_cast<int>(pos.y)),
-		c_chunk_size * c_chunk_size
-	);
+	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 

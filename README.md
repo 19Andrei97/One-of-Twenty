@@ -166,13 +166,15 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
   and enums cannot drift apart.
 
 ### MapGenerator
-- IMPORTANT: Convert all coords to be tile. Use world coords only on render
-- Add rivers?
-- Add possibility to increase depths and heights.
-- Improve getting resources for entities.
-- FIX: different noise map for each resource?
-- Add option to create an island.
+Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
+- [x] Convert all coords to tile space; use world coords only on render. Chunks
+  are keyed by tile position and noise is sampled per tile.
+- [x] Add option to create an island (`island.enabled` / `island.falloff`).
+- [x] Add rivers (`river.enabled` / `river.freq` / `river.threshold`).
 - Change map on entity action. CHECK setTileColor, added map for tiles
+- Add possibility to increase depths and heights.
+- FIX: different noise map for each resource?
+- Improve getting resources for entities.
 - [x] Update chunk unload to double check if no entity or changes are present.
   Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and
   is only evicted once released.

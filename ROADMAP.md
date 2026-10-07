@@ -57,19 +57,32 @@ behavior changes are visible in-game.
 ## Milestone 2 — Map generation depth
 
 Grow the world from "flat terrain with resources" into a richer, queryable map.
+The work is ordered so that correctness lands before new scenery, and the
+structural split is last (it is refactoring, not new behavior).
 
-- [ ] IMPORTANT: convert all coordinates to tile space; use world coordinates
+### 2a. Correctness first
+- [x] IMPORTANT: convert all coordinates to tile space; use world coordinates
       only at render time. `MapGenerator::worldToTile` / `tileToWorld`
-      (`helpers/CoordMath.h`) stay the single source of truth (`MapGenerator`).
-- [ ] Add rivers (`MapGenerator`).
-- [ ] Add configurable depth and height ranges (`MapGenerator`).
-- [ ] Add an option to generate an island (`MapGenerator`).
-- [ ] Use a distinct noise map per resource so deposits don't overlap
-      (`MapGenerator`).
-- [ ] Improve how entities query resources from the map (`MapGenerator`).
+      (`helpers/CoordMath.h`) stay the single source of truth. Chunks are now
+      keyed by tile position and noise is sampled in tile space (`MapGenerator`).
 - [ ] Support changing the map on entity action — verify `setTileColor` and the
       per-tile map stay consistent (`MapGenerator`).
-- [ ] Split `MapGenerator` into chunk store / streamer / renderer (`MapGenerator`).
+
+### 2b. Generation options (driven by `config/map_data.json`)
+- [x] Add an option to generate an island (`MapGenerator`). `island.enabled` /
+      `island.falloff` apply a radial falloff to the continent field.
+- [x] Add rivers (`MapGenerator`). `river.enabled` / `river.freq` /
+      `river.threshold` carve a dedicated noise field into land tiles.
+- [ ] Add configurable depth and height ranges (`MapGenerator`).
+- [ ] Use a distinct noise map per resource so deposits don't overlap
+      (`MapGenerator`).
+
+### 2c. Queries and entity interaction
+- [ ] Improve how entities query resources from the map (`MapGenerator`).
+
+### 2d. Structure (largest, do last)
+- [ ] Split `MapGenerator` into chunk store / streamer / renderer
+      (`MapGenerator`).
 
 **Done when:** the new generation options are driven by `config/map_data.json`,
 `MapGenerator` tests cover each option, and streaming still shuts down cleanly.

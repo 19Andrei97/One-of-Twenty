@@ -48,9 +48,17 @@ A run that is killed by `timeout` (exit 124) is a success; check
   `Logger::levelFromString()` (`helpers/Logger.h`, a namespace), which is
   case-insensitive and throws on an unknown value.
 - The chunk map `c_chunks` is shared with worker threads; guard access with
-  `t_mutex`. Prefer `LOG_TRACE` for anything on a hot path.
-- `generateChunk` receives the chunk pixel size (`c_chunk_size * c_chunk_size`)
-  and derives `tiles_per_side = height * width / m_tile_size_px`.
+  `t_mutex`. Never hold `t_mutex` while touching a `SharedContainer`
+  (`tc_chunks_*`): those lock themselves, so nesting breaks the lock order.
+  Prefer `LOG_TRACE` for anything on a hot path.
+- Coordinates inside `MapGenerator` are tiles, not pixels. Chunk keys and
+  `Chunk::position` are top-left tile coordinates; `c_chunk_tiles` is the chunk
+  size in tiles. Convert to pixels only when emitting vertices, via
+  `tileToWorld` / `worldToTile` (`helpers/CoordMath.h`). Noise is sampled in
+  tile space so terrain does not depend on `tile_size`.
+- `generateChunk(tiles_per_side, tile_position)` takes the tile position
+  directly; islands and rivers are opt-in via `island.*` / `river.*` in
+  `config/map_data.json` and default to off.
 
 ## CI
 

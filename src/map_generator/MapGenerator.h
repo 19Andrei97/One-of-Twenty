@@ -9,6 +9,21 @@ struct Vector2iHash {
 	}
 };
 
+// OPTIONAL FEATURES	///////////////////////////
+// Feature flags read from config. Both default to disabled so the base map is
+// unchanged; enabling one only adds work, it never changes the others.
+struct RiverParams
+{
+	float	threshold{ 0.03f };	// |noise| below this is water (river half-width)
+};
+
+template<typename T>
+struct Option
+{
+	bool	enabled{ false };
+	T		value{};
+};
+
 // ELEMENTS ENUM		///////////////////////////
 enum class Elements
 {
@@ -35,7 +50,7 @@ class MapGenerator
 
 public:
 	struct Chunk {
-		sf::Vector2i	position;			// top left position of chunk
+		sf::Vector2i	position;			// top left position of chunk, in tiles
 		sf::VertexArray vertices;			// the map in vertices ready to draw
 		std::unordered_map<sf::Vector2i, Elements, Vector2iHash> tile_types;
 		bool unload{ true };
@@ -48,8 +63,11 @@ public:
 
 private:
 	// CHUNK variables
+	// c_chunk_tiles is the chunk size in tiles; c_chunks is keyed by the chunk's
+	// top-left tile coordinate. Everything outside generation/render works in
+	// tile space, keeping pixels confined to CoordMath.
 	ChunkMap	c_chunks;
-	int			c_chunk_size;
+	int			c_chunk_tiles;
 	int			c_chunk_margin;
 
 	// SHARED variables
@@ -73,10 +91,17 @@ private:
 	double				m_cont_freq;
 	double				m_warp_freq;
 	double				m_mineral_freq;
+	double				m_river_freq{ 0.01 };
 
 	FastNoiseLite		m_noise_continent;
 	FastNoiseLite		m_noise_wrap;
 	FastNoiseLite		m_noise_mineral;
+	FastNoiseLite		m_noise_river;
+
+	// Option components, all disabled by default so the classic flat map is
+	// unchanged unless config/map_data.json opts in.
+	Option<float>		m_island;		// falloff + edge thresholds
+	Option<RiverParams>	m_river;	// river carving noise + width
 
 	std::unordered_map<Elements, sf::Color>		m_biomes;
 	std::unordered_map<Elements, float>			m_thresholds;
@@ -90,11 +115,15 @@ private:
 	bool		d_wire_frame{ false };
 
 	// GENERATE MAP SUPPORT FUNCTIONS
-	std::shared_ptr<Chunk>		generateChunk(const int height, const int width, const sf::Vector2i& position);
+	std::shared_ptr<Chunk>		generateChunk(int tiles_per_side, const sf::Vector2i& tile_position);
 	void						startChunksGenerator();
 
-	sf::Vector2i worldToTile(sf::Vector2i pos) const;
-	sf::Vector2i tileToWorld(sf::Vector2i tile) const;
+	// Element lookup and river/island shaping, all in tile space.
+	Elements					elementAtTile(const sf::Vector2i& tile) const;
+	Elements					elementAtWorld(const sf::Vector2i& world) const;
+	float						islandFalloff(const sf::Vector2i& tile) const;
+	sf::Vector2i				worldToTile(sf::Vector2i pos) const;
+	sf::Vector2i				tileToWorld(sf::Vector2i tile) const;
 
 public:
 
@@ -125,8 +154,22 @@ public:
 		// Initiate variables
 		m_tile_size_px = js_map["tile_size"];
 		m_seed = Random::get(1, 1000000);
-		c_chunk_size = js_map["chunk_tile_size"];
+		c_chunk_tiles = js_map["chunk_tile_size"];
 		c_chunk_margin = js_map["chunk_margin"];
+
+		// Optional generation features. Both are off unless the config says so.
+		if (js_map.contains("island") && js_map["island"].value("enabled", false))
+		{
+			m_island.enabled = true;
+			m_island.value = js_map["island"].value("falloff", 0.4f);
+		}
+
+		if (js_map.contains("river") && js_map["river"].value("enabled", false))
+		{
+			m_river.enabled = true;
+			m_river.value.threshold = js_map["river"].value("threshold", 0.03f);
+			m_river_freq = js_map["river"].value("freq", 0.01f);
+		}
 
 		m_cont_multiplier = static_cast<float>(js_map["cont_multiplier"]);
 		m_mineral_multiplier = static_cast<float>(js_map["mineral_multiplier"]);
@@ -143,6 +186,10 @@ public:
 
 		m_noise_mineral.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 		m_noise_mineral.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+		// A single octave gives the river field narrow, non-branching channels.
+		m_noise_river.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_noise_river.SetFractalType(FastNoiseLite::FractalType_None);
 
 		setNoises();
 
