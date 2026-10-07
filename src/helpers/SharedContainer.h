@@ -10,6 +10,10 @@
 #include <utility>
 
 // THREAD SAFE CONTAINER
+//
+// A container with its own mutex. Never hold another lock (for example the
+// chunk-map t_mutex) while calling into it: it only ever locks itself, so
+// nesting would break the fixed lock order and risk a deadlock.
 template<typename T>
 class SharedContainer 
 {

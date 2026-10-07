@@ -1,154 +1,95 @@
 #pragma once
 
-// CHUNK HASH			///////////////////////////
-struct Vector2iHash {
-	std::size_t operator()(const sf::Vector2i& v) const noexcept {
-		std::size_t h1 = std::hash<int>()(v.x);
-		std::size_t h2 = std::hash<int>()(v.y);
-		return h1 ^ (h2 << 1);
-	}
-};
+#include "Chunk.h"
+#include "MapConfig.h"
+#include "generate_terrain.h"
 
-// ELEMENTS ENUM		///////////////////////////
-enum class Elements
-{
-	very_deep_ocean = 0,
-	deep_ocean,
-	ocean,
+#include <BS_thread_pool.hpp>
+#include <SharedContainer.h>
 
-	sand,
-	hill,
-	forest,
-	muntain,
-	snow,
+#include <SFML/Graphics.hpp>
 
-	clay,
-	iron,
-	silver,
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
-	test
-};
-
-// MAP GENERATOR CLASS	///////////////////////////
+// Loads map config, generates chunks on worker threads, streams them in and out
+// around the camera, meshes them and draws them.
+//
+// The actual "what is the terrain here" work lives in GenerateTerrain, which is
+// stateless and cheap to share. Keeping sampling out of this class is what makes
+// the noise testable without constructing a renderer and a thread pool.
 class MapGenerator
 {
-
-public:
-	struct Chunk {
-		sf::Vector2i	position;			// top left position of chunk
-		sf::VertexArray vertices;			// the map in vertices ready to draw
-		std::unordered_map<sf::Vector2i, Elements, Vector2iHash> tile_types;
-		bool unload{ true };
-
-		// DEBUG variables
-		//std::vector<std::shared_ptr<sf::Text>>	d_noise;
-	};
-
-	using ChunkMap = std::unordered_map<sf::Vector2i, std::shared_ptr<Chunk>, Vector2iHash>;
-
 private:
 	// CHUNK variables
-	ChunkMap	c_chunks;
-	int			c_chunk_size;
-	int			c_chunk_margin;
+	// c_chunk_tiles is the chunk size in tiles; c_chunks is keyed by the chunk's
+	// top-left tile coordinate. Everything outside generation/render works in
+	// tile space, keeping pixels confined to CoordMath.
+	ChunkMap        c_chunks;
+	int             c_chunk_tiles;
+	int             c_chunk_margin;
 
 	// SHARED variables
-	std::atomic<sf::Vector2i>	s_camera_position;
-	std::atomic<sf::Vector2i>	s_view_size;
-	std::atomic<bool>			s_running{ true };
-	
-	// THREAD Variables
-	BS::thread_pool<>							t_threads{ 3 };
-	std::mutex									t_mutex;
-	SharedContainer<std::shared_ptr<Chunk>>		tc_chunks_ready;
-	SharedContainer<sf::Vector2i>				tc_chunks_in_queue;
-	
-	// MAP Variables
-	int					m_tile_size_px;
-	int					m_seed;
+	std::atomic<sf::Vector2i>       s_camera_position;
+	std::atomic<sf::Vector2i>       s_view_size;
+	std::atomic<bool>               s_running{ true };
 
-	float				m_cont_multiplier;
-	float				m_mineral_multiplier;
+	// THREAD variables
+	BS::thread_pool<>                               t_threads{ 3 };
+	mutable std::mutex                              t_mutex;
+	SharedContainer<std::shared_ptr<Chunk>>         tc_chunks_ready;
+	SharedContainer<sf::Vector2i>                   tc_chunks_in_queue;
 
-	double				m_cont_freq;
-	double				m_warp_freq;
-	double				m_mineral_freq;
-
-	FastNoiseLite		m_noise_continent;
-	FastNoiseLite		m_noise_wrap;
-	FastNoiseLite		m_noise_mineral;
-
-	std::unordered_map<Elements, sf::Color>		m_biomes;
-	std::unordered_map<Elements, float>			m_thresholds;
+	// TERRAIN variables
+	MapConfig       m_config;
+	int             m_seed;         // terrain seed, applied to m_terrain by setNoises()
+	GenerateTerrain m_terrain;      // holds a reference to m_config; declared after it
 
 	// INHERITED variables
 	int& i_frames;
 
 	// DEBUG variables
-	sf::Font	d_font;
-	bool		d_noise_val{ false };
-	bool		d_wire_frame{ false };
+	sf::Font        d_font;
+	bool            d_noise_val{ false };
+	bool            d_wire_frame{ false };
 
 	// GENERATE MAP SUPPORT FUNCTIONS
-	std::shared_ptr<Chunk>		generateChunk(const int height, const int width, const sf::Vector2i& position);
-	void						startChunksGenerator();
+	std::shared_ptr<Chunk>  generateChunk(int tiles_per_side, const sf::Vector2i& tile_position);
+	void                    startChunksGenerator();
+	// Chunk key (top-left tile) that contains a tile. Floors toward -inf so the
+	// lookup matches how chunks are actually keyed, unlike getNextChunkPosition.
+	sf::Vector2i            chunkOf(const sf::Vector2i& tile) const;
+	// (Re)build a chunk's triangles from its tile_types by greedy meshing
+	// equal-coloured tiles into rectangles.
+	void                    buildChunkVertices(Chunk& chunk);
 
-	sf::Vector2i worldToTile(sf::Vector2i pos) const;
-	sf::Vector2i tileToWorld(sf::Vector2i tile) const;
+	sf::Vector2i            worldToTile(sf::Vector2i pos) const;
+	sf::Vector2i            tileToWorld(sf::Vector2i tile) const;
 
 public:
-
 	// RESET VARIABLE
 	bool m_reset{ false };
 
 	// CONSTRUCTORS
-	MapGenerator(sf::Font& font, int& frames,const std::string& map_file)
-		: d_font(font)
+	MapGenerator(sf::Font& font, int& frames, const std::string& map_file)
+		: m_config(loadMapConfig(map_file))
+		, m_seed(m_config.seed)
+		, m_terrain(m_config)
+		, d_font(font)
 		, i_frames(frames)
 	{
-		// Create json
-		nlohmann::json js_map = loadJsonFile(map_file);
-
-		// Construct biomes and heights objs
-		for (auto& [key, value] : js_map["elements"].items()) {
-			m_biomes[static_cast<Elements>(std::stoi(key))] = {
-				static_cast<std::uint8_t>(value[0]),
-				static_cast<std::uint8_t>(value[1]),
-				static_cast<std::uint8_t>(value[2]),
-			};
-		}
-
-		for (auto& [key, value] : js_map["heights"].items()) {
-			m_thresholds[static_cast<Elements>(std::stoi(key))] = value.get<float>();
-		}
-
-		// Initiate variables
-		m_tile_size_px = js_map["tile_size"];
-		m_seed = Random::get(1, 1000000);
-		c_chunk_size = js_map["chunk_tile_size"];
-		c_chunk_margin = js_map["chunk_margin"];
-
-		m_cont_multiplier = static_cast<float>(js_map["cont_multiplier"]);
-		m_mineral_multiplier = static_cast<float>(js_map["mineral_multiplier"]);
-		m_cont_freq = static_cast<float>(js_map["cont_freq"]);
-		m_warp_freq = static_cast<float>(js_map["warp_freq"]);
-		m_mineral_freq = static_cast<float>(js_map["mineral_freq"]);
-
-		// Set Noises
-		m_noise_continent.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-		m_noise_continent.SetFractalType(FastNoiseLite::FractalType_FBm);
-
-		m_noise_wrap.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-		m_noise_wrap.SetFractalType(FastNoiseLite::FractalType_FBm);
-
-		m_noise_mineral.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-		m_noise_mineral.SetFractalType(FastNoiseLite::FractalType_FBm);
-
-		setNoises();
+		c_chunk_tiles = m_config.chunk_tile_size;
+		c_chunk_margin = m_config.chunk_margin;
 
 		s_running = true;
 
-		// Generate Thread
+		// Generate Threads
 		(void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
 		(void)t_threads.submit_task([this] { startChunksGenerator(); });
 		(void)t_threads.submit_task([this] { startChunksGenerator(); });
@@ -170,42 +111,50 @@ public:
 	void fillQueueChunks();
 
 	// SETTERS
-	void setSeed(int seed = Random::get(1, 1000000))	{ m_seed = seed; }
+	void setSeed(int seed = Random::get(1, 1000000)) { m_seed = seed; }
 	void setNoises();
 
-	void setContFreq(float freq)						{ m_cont_freq = freq; }
-	void setWarpFreq(float freq)						{ m_warp_freq = freq; }
-	void setMineralFreq(float freq)						{ m_mineral_freq = freq; }
+	void setContFreq(float freq)    { m_config.cont_freq = freq; }
+	void setWarpFreq(float freq)    { m_config.warp_freq = freq; }
+	void setMineralFreq(float freq) { m_config.mineral_freq = freq; }
 
-	void setContMult(float mult)						{ m_cont_multiplier = mult; }
-	void setMineralMult(float mult)						{ m_mineral_multiplier = mult; }
+	void setContMult(float mult)    { m_config.cont_multiplier = mult; }
+	void setMineralMult(float mult) { m_config.mineral_multiplier = mult; }
 
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
+	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 
 	// DEBUG
-	void setDebugNoiseView(bool status)					{ d_noise_val = status; }
-	void setDebugWireFrame(bool status)					{ d_wire_frame = status; }
+	void setDebugNoiseView(bool status) { d_noise_val = status; }
+	void setDebugWireFrame(bool status) { d_wire_frame = status; }
 	void print()
 	{
 		LOG_INFO("Seed: {}.", m_seed);
-		LOG_INFO("Mineral Frequency: {}.", m_mineral_freq);
-		LOG_INFO("Continent Frequency: {}.", m_cont_freq);
-		LOG_INFO("Warp Frequency: {}.", m_warp_freq);
-		LOG_INFO("Mineral Multiplier: {}.", m_mineral_multiplier);
-		LOG_INFO("Continent Multiplier: {}.", m_cont_multiplier);
+		LOG_INFO("Mineral Frequency: {}.", m_config.mineral_freq);
+		LOG_INFO("Continent Frequency: {}.", m_config.cont_freq);
+		LOG_INFO("Warp Frequency: {}.", m_config.warp_freq);
+		LOG_INFO("Mineral Multiplier: {}.", m_config.mineral_multiplier);
+		LOG_INFO("Continent Multiplier: {}.", m_config.cont_multiplier);
 	}
 
 	// GETTERS
-	Elements						getBiomeElement(const sf::Vector2i& coord);
-	sf::Color						getBiomeColor(const sf::Vector2i& coord);
-	int							getTileSize()				const	{ return m_tile_size_px; }
-	int							getSeed()					const	{ return m_seed; }
-	float						getTileCost(const sf::Vector2i& pos);
-	std::vector<std::string>						getPositionInfo(sf::Vector2i pos);
-	sf::Vector2i									getLocationWithinBound(sf::Vector2i& pos, float radius);
-	std::unordered_map<Elements, sf::Vector2i>		getResourcesWithinBoundary(sf::Vector2i& pos, float radius);
+	Elements       getBiomeElement(const sf::Vector2i& coord);
+	// Authoritative element at a world position: reads the loaded chunk's
+	// tile_types (the source of truth after any edit) and falls back to a fresh
+	// noise sample only where no chunk is loaded. Prefer this over
+	// getBiomeElement for anything that must agree with the rendered map.
+	Elements       getElementAtWorld(const sf::Vector2i& coord) const;
+	// Resource noise value in [0,1] at a world position. Returns 0 for a
+	// non-resource element.
+	float          getResourceValue(const sf::Vector2i& coord, Elements resource) const;
+	sf::Color      getBiomeColor(const sf::Vector2i& coord);
+	int            getTileSize() const { return m_config.tile_size_px; }
+	int            getSeed()     const { return m_seed; }
+	float          getTileCost(const sf::Vector2i& pos);
+	std::vector<std::string> getPositionInfo(sf::Vector2i pos);
+	sf::Vector2i   getLocationWithinBound(sf::Vector2i& pos, float radius);
+	std::unordered_map<Elements, sf::Vector2i> getResourcesWithinBoundary(const sf::Vector2i& pos, float radius) const;
 
-	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
-	bool				getDebugWireFrame()			const	{ return d_wire_frame; }
+	bool getDebugNoiseStatus() const { return d_noise_val; }
+	bool getDebugWireFrame()   const { return d_wire_frame; }
 };
-

@@ -39,6 +39,10 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - Most `.cpp` files include `<pch.h>` first; it aggregates the common headers.
   A header used directly by a test must be self-contained (include what it
   uses), because tests do not go through the pch.
+- Terrain sampling lives in `generate_terrain.{h,cpp}` (`GenerateTerrain`),
+  a stateless object over a `MapConfig` value type; `Chunk.h` holds `Chunk`
+  and the `ChunkMap` alias. `MapGenerator` is streaming/rendering plus the
+  chunk store, and delegates all sampling. Keep noise out of `MapGenerator`.
 - `MapGenerator::worldToTile` / `tileToWorld` delegate to
   `helpers/CoordMath.h` (floor division so negative coordinates map to the
   correct tile). Keep them as the single source of truth for conversions.
@@ -47,10 +51,30 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - The logger level comes from `logger.level` in `config.json`; parse it with
   `Logger::levelFromString()` (`helpers/Logger.h`, a namespace), which is
   case-insensitive and throws on an unknown value.
+- Queries that must match the rendered map use `getElementAtWorld`, which reads
+  the loaded chunk's `tile_types` (post-edit) and only falls back to noise
+  when the chunk is not loaded. `getTileCost` holds `t_mutex`, so it reads
+  `tile_types` directly instead of calling the locking accessor.
+- Ores use one noise field each (`m_noise_clay`/`iron`/`silver`, seeded apart)
+  rather than a shared mineral field; `getResourceValue()` samples a field.
 - The chunk map `c_chunks` is shared with worker threads; guard access with
-  `t_mutex`. Prefer `LOG_TRACE` for anything on a hot path.
-- `generateChunk` receives the chunk pixel size (`c_chunk_size * c_chunk_size`)
-  and derives `tiles_per_side = height * width / m_tile_size_px`.
+  `t_mutex`. Never hold `t_mutex` while touching a `SharedContainer`
+  (`tc_chunks_*`): those lock themselves, so nesting breaks the lock order.
+  Prefer `LOG_TRACE` for anything on a hot path.
+- Coordinates inside `MapGenerator` are tiles, not pixels. Chunk keys and
+  `Chunk::position` are top-left tile coordinates; `c_chunk_tiles` is the chunk
+  size in tiles. Convert to pixels only when emitting vertices, via
+  `tileToWorld` / `worldToTile` (`helpers/CoordMath.h`). Noise is sampled in
+  tile space so terrain does not depend on `tile_size`.
+- `generateChunk(tiles_per_side, tile_position)` takes the tile position
+  directly; islands and rivers are opt-in via `island.*` / `river.*` in
+  `config/map_data.json` and default to off. `height_range.min`/`max` remap
+  the continent field before thresholds (default `[0,1]` = identity).
+- A chunk's `tile_types` is the authoritative per-tile map: `elementAtTile`
+  only seeds it at generation, and `buildChunkVertices` derives the drawn mesh
+  from it. Edit tiles through `setTileColor` (which rebuilds the mesh) rather
+  than writing to `vertices` directly. Tile→chunk lookups use `chunkOf` (floors,
+  matching chunk keys), not `getNextChunkPosition` (rounds up, render-only).
 
 ## CI
 

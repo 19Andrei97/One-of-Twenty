@@ -150,11 +150,15 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
 - [x] Re-check all objects for dynamic allocation of big objects. Removed the
   unused `sf::Text` member, the heap-allocated `Camera::cInput`, the per-tile
   color lookup in `generateChunk`, and the second (bit-packed) tile grid.
-- Thread-safe access to the shared chunk map is guarded by a single mutex;
-  revisit with a finer-grained or lock-free structure if contention grows.
+- [x] Thread-safe access to the shared chunk map is guarded by a single mutex;
+  lock ordering documented and the mutex is no longer taken around the
+  self-locking ready container. Revisit with a finer-grained or lock-free
+  structure if contention grows.
 
 ### Components
-- Convert HUD components into classes.
+- [x] Convert HUD components into classes. `CButton`, `CInputBox`, `CSlider`
+  and `CInfoBox` now own their shapes/text and handle placement, hit testing,
+  drawing and input; `Hud` just drives them.
 
 ### HUD
 - Implement multiples HUD levels.
@@ -162,15 +166,25 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
   and enums cannot drift apart.
 
 ### MapGenerator
-- IMPORTANT: Convert all coords to be tile. Use world coords only on render
-- Add rivers?
-- Add possibility to increase depths and heights.
-- Improve getting resources for entities.
-- FIX: different noise map for each resource?
-- Add option to create an island.
-- Change map on entity action. CHECK setTileColor, added map for tiles
-- Update chunk unload to double check if no entity or changes are present.
-- Split the class into chunk store / streamer / renderer.
+Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
+- [x] Convert all coords to tile space; use world coords only on render. Chunks
+  are keyed by tile position and noise is sampled per tile.
+- [x] Add option to create an island (`island.enabled` / `island.falloff`).
+- [x] Add rivers (`river.enabled` / `river.freq` / `river.threshold`).
+- [x] Change map on entity action. `tile_types` is authoritative; the mesh is
+  rebuilt on edit and queries floor to the containing chunk (`chunkOf`).
+- [x] Increase depths and heights. `height_range.min`/`max` remap the
+  continent field before biome thresholds are applied.
+- [x] Distinct noise map per resource. Clay/iron/silver each read their own
+  field; `getResourceValue()` exposes a field's value.
+- [x] Improve getting resources for entities. Queries go through
+  `getElementAtWorld` (authoritative tile map, post-edit state).
+- [x] Update chunk unload to double check if no entity or changes are present.
+  Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and
+  is only evicted once released.
+- [x] Split the class into chunk store / streamer / renderer. Terrain
+  sampling is now a standalone `GenerateTerrain` over a `MapConfig` value
+  type; `Chunk.h` holds the chunk store types. Public API unchanged.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
