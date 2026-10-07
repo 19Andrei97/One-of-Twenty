@@ -82,12 +82,6 @@ void Scene_Play::togglePaused()
 	setPaused(!m_paused);
 }
 
-void Scene_Play::spawnEntities()
-{
-	if (m_entity_manager)
-		m_entity_manager->addEntity(EntityType::Human_Generic);
-}
-
 void Scene_Play::sMovement()
 {
 	if (m_entity_manager)

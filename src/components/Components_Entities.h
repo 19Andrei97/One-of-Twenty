@@ -116,6 +116,11 @@ struct CMemory
 {
     std::unordered_map<Elements, sf::Vector2i> locations;
 
+    // The tile the memory was last refreshed at. The vision scan is the
+    // expensive part of an entity's update and the remembered set changes
+    // slowly, so refresh on entering a new tile rather than every frame.
+    std::optional<sf::Vector2i> last_scan_tile;
+
     CMemory(){}
 
     void rememberLocation(const std::unordered_map<Elements, sf::Vector2i>& map)

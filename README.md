@@ -210,7 +210,10 @@ work.
   member, heap `Camera::cInput`, per-tile color lookup, second tile grid);
   documented the chunk-map lock order and stopped taking the mutex around the
   self-locking ready container; converted HUD widgets into classes; added
-  `setChunkUnload()` with a pin check; exposed `logger.level` in `config.json`.
+  `setChunkUnload()` with a pin check; exposed `logger.level` in `config.json`;
+  removed the dead `Scene_Play::spawnEntities`; and refreshed entity memory only
+  when an entity enters a new tile, which cuts the per-frame vision scan from
+  every entity every frame to roughly once per tile traversed.
 - [x] **Map depth.** Tile-space coordinates end to end; `tile_types` is
   authoritative and edits rebuild the chunk mesh; island/river/height-range
   options; one noise field per resource; `getElementAtWorld` for post-edit

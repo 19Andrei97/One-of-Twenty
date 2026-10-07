@@ -35,7 +35,6 @@ public:
 	void sRender(sf::RenderTarget& target) override;
 	void sUserInput(const sf::Event& event) override;
 
-	void spawnEntities();
 	void setPaused(bool paused) override;
 	void togglePaused() override;
 

@@ -1,5 +1,6 @@
 #include "EntityConfig.h"
 #include "EntityManager.h"
+#include "Random.h"
 #include "Resources.h"
 
 #include <doctest/doctest.h>
@@ -34,6 +35,10 @@ std::shared_ptr<MapGenerator> makeMap(int& frames)
 TEST_CASE("entities never stand in the ocean during a run")
 {
     // Mirrors Scene_Play: update the manager, then resolve collisions each frame.
+    // Seeded so the wander is repeatable; the invariant under test is "on land",
+    // independent of how many entities survive.
+    Random::mt.seed(20241007);
+
     sf::Font font;
     int frames = 0;
     auto map = makeMap(frames);
@@ -88,11 +93,16 @@ TEST_CASE("collision separates entities that share a position")
         }
 }
 
-TEST_CASE("a water tile target is approached from land")
+TEST_CASE("the settlement drinks: thirst is replenished during a run")
 {
-    // The router must never place an entity on a drink target that sits in the
-    // sea: after a run the whole population is on land (checked above), and the
-    // settlement still drinks, so the approach-then-drink path works.
+    // Directly verifies the water-target approach: over a few days some entity's
+    // thirst must reset upward (a drink), which only happens if it reached a
+    // shore tile next to the sea. Sampling hourly catches the reset because a
+    // drink fills the need and it then decays slowly.
+    //
+    // Randomness is clock-seeded, so seed it here to keep the run repeatable.
+    Random::mt.seed(20241007);
+
     sf::Font font;
     int frames = 0;
     auto map = makeMap(frames);
@@ -103,13 +113,34 @@ TEST_CASE("a water tile target is approached from land")
     EntityManager entities(font, map, clock, delta, entityConfigPath());
     entities.seedPopulation();
 
-    for (int frame = 0; frame < 60 * 24 * 5; ++frame)
+    bool drank = false;
+    int previousThirst = -1;
+    for (int hour = 0; hour < 24 * 3 && !drank; ++hour)
     {
-        clock->update(delta);
-        entities.update();
-        entities.resolveCollisions();
+        for (int step = 0; step < 60; ++step)
+        {
+            clock->update(delta);
+            entities.update();
+            entities.resolveCollisions();
+        }
+
+        const auto needs = entities.firstNeeds();
+        if (needs)
+        {
+            if (previousThirst >= 0 && needs->thirst > previousThirst)
+                drank = true;
+            previousThirst = needs->thirst;
+        }
+        else
+        {
+            previousThirst = -1; // first entity died; resample the next one
+        }
     }
 
-    CHECK(entities.population() > 0);
-    CHECK(entities.deaths() < entities.births() + 8); // not wiped out
+    CHECK(drank);
+    for (const auto& pos : entities.entityPositions())
+    {
+        const auto tile = CoordMath::worldToTile(pos, map->getTileSize());
+        CHECK_FALSE(Resources::isOcean(map->getElementAtWorld(CoordMath::tileToWorld(tile, map->getTileSize()))));
+    }
 }

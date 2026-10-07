@@ -63,9 +63,16 @@ void EntityManager::update()
 
         // UPDATE ENTITIES
 
-        // Update Memory (candidate for another thread?)
+        // Update Memory. The vision scan touches ~1k tiles per entity, so only
+        // redo it when the entity steps onto a new tile: the remembered set
+        // changes slowly and this is the dominant per-frame cost.
         m_registry->view<CTransform, CMemory, CVision>().each([&](auto entity, auto& trs, auto& memory, auto& vision)
         {
+                const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, m_map->getTileSize());
+                if (memory.last_scan_tile && *memory.last_scan_tile == tile)
+                        return;
+
+                memory.last_scan_tile = tile;
                 memory.rememberLocation(m_map->getResourcesWithinBoundary(trs.pos, vision.radius));
         });
 
