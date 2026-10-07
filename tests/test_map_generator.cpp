@@ -333,3 +333,98 @@ TEST_CASE("render streams chunks and shuts down cleanly")
             evicted = false;
     CHECK(evicted);
 }
+
+TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
+{
+#if defined(__linux__)
+    if (std::getenv("DISPLAY") == nullptr)
+    {
+        MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
+        return;
+    }
+#endif
+
+    sf::Font font;
+    int frames = 0;
+
+    auto generator = makeGenerator(font, frames);
+    generator->setSeed(42);
+    generator->setNoises();
+
+    sf::RenderTexture target;
+    bool available = false;
+    try
+    {
+        available = target.resize({ 320, 240 });
+    }
+    catch (const sf::Exception&)
+    {
+        available = false;
+    }
+
+    if (!available)
+    {
+        MESSAGE("Skipping render test: no render texture available in this environment");
+        return;
+    }
+
+    const sf::IntRect view{ { 0, 0 }, { 320, 240 } };
+
+    // Tile (2, 2) lies inside the first chunk, so it streams in immediately.
+    const int tileSize = generator->getTileSize();
+    const sf::Vector2i editedWorld{ 2 * tileSize, 2 * tileSize };
+
+    bool loaded = false;
+    for (int frame = 0; frame < 200 && !loaded; ++frame)
+    {
+        frames = frame;
+        target.clear();
+        generator->render(view, target);
+        target.display();
+
+        for (const auto& line : generator->getPositionInfo(editedWorld))
+            if (line.rfind("Type:", 0) == 0)
+                loaded = true;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    REQUIRE(loaded);
+
+    // Elements::test is absent from the config, so its biome entry is the
+    // default-constructed (opaque black) colour - an easy marker to find.
+    const sf::Color testColor;
+
+    auto tileRegionHas = [&](const sf::Color& wanted) {
+        const sf::Image image = target.getTexture().copyToImage();
+        // Interior of the tile, away from the neighbouring-rectangle edges.
+        for (unsigned y = static_cast<unsigned>(editedWorld.y + 1);
+             y < static_cast<unsigned>(editedWorld.y + tileSize - 1); ++y)
+            for (unsigned x = static_cast<unsigned>(editedWorld.x + 1);
+                 x < static_cast<unsigned>(editedWorld.x + tileSize - 1); ++x)
+                if (image.getPixel({ x, y }) == wanted)
+                    return true;
+        return false;
+    };
+
+    // Before the edit this ground tile is ordinary terrain, not the marker.
+    CHECK_FALSE(tileRegionHas(testColor));
+
+    REQUIRE(generator->setTileColor(editedWorld, Elements::test));
+
+    // getPositionInfo must report the stored edit rather than the raw noise.
+    bool reported = false;
+    for (const auto& line : generator->getPositionInfo(editedWorld))
+        if (line == "Type: " + std::to_string(static_cast<int>(Elements::test)))
+            reported = true;
+    CHECK(reported);
+
+    // Re-render without regenerating: the chunk is unchanged apart from the one
+    // tile, so the marker colour proves the mesh was rebuilt from tile_types.
+    frames = 400;
+    target.clear();
+    generator->render(view, target);
+    target.display();
+
+    CHECK(tileRegionHas(testColor));
+}

@@ -59,6 +59,11 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - `generateChunk(tiles_per_side, tile_position)` takes the tile position
   directly; islands and rivers are opt-in via `island.*` / `river.*` in
   `config/map_data.json` and default to off.
+- A chunk's `tile_types` is the authoritative per-tile map: `elementAtTile`
+  only seeds it at generation, and `buildChunkVertices` derives the drawn mesh
+  from it. Edit tiles through `setTileColor` (which rebuilds the mesh) rather
+  than writing to `vertices` directly. Tile→chunk lookups use `chunkOf` (floors,
+  matching chunk keys), not `getNextChunkPosition` (rounds up, render-only).
 
 ## CI
 

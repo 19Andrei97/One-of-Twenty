@@ -119,45 +119,60 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int tiles
 {
 	auto chunk		= std::make_shared<Chunk>();
 	chunk->position = tile_position;
-	chunk->vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
 
-	const std::size_t tile_count = static_cast<std::size_t>(tiles_per_side) * tiles_per_side;
-
-	// Classify every tile once, into a single flat buffer (row-major). Keeping
-	// the element alongside its color lets the greedy pass below compare colors
-	// directly instead of re-running the noise or doing a reverse color lookup.
-	std::vector<std::pair<Elements, sf::Color>> tiles(tile_count);
-
+	// Fill the authoritative tile map once. The mesh below is only ever a
+	// function of this map, so edits made later through setTileColor stay in
+	// sync with what is drawn and reported.
+	chunk->tile_types.reserve(static_cast<std::size_t>(tiles_per_side) * tiles_per_side);
 	for (int ty = 0; ty < tiles_per_side; ++ty)
-	{
 		for (int tx = 0; tx < tiles_per_side; ++tx)
 		{
 			const sf::Vector2i tile{ tile_position.x + tx, tile_position.y + ty };
-
-			const Elements element = elementAtTile(tile);
-			tiles[static_cast<std::size_t>(ty) * tiles_per_side + tx] = { element, m_biomes[element] };
-			chunk->tile_types[tile] = element;
+			chunk->tile_types[tile] = elementAtTile(tile);
 		}
-	}
 
-	// Greedy pass: merge runs of the same color into rectangles. Tiles already
-	// covered by a rectangle are marked so the scan never emits them twice. The
-	// visited grid is flat and bit-packed, one allocation for the whole chunk.
+	buildChunkVertices(*chunk);
+
+	return chunk;
+}
+
+/*
+*	Greedy-mesh a chunk's tile_types into triangles. Equal-coloured runs are
+*	merged into rectangles; a flat, bit-packed visited grid avoids re-emitting a
+*	tile and keeps the pass to a single allocation. Pixels are produced only here.
+*/
+void MapGenerator::buildChunkVertices(Chunk& chunk)
+{
+	chunk.vertices.clear();
+	chunk.vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
+
+	const int side = c_chunk_tiles;
+	const std::size_t tile_count = static_cast<std::size_t>(side) * side;
+
+	std::vector<sf::Color> colors(tile_count);
+	for (int y = 0; y < side; ++y)
+		for (int x = 0; x < side; ++x)
+		{
+			const auto it = chunk.tile_types.find({ chunk.position.x + x, chunk.position.y + y });
+			const Elements element = (it != chunk.tile_types.end()) ? it->second : Elements::very_deep_ocean;
+			colors[static_cast<std::size_t>(y) * side + x] = m_biomes[element];
+		}
+
 	std::vector<bool> visited(tile_count, false);
 
-	for (int y = 0; y < tiles_per_side; ++y)
+	for (int y = 0; y < side; ++y)
 	{
-		for (int x = 0; x < tiles_per_side; ++x)
+		for (int x = 0; x < side; ++x)
 		{
-			if (visited[static_cast<std::size_t>(y) * tiles_per_side + x]) continue;
+			if (visited[static_cast<std::size_t>(y) * side + x]) continue;
 
-			const sf::Color base = tiles[static_cast<std::size_t>(y) * tiles_per_side + x].second;
+			const sf::Color base = colors[static_cast<std::size_t>(y) * side + x];
 
 			// Step 1: find maximum possible width
 			int maxW = 0;
-			while (x + maxW < tiles_per_side &&
-				tiles[static_cast<std::size_t>(y) * tiles_per_side + (x + maxW)].second == base &&
-				!visited[static_cast<std::size_t>(y) * tiles_per_side + (x + maxW)]) {
+			while (x + maxW < side &&
+				colors[static_cast<std::size_t>(y) * side + (x + maxW)] == base &&
+				!visited[static_cast<std::size_t>(y) * side + (x + maxW)]) {
 				maxW++;
 			}
 
@@ -166,11 +181,11 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int tiles
 			// Step 2: expand downward row by row
 			int h = 0;
 			bool expand = true;
-			while (expand && y + h < tiles_per_side) {
+			while (expand && y + h < side) {
 				// check row y+h for consistency up to current maxW
 				for (int w = 0; w < maxW; ++w) {
-					const std::size_t idx = static_cast<std::size_t>(y + h) * tiles_per_side + (x + w);
-					if (tiles[idx].second != base || visited[idx]) {
+					const std::size_t idx = static_cast<std::size_t>(y + h) * side + (x + w);
+					if (colors[idx] != base || visited[idx]) {
 						maxW = w; // shrink width if mismatch found
 						break;
 					}
@@ -186,30 +201,26 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int tiles
 				}
 			}
 
-			// Step 3: emit rectangle. Tiles are converted to pixels here, the only
-			// place generation touches world coordinates.
-			const sf::Vector2i rectWorld = tileToWorld({ tile_position.x + x, tile_position.y + y });
+			const sf::Vector2i rectWorld = tileToWorld({ chunk.position.x + x, chunk.position.y + y });
 			float worldX = static_cast<float>(rectWorld.x);
 			float worldY = static_cast<float>(rectWorld.y);
 			float wpx = static_cast<float>(bestW * m_tile_size_px);
 			float hpx = static_cast<float>(bestH * m_tile_size_px);
 
-			chunk->vertices.append({ {worldX,       worldY},       base });
-			chunk->vertices.append({ {worldX + wpx, worldY},       base });
-			chunk->vertices.append({ {worldX + wpx, worldY + hpx}, base });
+			chunk.vertices.append({ {worldX,       worldY},       base });
+			chunk.vertices.append({ {worldX + wpx, worldY},       base });
+			chunk.vertices.append({ {worldX + wpx, worldY + hpx}, base });
 
-			chunk->vertices.append({ {worldX,       worldY},       base });
-			chunk->vertices.append({ {worldX + wpx, worldY + hpx}, base });
-			chunk->vertices.append({ {worldX,       worldY + hpx}, base });
+			chunk.vertices.append({ {worldX,       worldY},       base });
+			chunk.vertices.append({ {worldX + wpx, worldY + hpx}, base });
+			chunk.vertices.append({ {worldX,       worldY + hpx}, base });
 
 			// Step 4: mark visited
 			for (int yy = 0; yy < bestH; ++yy)
 				for (int xx = 0; xx < bestW; ++xx)
-					visited[static_cast<std::size_t>(y + yy) * tiles_per_side + (x + xx)] = true;
+					visited[static_cast<std::size_t>(y + yy) * side + (x + xx)] = true;
 		}
 	}
-
-	return chunk;
 }
 
 /*
@@ -444,7 +455,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 {
     std::vector<std::string> result;
 
-    sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
+    sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
     std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -459,7 +470,11 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
     sf::Vector2i tile = worldToTile(pos);
     sf::Vector2i tileWorld = tileToWorld(tile);
 
-    result.push_back("Type: " + std::to_string(static_cast<int>(getBiomeElement(pos))));
+    // Report the stored tile, not a fresh noise lookup: they differ after any
+    // edit made through setTileColor.
+    const auto tileIt = it->second->tile_types.find(tile);
+    const Elements element = (tileIt != it->second->tile_types.end()) ? tileIt->second : getBiomeElement(pos);
+    result.push_back("Type: " + std::to_string(static_cast<int>(element)));
     result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
     result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
 
@@ -471,7 +486,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 */
 sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radius)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
+	sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -542,7 +557,7 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 // Return the cost of the tile position.
 float MapGenerator::getTileCost(const sf::Vector2i& pos)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
+	sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -584,7 +599,7 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 */
 bool MapGenerator::setChunkUnload(const sf::Vector2i& pos, bool unload)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
+	sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -599,7 +614,7 @@ bool MapGenerator::setChunkUnload(const sf::Vector2i& pos, bool unload)
 //Cambia il colore di una tile specifica nella mappa.
 bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_element)
 {
-	sf::Vector2i chunkPos = getNextChunkPosition(worldToTile(pos), c_chunk_tiles);
+	sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
 	std::lock_guard<std::mutex> lock(t_mutex);
 
@@ -612,24 +627,33 @@ bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_ele
 
 	// Trova la tile corrispondente nel chunk
 	auto& chunk = it->second;
-	for (auto& [key, val] : chunk->tile_types)
-	{
-		if (static_cast<int>(key.x) == static_cast<int>(tile.x) &&
-			static_cast<int>(key.y) == static_cast<int>(tile.y))
-		{
-			LOG_DEBUG("Tile updated from {} to {} ", static_cast<int>(val), static_cast<int>(new_element));
+	const auto found = chunk->tile_types.find(tile);
+	if (found == chunk->tile_types.end())
+		return false;
 
-			val = new_element;
+	LOG_DEBUG("Tile updated from {} to {} ", static_cast<int>(found->second), static_cast<int>(new_element));
 
-			return true;
-		}
-	}
-	return false;
+	found->second = new_element;
+
+	// The mesh is derived from tile_types, so rebuild it or the edit would
+	// never show up (and getPositionInfo would disagree with what is drawn).
+	buildChunkVertices(*chunk);
+
+	return true;
 }
 
 /*
 *	Translate coordinates
 */
+sf::Vector2i MapGenerator::chunkOf(const sf::Vector2i& tile) const
+{
+	const auto floorToChunk = [this](int v) {
+		const int chunk = static_cast<int>(std::floor(static_cast<float>(v) / static_cast<float>(c_chunk_tiles)));
+		return chunk * c_chunk_tiles;
+	};
+	return { floorToChunk(tile.x), floorToChunk(tile.y) };
+}
+
 sf::Vector2i MapGenerator::worldToTile(sf::Vector2i pos) const
 {
 	return CoordMath::worldToTile(pos, m_tile_size_px);

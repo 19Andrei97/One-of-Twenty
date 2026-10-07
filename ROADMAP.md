@@ -65,8 +65,10 @@ structural split is last (it is refactoring, not new behavior).
       only at render time. `MapGenerator::worldToTile` / `tileToWorld`
       (`helpers/CoordMath.h`) stay the single source of truth. Chunks are now
       keyed by tile position and noise is sampled in tile space (`MapGenerator`).
-- [ ] Support changing the map on entity action — verify `setTileColor` and the
-      per-tile map stay consistent (`MapGenerator`).
+- [x] Support changing the map on entity action. `tile_types` is the
+      authoritative per-tile map; the chunk mesh is rebuilt from it on edit, so
+      rendering and `getPositionInfo` agree. Queries use `chunkOf` (floored) so
+      the edited chunk is actually the one found (`MapGenerator`).
 
 ### 2b. Generation options (driven by `config/map_data.json`)
 - [x] Add an option to generate an island (`MapGenerator`). `island.enabled` /

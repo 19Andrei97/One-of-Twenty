@@ -52,6 +52,9 @@ public:
 	struct Chunk {
 		sf::Vector2i	position;			// top left position of chunk, in tiles
 		sf::VertexArray vertices;			// the map in vertices ready to draw
+		// Authoritative per-tile elements (tile space). Both the mesh and
+		// getPositionInfo are derived from this, so a tile edited through
+		// setTileColor is what the rendered chunk actually shows.
 		std::unordered_map<sf::Vector2i, Elements, Vector2iHash> tile_types;
 		bool unload{ true };
 
@@ -117,6 +120,12 @@ private:
 	// GENERATE MAP SUPPORT FUNCTIONS
 	std::shared_ptr<Chunk>		generateChunk(int tiles_per_side, const sf::Vector2i& tile_position);
 	void						startChunksGenerator();
+	// Chunk key (top-left tile) that contains a tile. Floors toward -inf so the
+	// lookup matches how chunks are actually keyed, unlike getNextChunkPosition.
+	sf::Vector2i					chunkOf(const sf::Vector2i& tile) const;
+	// (Re)build a chunk's triangles from its tile_types by greedy meshing
+	// equal-coloured tiles into rectangles.
+	void						buildChunkVertices(Chunk& chunk);
 
 	// Element lookup and river/island shaping, all in tile space.
 	Elements					elementAtTile(const sf::Vector2i& tile) const;

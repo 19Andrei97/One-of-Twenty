@@ -171,7 +171,8 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
   are keyed by tile position and noise is sampled per tile.
 - [x] Add option to create an island (`island.enabled` / `island.falloff`).
 - [x] Add rivers (`river.enabled` / `river.freq` / `river.threshold`).
-- Change map on entity action. CHECK setTileColor, added map for tiles
+- [x] Change map on entity action. `tile_types` is authoritative; the mesh is
+  rebuilt on edit and queries floor to the containing chunk (`chunkOf`).
 - Add possibility to increase depths and heights.
 - FIX: different noise map for each resource?
 - Improve getting resources for entities.
