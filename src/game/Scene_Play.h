@@ -21,7 +21,6 @@ class Scene_Play : public Scene
 
 	sf::Vector2i					m_current_position{ 0, 0 };
 	float							m_deltaTime{ 0.f };
-	int								m_score{ 0 };
 	int								m_currentFrame{ 0 };
 
 	void sMovement();
@@ -43,6 +42,4 @@ public:
 	Hud* getHud() const { return m_hud.get(); }
 	std::shared_ptr<GameClock> getGameClock() const { return m_game_clock; }
 	std::shared_ptr<MapGenerator> getMap() const { return m_map; }
-	int getCurrentFrame() const { return m_currentFrame; }
-	const sf::Vector2i& getCurrentPosition() const { return m_current_position; }
 };

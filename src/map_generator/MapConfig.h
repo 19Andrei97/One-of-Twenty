@@ -1,7 +1,7 @@
 #pragma once
 
+#include <array>
 #include <string>
-#include <unordered_map>
 
 #include "Chunk.h"
 #include "Config.h"
@@ -41,8 +41,11 @@ struct MapConfig
 	float                           height_min{ 0.0f };
 	float                           height_max{ 1.0f };
 
-	std::unordered_map<Elements, sf::Color> biome_colors;
-	std::unordered_map<Elements, float>     thresholds;
+	// Indexed by Elements, not keyed by it: sampling reads these on every
+	// tile, so a flat array beats a hash lookup. Entries absent from the
+	// config keep their default-constructed value (black / 0).
+	std::array<sf::Color, kElementCount> biome_colors{};
+	std::array<float, kElementCount>     thresholds{};
 };
 
 // Build a MapConfig from a parsed map file. Throws std::runtime_error when the
@@ -64,7 +67,7 @@ inline MapConfig loadMapConfig(const std::string& path)
 	cfg.mineral_freq = static_cast<float>(js_map["mineral_freq"]);
 
 	for (const auto& [key, value] : js_map["elements"].items()) {
-		cfg.biome_colors[static_cast<Elements>(std::stoi(key))] = {
+		cfg.biome_colors[static_cast<std::size_t>(std::stoi(key))] = {
 			static_cast<std::uint8_t>(value[0]),
 			static_cast<std::uint8_t>(value[1]),
 			static_cast<std::uint8_t>(value[2]),
@@ -72,7 +75,7 @@ inline MapConfig loadMapConfig(const std::string& path)
 	}
 
 	for (const auto& [key, value] : js_map["heights"].items()) {
-		cfg.thresholds[static_cast<Elements>(std::stoi(key))] = value.get<float>();
+		cfg.thresholds[static_cast<std::size_t>(std::stoi(key))] = value.get<float>();
 	}
 
 	if (js_map.contains("island") && js_map["island"].value("enabled", false))

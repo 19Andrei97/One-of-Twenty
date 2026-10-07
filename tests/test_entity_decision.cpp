@@ -276,7 +276,7 @@ TEST_CASE("EntityManager drives decay and action selection end to end")
     // test adds one directly to drive the systems through several in-game hours.
     sf::Font font;
     int frames = 0;
-    auto map = std::make_shared<MapGenerator>(font, frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
     auto clock = std::make_shared<GameClock>(60.f);
 
     float delta = 1.f / 60.f;
@@ -329,7 +329,7 @@ TEST_CASE("a comfortable entity works and the settlement accumulates resources")
     // work, and completed gathers should show up in the settlement stockpile.
     sf::Font font;
     int frames = 0;
-    auto map = std::make_shared<MapGenerator>(font, frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
     auto clock = std::make_shared<GameClock>(60.f);
 
     float delta = 1.f / 60.f;

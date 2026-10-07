@@ -16,12 +16,11 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 
 	// MAP GENERATION
 	LOG_DEBUG("Creating Map Generator.");
-	m_map = std::make_shared<MapGenerator>(const_cast<sf::Font&>(font), m_currentFrame, data["map"]["file"]);
-	m_map->setDebugNoiseView(false);
+	m_map = std::make_shared<MapGenerator>(m_currentFrame, data["map"]["file"]);
 
 	// HUD
 	LOG_DEBUG("Creating HUD.");
-	m_hud = std::make_unique<Hud>(const_cast<sf::Font&>(font), m_map, data["hud"]["file"], static_cast<float>(data["window"]["width"]), static_cast<float>(data["window"]["height"]));
+	m_hud = std::make_unique<Hud>(font, m_map, data["hud"]["file"], static_cast<float>(data["window"]["width"]), static_cast<float>(data["window"]["height"]));
 	m_hud->init();
 
 	// CAMERA
@@ -30,7 +29,7 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");
-	m_entity_manager = std::make_unique<EntityManager>(const_cast<sf::Font&>(font), m_map, m_game_clock, m_deltaTime, data["entity"]["file"]);
+	m_entity_manager = std::make_unique<EntityManager>(font, m_map, m_game_clock, m_deltaTime, data["entity"]["file"]);
 }
 
 void Scene_Play::update(float deltaTime)

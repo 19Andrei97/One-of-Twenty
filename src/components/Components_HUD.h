@@ -31,7 +31,7 @@ inline sf::Vector2f centeredTextPosition(const sf::FloatRect& box, const sf::Flo
 class CButton
 {
     sf::RectangleShape        m_rect;
-    std::unique_ptr<sf::Text> m_text;
+    sf::Text m_text;
     sf::Vector2f              m_offset;
     std::function<void()>     m_onClick;
 
@@ -49,16 +49,16 @@ public:
     )
         : m_rect({ width, height })
         , m_offset(pos)
+        , m_text(font)
     {
         m_rect.setPosition(pos);
         m_rect.setFillColor(fill);
         m_rect.setOutlineColor(outline);
         m_rect.setOutlineThickness(thickness);
 
-        m_text = std::make_unique<sf::Text>(font);
-        m_text->setString(label);
-        m_text->setCharacterSize(charSize);
-        m_text->setFillColor(sf::Color::Black);
+        m_text.setString(label);
+        m_text.setCharacterSize(charSize);
+        m_text.setFillColor(sf::Color::Black);
     }
 
     void setOnClick(std::function<void()> callback) { m_onClick = std::move(callback); }
@@ -73,17 +73,17 @@ public:
     void draw(sf::RenderTarget& target, const sf::Vector2f& viewOrigin)
     {
         m_rect.setPosition(viewOrigin + m_offset);
-        m_text->setPosition(hud_detail::centeredTextPosition(m_rect.getGlobalBounds(), m_text->getLocalBounds()));
+        m_text.setPosition(hud_detail::centeredTextPosition(m_rect.getGlobalBounds(), m_text.getLocalBounds()));
 
         target.draw(m_rect);
-        target.draw(*m_text);
+        target.draw(m_text);
     }
 };
 
 class CInputBox
 {
     sf::RectangleShape         m_rect;
-    std::unique_ptr<sf::Text>  m_text;
+    sf::Text  m_text;
     std::string                m_placeholder;
     sf::Vector2f               m_offset;
     std::function<void(float)> m_onEnter;
@@ -103,17 +103,16 @@ public:
         float thickness = 2.f,
         unsigned int charSize = 16
     )
-        : m_rect({ width, height }), m_offset(pos_v), m_placeholder(placeholder_v)
+        : m_rect({ width, height }), m_offset(pos_v), m_placeholder(placeholder_v), m_text(font)
     {
         m_rect.setPosition(pos_v);
         m_rect.setFillColor(fill);
         m_rect.setOutlineColor(outline);
         m_rect.setOutlineThickness(thickness);
 
-        m_text = std::make_unique<sf::Text>(font);
-        m_text->setString(m_placeholder);
-        m_text->setCharacterSize(charSize);
-        m_text->setFillColor(sf::Color::Black);
+        m_text.setString(m_placeholder);
+        m_text.setCharacterSize(charSize);
+        m_text.setFillColor(sf::Color::Black);
     }
 
     void setOnEnter(std::function<void(float)> callback) { m_onEnter = std::move(callback); }
@@ -125,7 +124,7 @@ public:
     {
         m_active = true;
         m_inputString.clear();
-        m_text->setString("");
+        m_text.setString("");
     }
 
     bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
@@ -142,7 +141,7 @@ public:
             if (!m_inputString.empty())
             {
                 m_inputString.pop_back();
-                m_text->setString(m_inputString.empty() ? m_placeholder : m_inputString);
+                m_text.setString(m_inputString.empty() ? m_placeholder : m_inputString);
             }
         }
         else if (event.unicode == 13) // Enter
@@ -151,24 +150,24 @@ public:
             {
                 if (m_onEnter) m_onEnter(std::stof(m_inputString));
                 m_inputString.clear();
-                m_text->setString(m_placeholder);
+                m_text.setString(m_placeholder);
                 m_active = false; // unfocus after enter
             }
         }
         else if ((event.unicode >= '0' && event.unicode <= '9') || event.unicode == '.') // Numbers and dot
         {
             m_inputString += static_cast<char>(event.unicode);
-            m_text->setString(m_inputString);
+            m_text.setString(m_inputString);
         }
     }
 
     void draw(sf::RenderTarget& target, const sf::Vector2f& viewOrigin)
     {
         m_rect.setPosition(viewOrigin + m_offset);
-        m_text->setPosition(hud_detail::centeredTextPosition(m_rect.getGlobalBounds(), m_text->getLocalBounds()));
+        m_text.setPosition(hud_detail::centeredTextPosition(m_rect.getGlobalBounds(), m_text.getLocalBounds()));
 
         target.draw(m_rect);
-        target.draw(*m_text);
+        target.draw(m_text);
     }
 };
 
@@ -176,7 +175,7 @@ class CSlider
 {
     sf::RectangleShape        m_bar;
     sf::CircleShape           m_handle;
-    std::unique_ptr<sf::Text> m_text;
+    sf::Text m_text;
     sf::Vector2f              m_offset;
 
     float m_minValue;
@@ -198,12 +197,11 @@ public:
         const sf::Color& barColor = sf::Color::Black,
         const sf::Color& handleColor = sf::Color::White
     )
-        : m_offset(pos_v), m_minValue(minVal), m_maxValue(maxVal), m_value(maxVal / 2)
+        : m_offset(pos_v), m_minValue(minVal), m_maxValue(maxVal), m_value(maxVal / 2), m_text(font)
     {
-        m_text = std::make_unique<sf::Text>(font);
-        m_text->setString(text_p);
-        m_text->setCharacterSize(16u);
-        m_text->setFillColor(sf::Color::Black);
+        m_text.setString(text_p);
+        m_text.setCharacterSize(16u);
+        m_text.setFillColor(sf::Color::Black);
 
         m_bar.setSize({ width, height });
         m_bar.setFillColor(barColor);
@@ -251,7 +249,7 @@ public:
     {
         const sf::Vector2f screenPos = viewOrigin + m_offset;
         m_bar.setPosition(screenPos);
-        m_text->setPosition({ screenPos.x, screenPos.y - m_offset.x });
+        m_text.setPosition({ screenPos.x, screenPos.y - m_offset.x });
 
         const float ratio = (m_value - m_minValue) / (m_maxValue - m_minValue);
         const float x = m_bar.getPosition().x + ratio * m_bar.getSize().x;
@@ -260,14 +258,14 @@ public:
 
         target.draw(m_bar);
         target.draw(m_handle);
-        target.draw(*m_text);
+        target.draw(m_text);
     }
 };
 
 class CInfoBox
 {
     sf::RectangleShape                     m_rect;
-    std::vector<std::unique_ptr<sf::Text>> m_text;
+    std::vector<sf::Text> m_text;
     sf::Vector2f                           m_pos;
 
 public:
@@ -289,10 +287,10 @@ public:
 
         for (auto& el : text)
         {
-            m_text.push_back(std::make_unique<sf::Text>(font));
-            m_text.back()->setString(el);
-            m_text.back()->setCharacterSize(charSize);
-            m_text.back()->setFillColor(text_color);
+            m_text.emplace_back(font);
+            m_text.back().setString(el);
+            m_text.back().setCharacterSize(charSize);
+            m_text.back().setFillColor(text_color);
         }
     }
 
@@ -308,8 +306,8 @@ public:
         int text_space{ 0 };
         for (auto& text : m_text)
         {
-            text->setPosition({ m_pos.x + 20, m_pos.y + 20 + text_space });
-            target.draw(*text);
+            text.setPosition({ m_pos.x + 20, m_pos.y + 20 + text_space });
+            target.draw(text);
 
             text_space += 20;
         }

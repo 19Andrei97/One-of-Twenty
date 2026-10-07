@@ -46,7 +46,7 @@ void MapGenerator::buildChunkVertices(Chunk& chunk)
 		{
 			const auto it = chunk.tile_types.find({ chunk.position.x + x, chunk.position.y + y });
 			const Elements element = (it != chunk.tile_types.end()) ? it->second : Elements::very_deep_ocean;
-			colors[static_cast<std::size_t>(y) * side + x] = m_config.biome_colors[element];
+			colors[static_cast<std::size_t>(y) * side + x] = m_config.biome_colors[static_cast<std::size_t>(element)];
 		}
 
 	std::vector<bool> visited(tile_count, false);
@@ -406,6 +406,10 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 	std::unordered_map<Elements, std::pair<float, sf::Vector2i>> closest;
 	const sf::Vector2i centerTile = worldToTile(pos);
 	const int tileRadius = static_cast<int>(radius / m_config.tile_size_px) + 1;
+	// One lock for the whole scan. Taking it per tile (through
+	// getElementAtWorld) would re-lock the chunk map once per candidate,
+	// and this runs for every entity every frame.
+	std::lock_guard<std::mutex> lock(t_mutex);
 
 	for (int dx = -tileRadius; dx <= tileRadius; ++dx)
 	{
@@ -418,10 +422,18 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 			if (dist > radius)
 				continue;
 
-			// Query the authoritative map, not a fresh noise sample.
-			// Remember anything usable (water to drink, land to work), so an
-			// entity's memory covers both needs.
-			const Elements element = getElementAtWorld(tileWorldPos);
+			// Read the authoritative map (we already hold t_mutex), not a
+			// fresh noise sample, and fall back to noise where no chunk is
+			// loaded. Remember anything usable (water to drink, land to
+			// work), so an entity's memory covers both needs.
+			const auto chunkIt = c_chunks.find(chunkOf(tile));
+			Elements element = m_terrain.elementAtTile(tile);
+			if (chunkIt != c_chunks.end() && chunkIt->second)
+			{
+				const auto tileIt = chunkIt->second->tile_types.find(tile);
+				if (tileIt != chunkIt->second->tile_types.end())
+					element = tileIt->second;
+			}
 			if (!Resources::isResource(element))
 				continue;
 
@@ -541,9 +553,14 @@ Elements MapGenerator::getElementAtWorld(const sf::Vector2i& coord) const
 {
 	const sf::Vector2i tile = worldToTile(coord);
 
+	// Compute the chunk key before locking: chunkOf is const and touches
+	// only c_chunk_tiles, and calling it inside the critical section would
+	// do redundant work under the lock.
+	const sf::Vector2i chunkPos = chunkOf(tile);
+
 	std::lock_guard<std::mutex> lock(t_mutex);
 
-	auto it = c_chunks.find(chunkOf(tile));
+	auto it = c_chunks.find(chunkPos);
 	if (it != c_chunks.end() && it->second)
 	{
 		const auto tileIt = it->second->tile_types.find(tile);
@@ -561,7 +578,7 @@ float MapGenerator::getResourceValue(const sf::Vector2i& coord, Elements resourc
 
 sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord)
 {
-	return m_config.biome_colors[m_terrain.elementAtWorld(coord)];
+	return m_config.biome_colors[static_cast<std::size_t>(m_terrain.elementAtWorld(coord))];
 }
 
 sf::Vector2i MapGenerator::worldToTile(sf::Vector2i pos) const

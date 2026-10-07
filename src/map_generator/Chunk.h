@@ -26,15 +26,20 @@ enum class Elements
 	sand,
 	hill,
 	forest,
-	muntain,
+	mountain,
 	snow,
 
 	clay,
 	iron,
 	silver,
 
-	test
+	test,
+
+	count	// number of elements; not a real element
 };
+
+// Number of entries in an array indexed by Elements.
+inline constexpr std::size_t kElementCount = static_cast<std::size_t>(Elements::count);
 
 // A square block of the world. `tile_types` is the authoritative per-tile map
 // (tile space); `vertices` is only ever a mesh derived from it, so an edit made

@@ -82,8 +82,8 @@ Elements GenerateTerrain::elementAtTile(const sf::Vector2i& tile) const {
 	// A river cuts across the map where the river field crosses zero, but only on
 	// land (above the deep ocean) so it does not carve through the seabed.
 	if (m_config.river_enabled
-		&& continent > m_config.thresholds.at(Elements::deep_ocean)
-		&& continent < m_config.thresholds.at(Elements::snow))
+		&& continent > m_config.thresholds[static_cast<std::size_t>(Elements::deep_ocean)]
+		&& continent < m_config.thresholds[static_cast<std::size_t>(Elements::snow)])
 	{
 		const float riverField = m_noise_river.GetNoise(coord_f.x, coord_f.y);
 
@@ -101,35 +101,35 @@ Elements GenerateTerrain::elementAtTile(const sf::Vector2i& tile) const {
 
 	// --- OCEAN ---
 
-	if (continent < m_config.thresholds.at(Elements::very_deep_ocean)) return Elements::very_deep_ocean;
-	if (continent < m_config.thresholds.at(Elements::deep_ocean)) return Elements::deep_ocean;
-	if (continent < m_config.thresholds.at(Elements::ocean)) return Elements::ocean;
-	if (continent < m_config.thresholds.at(Elements::sand)) return Elements::sand;
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::very_deep_ocean)]) return Elements::very_deep_ocean;
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::deep_ocean)]) return Elements::deep_ocean;
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::ocean)]) return Elements::ocean;
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::sand)]) return Elements::sand;
 
 	// --- CONTINENT ---
-	if (continent < m_config.thresholds.at(Elements::hill))
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::hill)])
 	{
-		if (resourceNoise(m_noise_clay) > m_config.thresholds.at(Elements::clay))
+		if (resourceNoise(m_noise_clay) > m_config.thresholds[static_cast<std::size_t>(Elements::clay)])
 			return Elements::clay;
 
 		return Elements::hill;
 	}
 
-	if (continent < m_config.thresholds.at(Elements::forest))
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::forest)])
 	{
-		if (resourceNoise(m_noise_iron) > m_config.thresholds.at(Elements::iron))
+		if (resourceNoise(m_noise_iron) > m_config.thresholds[static_cast<std::size_t>(Elements::iron)])
 			return Elements::iron;
 
 		return Elements::forest;
 	}
 
 
-	if (continent < m_config.thresholds.at(Elements::muntain))
+	if (continent < m_config.thresholds[static_cast<std::size_t>(Elements::mountain)])
 	{
-		if (resourceNoise(m_noise_silver) > m_config.thresholds.at(Elements::silver))
+		if (resourceNoise(m_noise_silver) > m_config.thresholds[static_cast<std::size_t>(Elements::silver)])
 			return Elements::silver;
 
-		return Elements::muntain;
+		return Elements::mountain;
 	}
 
 

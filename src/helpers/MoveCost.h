@@ -29,7 +29,7 @@ namespace MoveCost
             // Uphill and dense cover.
             case Elements::hill:            return 0.6f;
             case Elements::forest:          return 0.7f;
-            case Elements::muntain:         return 0.4f;
+            case Elements::mountain:         return 0.4f;
 
             // Workable deposits.
             case Elements::clay:            return 0.5f;
