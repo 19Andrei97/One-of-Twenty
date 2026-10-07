@@ -87,6 +87,11 @@ CI (`.github/workflows/build.yml`) builds and tests on Linux and Windows for
 every push and pull request, plus a dedicated Linux job that builds with
 AddressSanitizer and UndefinedBehaviorSanitizer.
 
+`.github/workflows/game-smoke.yml` additionally runs the *real* game on a
+virtual display, injects input and checks the frame changes, then exercises the
+browser streamer over HTTP (`tools/ci/smoke_test.py`). It uploads the captured
+frames as an artifact. See `tools/stream/README.md`.
+
 ### Sanitizers
 
 A sanitizer build is available through the `sanitize` preset (GCC/Clang only):
@@ -115,6 +120,23 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `1` | Spawn a generic human entity |
 | Left click | Inspect a tile and show its info box |
 | HUD sliders | Tune continent / warp / mineral noise |
+
+## Running in a browser (remote display)
+
+There is no WebAssembly build, so the game does not run inside a browser tab.
+Instead, run it on a headless X display and stream that display to a browser
+with `tools/stream/stream_server.py`, forwarding keyboard/mouse through XTEST:
+
+```bash
+python3 -m pip install -r tools/stream/requirements.txt
+Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &
+cd build/bin && DISPLAY=:99 ./OneOfTwenty &
+python3 tools/stream/stream_server.py --display :99 --port 12000
+```
+
+Open `http://<host>:12000/`, click the picture to take control, and use the
+normal keys (WASD, `M`, `G`, `1`, `P`, left click). Add `--password` when the
+port is reachable by others. Full details and limits: `tools/stream/README.md`.
 
 ## Architecture
 

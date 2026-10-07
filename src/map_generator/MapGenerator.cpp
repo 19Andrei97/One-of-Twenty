@@ -207,7 +207,12 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 		auto chunk = tc_chunks_ready.pop();
 
 		std::lock_guard<std::mutex> lock(t_mutex);
-		c_chunks[(*chunk)->position] = *chunk;
+		// fillQueueChunks dedups against the queue and the ready list, but a chunk
+		// can be queued again in the window between the worker popping it and
+		// pushing it to the ready list. A second copy would clobber an edited
+		// chunk (setTileColor) or a pinned one, so keep what is already loaded.
+		if (c_chunks.find((*chunk)->position) == c_chunks.end())
+			c_chunks[(*chunk)->position] = *chunk;
 	}
 
 	// Calculate visible chunks
