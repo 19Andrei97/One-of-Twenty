@@ -122,6 +122,28 @@ Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord) {
 }
 
 /*
+*       Authoritative element at a world position. Reads the loaded chunk's
+*       tile_types so it agrees with the drawn mesh, and falls back to a fresh
+*       noise sample when the chunk is not loaded. Takes the lock once.
+*/
+Elements MapGenerator::getElementAtWorld(const sf::Vector2i& coord) const
+{
+	const sf::Vector2i tile = worldToTile(coord);
+
+	std::lock_guard<std::mutex> lock(t_mutex);
+
+	auto it = c_chunks.find(chunkOf(tile));
+	if (it != c_chunks.end() && it->second)
+	{
+		const auto tileIt = it->second->tile_types.find(tile);
+		if (tileIt != it->second->tile_types.end())
+			return tileIt->second;
+	}
+
+	return elementAtTile(tile);
+}
+
+/*
 *	Sample the per-resource noise field at a world position, in [0,1]. The warp
 *	and multiplier mirror elementAtTile so the value matches what generation saw.
 */
@@ -553,42 +575,38 @@ sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radiu
 
 
 // Return a map of resources found within the boundaries.
-std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBoundary(sf::Vector2i& pos, float radius)
+std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBoundary(const sf::Vector2i& pos, float radius) const
 {
 	std::unordered_map<Elements, std::pair<float, sf::Vector2i>> closest;
-	sf::Vector2i centerTile = worldToTile(pos);
-	int tileRadius = static_cast<int>(radius / m_tile_size_px);
+	const sf::Vector2i centerTile = worldToTile(pos);
+	const int tileRadius = static_cast<int>(radius / m_tile_size_px) + 1;
 
 	for (int dx = -tileRadius; dx <= tileRadius; ++dx)
 	{
 		for (int dy = -tileRadius; dy <= tileRadius; ++dy)
 		{
-			sf::Vector2i tile = centerTile + sf::Vector2i(dx, dy);
-			sf::Vector2i tileWorldPos = tileToWorld(tile);
-			float dist = std::hypot(tileWorldPos.x - pos.x, tileWorldPos.y - pos.y);
-
+			const sf::Vector2i tile = centerTile + sf::Vector2i(dx, dy);
+			const sf::Vector2i tileWorldPos = tileToWorld(tile);
+			const float dist = std::hypot(static_cast<float>(tileWorldPos.x - pos.x),
+			                              static_cast<float>(tileWorldPos.y - pos.y));
 			if (dist > radius)
 				continue;
 
-			const Elements element = getBiomeElement(tileWorldPos);
+			// Query the authoritative map, not a fresh noise sample.
+			const Elements element = getElementAtWorld(tileWorldPos);
+			if (element != Elements::ocean && element != Elements::hill)
+				continue;
 
-			if (element == Elements::ocean || element == Elements::hill)
-			{
-				auto it = closest.find(element);
-				if (it == closest.end() || dist < it->second.first)
-				{
-					closest[element] = { dist, tileWorldPos }; // store world coords
-				}
-			}
+			auto it = closest.find(element);
+			if (it == closest.end() || dist < it->second.first)
+				closest[element] = { dist, tileWorldPos };
 		}
 	}
 
 	// Convert to final result (only closest of each type)
 	std::unordered_map<Elements, sf::Vector2i> resources;
 	for (const auto& [element, pair] : closest)
-	{
 		resources[element] = pair.second;
-	}
 	return resources;
 }
 
@@ -605,14 +623,21 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 		return 0; // No chunk found, return the input as fallback
 	}
 
-	// Optional: snap pos to the center of the nearest tile
-	sf::Vector2i tile
-	{ 
-		pos.x / m_tile_size_px * m_tile_size_px + m_tile_size_px / 2, 
-		pos.y / m_tile_size_px * m_tile_size_px + m_tile_size_px / 2 
+	// Center of the tile that actually contains pos (floored, so negative
+	// positions map correctly).
+	const sf::Vector2i tileCoord = worldToTile(pos);
+	const sf::Vector2i tile
+	{
+		tileCoord.x * m_tile_size_px + m_tile_size_px / 2,
+		tileCoord.y * m_tile_size_px + m_tile_size_px / 2
 	};
 
-	const Elements element{ getBiomeElement(tile) };
+	// Read the authoritative value directly: we already hold t_mutex, so
+	// calling getElementAtWorld (which locks) would deadlock.
+	const auto tileIt = it->second->tile_types.find(tileCoord);
+	const Elements element = (tileIt != it->second->tile_types.end())
+		? tileIt->second
+		: elementAtTile(tileCoord);
 
 	if (element == Elements::hill)
 		return 1;

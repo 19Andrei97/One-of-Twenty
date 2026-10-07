@@ -177,7 +177,8 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
   continent field before biome thresholds are applied.
 - [x] Distinct noise map per resource. Clay/iron/silver each read their own
   field; `getResourceValue()` exposes a field's value.
-- Improve getting resources for entities.
+- [x] Improve getting resources for entities. Queries go through
+  `getElementAtWorld` (authoritative tile map, post-edit state).
 - [x] Update chunk unload to double check if no entity or changes are present.
   Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and
   is only evicted once released.

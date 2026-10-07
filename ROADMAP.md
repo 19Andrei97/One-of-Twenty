@@ -81,7 +81,11 @@ structural split is last (it is refactoring, not new behavior).
       (seeded apart); `getResourceValue` exposes a field's value directly.
 
 ### 2c. Queries and entity interaction
-- [ ] Improve how entities query resources from the map (`MapGenerator`).
+- [x] Improve how entities query resources from the map (`MapGenerator`).
+      Added `getElementAtWorld`, which reads the loaded chunk's `tile_types`
+      (authoritative after edits) instead of re-deriving terrain from noise
+      per tile. `getResourcesWithinBoundary` and `getTileCost` use it, and
+      `getTileCost`'s tile mapping now floors like the rest of the codebase.
 
 ### 2d. Structure (largest, do last)
 - [ ] Split `MapGenerator` into chunk store / streamer / renderer

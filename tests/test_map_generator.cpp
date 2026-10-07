@@ -525,3 +525,69 @@ TEST_CASE("each resource uses its own noise field")
     CHECK(iron != silver);
     CHECK(clay != silver);
 }
+
+TEST_CASE("map queries read the authoritative tile map")
+{
+#if defined(__linux__)
+    if (std::getenv("DISPLAY") == nullptr)
+    {
+        MESSAGE("Skipping query test: no X11 display (run under xvfb-run)");
+        return;
+    }
+#endif
+
+    sf::Font font;
+    int frames = 0;
+
+    auto generator = makeGenerator(font, frames);
+    generator->setSeed(42);
+    generator->setNoises();
+
+    sf::RenderTexture target;
+    bool available = false;
+    try
+    {
+        available = target.resize({ 320, 240 });
+    }
+    catch (const sf::Exception&)
+    {
+        available = false;
+    }
+
+    if (!available)
+    {
+        MESSAGE("Skipping query test: no render texture available in this environment");
+        return;
+    }
+
+    const sf::IntRect view{ { 0, 0 }, { 320, 240 } };
+    const int tileSize = generator->getTileSize();
+    const sf::Vector2i editedWorld{ 2 * tileSize, 2 * tileSize };
+
+    bool loaded = false;
+    for (int frame = 0; frame < 200 && !loaded; ++frame)
+    {
+        frames = frame;
+        target.clear();
+        generator->render(view, target);
+        target.display();
+
+        for (const auto& line : generator->getPositionInfo(editedWorld))
+            if (line.rfind("Type:", 0) == 0)
+                loaded = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE(loaded);
+
+    // With the chunk loaded, the query must agree with the pure-noise lookup...
+    CHECK(generator->getElementAtWorld(editedWorld) ==
+          generator->getBiomeElement(editedWorld));
+
+    REQUIRE(generator->setTileColor(editedWorld, Elements::test));
+
+    // ...and after an edit it must report the stored value, while the noise
+    // lookup stays at the original terrain. That difference is the whole point
+    // of routing entity queries through the authoritative map.
+    CHECK(generator->getElementAtWorld(editedWorld) == Elements::test);
+    CHECK(generator->getBiomeElement(editedWorld) != Elements::test);
+}

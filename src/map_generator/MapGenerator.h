@@ -80,7 +80,7 @@ private:
 	
 	// THREAD Variables
 	BS::thread_pool<>							t_threads{ 3 };
-	std::mutex									t_mutex;
+	mutable std::mutex																t_mutex;
 	SharedContainer<std::shared_ptr<Chunk>>		tc_chunks_ready;
 	SharedContainer<sf::Vector2i>				tc_chunks_in_queue;
 	
@@ -278,6 +278,11 @@ public:
 
 	// GETTERS
 	Elements						getBiomeElement(const sf::Vector2i& coord);
+	// Authoritative element at a world position: reads the loaded chunk's
+	// tile_types (the source of truth after any edit) and falls back to a fresh
+	// noise sample only where no chunk is loaded. Prefer this over
+	// getBiomeElement for anything that must agree with the rendered map.
+	Elements						getElementAtWorld(const sf::Vector2i& coord) const;
 	// Resource noise value in [0,1] at a world position. Returns 0 for a
 	// non-resource element. Sampling the field directly (rather than the final
 	// element) is what lets callers compare the per-resource fields.
@@ -288,7 +293,7 @@ public:
 	float						getTileCost(const sf::Vector2i& pos);
 	std::vector<std::string>						getPositionInfo(sf::Vector2i pos);
 	sf::Vector2i									getLocationWithinBound(sf::Vector2i& pos, float radius);
-	std::unordered_map<Elements, sf::Vector2i>		getResourcesWithinBoundary(sf::Vector2i& pos, float radius);
+	std::unordered_map<Elements, sf::Vector2i>		getResourcesWithinBoundary(const sf::Vector2i& pos, float radius) const;
 
 	bool				getDebugNoiseStatus()		const	{ return d_noise_val; }
 	bool				getDebugWireFrame()			const	{ return d_wire_frame; }
