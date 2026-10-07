@@ -110,3 +110,21 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
 - **Zero Hallucination**: Do not assume missing APIs/libraries exist. Check files or build environment.
 - **Atomic Commits**: Make small, incremental changes. Never rewrite whole modules unless instructed.
 - **Build Checks**: Verify the project compiles without warnings or errors before marking a task complete.
+
+## Verification notes
+
+- Build in `build/` with `cmake --build build -j"$(nproc)"`; the tree is
+  warning-clean, so treat any new warning as a failure.
+- Tests need a display: `xvfb-run -a ctest --test-dir build --output-on-failure`.
+  A single `unit_tests` target runs all doctest cases.
+- Do not construct `MapGenerator` with a font; the constructor is
+  `MapGenerator(int& frames, const std::string& map_file)`. HUD and
+  `EntityManager` take a `const sf::Font&`.
+- `MapConfig::biome_colors` / `thresholds` are `std::array` indexed by
+  `Elements` (see `kElementCount`), not maps. Index with
+  `static_cast<std::size_t>(Elements::x)`.
+- `MapGenerator::getElementAtWorld` and `getResourcesWithinBoundary` take
+  `t_mutex` directly and read `c_chunks`; do not call the locking accessor from
+  inside either, and compute the chunk key before locking.
+- Roadmap status lives in `ROADMAP.md`; completed milestones are folded into
+  "Current baseline", and `README.md` mirrors the same list.
