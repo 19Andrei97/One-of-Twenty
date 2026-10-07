@@ -150,11 +150,15 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
 - [x] Re-check all objects for dynamic allocation of big objects. Removed the
   unused `sf::Text` member, the heap-allocated `Camera::cInput`, the per-tile
   color lookup in `generateChunk`, and the second (bit-packed) tile grid.
-- Thread-safe access to the shared chunk map is guarded by a single mutex;
-  revisit with a finer-grained or lock-free structure if contention grows.
+- [x] Thread-safe access to the shared chunk map is guarded by a single mutex;
+  lock ordering documented and the mutex is no longer taken around the
+  self-locking ready container. Revisit with a finer-grained or lock-free
+  structure if contention grows.
 
 ### Components
-- Convert HUD components into classes.
+- [x] Convert HUD components into classes. `CButton`, `CInputBox`, `CSlider`
+  and `CInfoBox` now own their shapes/text and handle placement, hit testing,
+  drawing and input; `Hud` just drives them.
 
 ### HUD
 - Implement multiples HUD levels.
@@ -169,7 +173,9 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
 - FIX: different noise map for each resource?
 - Add option to create an island.
 - Change map on entity action. CHECK setTileColor, added map for tiles
-- Update chunk unload to double check if no entity or changes are present.
+- [x] Update chunk unload to double check if no entity or changes are present.
+  Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and
+  is only evicted once released.
 - Split the class into chunk store / streamer / renderer.
 
 ### Game

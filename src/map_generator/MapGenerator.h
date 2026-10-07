@@ -181,6 +181,7 @@ public:
 	void setMineralMult(float mult)						{ m_mineral_multiplier = mult; }
 
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
+	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 
 	// DEBUG
 	void setDebugNoiseView(bool status)					{ d_noise_val = status; }

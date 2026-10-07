@@ -1,18 +1,41 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+
+#include <algorithm>
 #include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 // HUD COMPONENTS
+//
+// Each widget owns its shapes and the behaviour that used to live in Hud:
+// placement relative to the view, hit testing, drawing and input handling.
+// A widget stores its position as an offset from the top-left of the HUD view,
+// so the same widget can be laid out at different view sizes.
+
+namespace hud_detail
+{
+// Centre a line of text inside a shape's bounds.
+inline sf::Vector2f centeredTextPosition(const sf::FloatRect& box, const sf::FloatRect& text)
+{
+    return {
+        box.position.x + box.size.x / 2.f - text.size.x / 2.f - text.position.x,
+        box.position.y + box.size.y / 2.f - text.size.y / 2.f - text.position.y
+    };
+}
+} // namespace hud_detail
 
 class CButton
 {
-public:
-    sf::RectangleShape              rect;
-    std::unique_ptr<sf::Text>       text;
-    sf::Vector2f                    m_pos;
-    std::function<void()>           onClick;
+    sf::RectangleShape        m_rect;
+    std::unique_ptr<sf::Text> m_text;
+    sf::Vector2f              m_offset;
+    std::function<void()>     m_onClick;
 
+public:
     CButton(
         float width,
         float height,
@@ -24,33 +47,50 @@ public:
         float thickness = 2.f,
         unsigned int charSize = 16
     )
-        : rect({ width, height })
-        , m_pos(pos)
+        : m_rect({ width, height })
+        , m_offset(pos)
     {
-        rect.setPosition(pos);
-        rect.setFillColor(fill);
-        rect.setOutlineColor(outline);
-        rect.setOutlineThickness(thickness);
+        m_rect.setFillColor(fill);
+        m_rect.setOutlineColor(outline);
+        m_rect.setOutlineThickness(thickness);
 
-        text = std::make_unique<sf::Text>(font);
-        text->setString(label);
-        text->setCharacterSize(charSize);
-        text->setFillColor(sf::Color::Black);
+        m_text = std::make_unique<sf::Text>(font);
+        m_text->setString(label);
+        m_text->setCharacterSize(charSize);
+        m_text->setFillColor(sf::Color::Black);
+    }
+
+    void setOnClick(std::function<void()> callback) { m_onClick = std::move(callback); }
+
+    void activate() { if (m_onClick) m_onClick(); }
+
+    bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
+    {
+        return m_rect.getGlobalBounds().contains(point - viewOrigin);
+    }
+
+    void draw(sf::RenderTarget& target, const sf::Vector2f& viewOrigin)
+    {
+        m_rect.setPosition(viewOrigin + m_offset);
+        m_text->setPosition(hud_detail::centeredTextPosition(m_rect.getGlobalBounds(), m_text->getLocalBounds()));
+
+        target.draw(m_rect);
+        target.draw(*m_text);
     }
 };
 
 class CInputBox
 {
+    sf::RectangleShape         m_rect;
+    std::unique_ptr<sf::Text>  m_text;
+    std::string                m_placeholder;
+    sf::Vector2f               m_offset;
+    std::function<void(float)> m_onEnter;
+
+    std::string m_inputString;
+    bool        m_active = false;
+
 public:
-    sf::RectangleShape              rect;
-    std::unique_ptr<sf::Text>       text;
-    std::string                     placeholder;
-    sf::Vector2f                    pos;
-    std::function<void(float)>      onEnter;
-
-    std::string inputString;
-    bool active = false;
-
     CInputBox(
         float width,
         float height,
@@ -62,35 +102,89 @@ public:
         float thickness = 2.f,
         unsigned int charSize = 16
     )
-        : rect({ width, height }), pos(pos_v), placeholder(placeholder_v)
+        : m_rect({ width, height }), m_offset(pos_v), m_placeholder(placeholder_v)
     {
-        rect.setPosition(pos);
-        rect.setFillColor(fill);
-        rect.setOutlineColor(outline);
-        rect.setOutlineThickness(thickness);
+        m_rect.setFillColor(fill);
+        m_rect.setOutlineColor(outline);
+        m_rect.setOutlineThickness(thickness);
 
-        text = std::make_unique<sf::Text>(font);
-        text->setString(placeholder);
-        text->setCharacterSize(charSize);
-        text->setFillColor(sf::Color::Black);
+        m_text = std::make_unique<sf::Text>(font);
+        m_text->setString(m_placeholder);
+        m_text->setCharacterSize(charSize);
+        m_text->setFillColor(sf::Color::Black);
+    }
+
+    void setOnEnter(std::function<void(float)> callback) { m_onEnter = std::move(callback); }
+
+    bool isActive() const { return m_active; }
+
+    // Focus the box and clear any previous entry.
+    void activate()
+    {
+        m_active = true;
+        m_inputString.clear();
+        m_text->setString("");
+    }
+
+    bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
+    {
+        return m_rect.getGlobalBounds().contains(point - viewOrigin);
+    }
+
+    void handleText(const sf::Event::TextEntered& event)
+    {
+        if (!m_active) return;
+
+        if (event.unicode == 8) // Backspace
+        {
+            if (!m_inputString.empty())
+            {
+                m_inputString.pop_back();
+                m_text->setString(m_inputString.empty() ? m_placeholder : m_inputString);
+            }
+        }
+        else if (event.unicode == 13) // Enter
+        {
+            if (!m_inputString.empty())
+            {
+                if (m_onEnter) m_onEnter(std::stof(m_inputString));
+                m_inputString.clear();
+                m_text->setString(m_placeholder);
+                m_active = false; // unfocus after enter
+            }
+        }
+        else if ((event.unicode >= '0' && event.unicode <= '9') || event.unicode == '.') // Numbers and dot
+        {
+            m_inputString += static_cast<char>(event.unicode);
+            m_text->setString(m_inputString);
+        }
+    }
+
+    void draw(sf::RenderTarget& target, const sf::Vector2f& viewOrigin)
+    {
+        m_rect.setPosition(viewOrigin + m_offset);
+        m_text->setPosition(hud_detail::centeredTextPosition(m_rect.getGlobalBounds(), m_text->getLocalBounds()));
+
+        target.draw(m_rect);
+        target.draw(*m_text);
     }
 };
 
 class CSlider
 {
+    sf::RectangleShape        m_bar;
+    sf::CircleShape           m_handle;
+    std::unique_ptr<sf::Text> m_text;
+    sf::Vector2f              m_offset;
+
+    float m_minValue;
+    float m_maxValue;
+    float m_value;
+    bool  m_active = false;
+
+    std::function<void(float)> m_onChange;
+
 public:
-    sf::RectangleShape          bar;
-    sf::CircleShape             handle;
-    std::unique_ptr<sf::Text>   text;
-    sf::Vector2f                pos;
-
-    float   minValue;
-    float   maxValue;
-    float   value;
-    bool    active = false;
-
-    std::function<void(float)> onChange;
-
     CSlider(
         float width,
         float height,
@@ -102,30 +196,75 @@ public:
         const sf::Color& barColor = sf::Color::Black,
         const sf::Color& handleColor = sf::Color::White
     )
-        : pos(pos_v), minValue(minVal), maxValue(maxVal), value(maxVal / 2)
+        : m_offset(pos_v), m_minValue(minVal), m_maxValue(maxVal), m_value(maxVal / 2)
     {
-        text = std::make_unique<sf::Text>(font);
-        text->setString(text_p);
-        text->setCharacterSize(16u);
-        text->setFillColor(sf::Color::Black);
+        m_text = std::make_unique<sf::Text>(font);
+        m_text->setString(text_p);
+        m_text->setCharacterSize(16u);
+        m_text->setFillColor(sf::Color::Black);
 
-        bar.setSize({ width, height });
-        bar.setPosition(pos);
-        bar.setFillColor(barColor);
+        m_bar.setSize({ width, height });
+        m_bar.setFillColor(barColor);
 
-        handle.setRadius(height);
-        handle.setFillColor(handleColor);
-        handle.setOrigin({ height, height });
+        m_handle.setRadius(height);
+        m_handle.setFillColor(handleColor);
+        m_handle.setOrigin({ height, height });
+    }
+
+    void setOnChange(std::function<void(float)> callback) { m_onChange = std::move(callback); }
+
+    float getValue() const { return m_value; }
+    bool  isActive() const { return m_active; }
+
+    void endDrag() { m_active = false; }
+
+    bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const
+    {
+        const sf::Vector2f local = point - viewOrigin;
+        return m_handle.getGlobalBounds().contains(local) || m_bar.getGlobalBounds().contains(local);
+    }
+
+    void beginDrag() { m_active = true; }
+
+    // Update the value from an absolute mouse position while dragging.
+    void dragTo(const sf::Vector2f& point)
+    {
+        if (!m_active) return;
+
+        const float left = m_bar.getPosition().x;
+        const float right = left + m_bar.getSize().x;
+        const float clampedX = std::max(left, std::min(point.x, right));
+
+        const float ratio = (clampedX - left) / m_bar.getSize().x;
+        m_value = m_minValue + ratio * (m_maxValue - m_minValue);
+
+        if (m_onChange) m_onChange(m_value);
+    }
+
+    void draw(sf::RenderTarget& target, const sf::Vector2f& viewOrigin)
+    {
+        const sf::Vector2f screenPos = viewOrigin + m_offset;
+        m_bar.setPosition(screenPos);
+        m_text->setPosition({ screenPos.x, screenPos.y - m_offset.x });
+
+        const float ratio = (m_value - m_minValue) / (m_maxValue - m_minValue);
+        const float x = m_bar.getPosition().x + ratio * m_bar.getSize().x;
+        const float y = m_bar.getPosition().y + m_bar.getSize().y / 2.f;
+        m_handle.setPosition({ x, y });
+
+        target.draw(m_bar);
+        target.draw(m_handle);
+        target.draw(*m_text);
     }
 };
 
 class CInfoBox
 {
-public:
-    sf::RectangleShape                      m_rect;
-    std::vector<std::unique_ptr<sf::Text>>  m_text;
-    sf::Vector2f                            m_pos;
+    sf::RectangleShape                     m_rect;
+    std::vector<std::unique_ptr<sf::Text>> m_text;
+    sf::Vector2f                           m_pos;
 
+public:
     CInfoBox(
         float width,
         float height,
@@ -148,6 +287,25 @@ public:
             m_text.back()->setString(el);
             m_text.back()->setCharacterSize(charSize);
             m_text.back()->setFillColor(text_color);
+        }
+    }
+
+    bool empty() const { return m_text.empty(); }
+
+    void draw(sf::RenderTarget& target)
+    {
+        if (m_text.empty())
+            return;
+
+        target.draw(m_rect);
+
+        int text_space{ 0 };
+        for (auto& text : m_text)
+        {
+            text->setPosition({ m_pos.x + 20, m_pos.y + 20 + text_space });
+            target.draw(*text);
+
+            text_space += 20;
         }
     }
 };

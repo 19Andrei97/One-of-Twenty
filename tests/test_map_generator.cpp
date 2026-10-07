@@ -91,6 +91,17 @@ TEST_CASE("different seeds produce a different map")
     CHECK(differing > 0);
 }
 
+TEST_CASE("setChunkUnload reports when no chunk is loaded")
+{
+    sf::Font font;
+    int frames = 0;
+
+    auto generator = makeGenerator(font, frames);
+
+    // Nothing has been streamed yet, so there is no chunk to pin.
+    CHECK_FALSE(generator->setChunkUnload({ 8, 8 }, false));
+}
+
 TEST_CASE("render streams chunks and shuts down cleanly")
 {
 #if defined(__linux__)
@@ -143,4 +154,36 @@ TEST_CASE("render streams chunks and shuts down cleanly")
     }
 
     CHECK(foundChunk);
+    if (!foundChunk)
+        return;
+
+    // A pinned chunk must survive streaming far out of view...
+    REQUIRE(generator->setChunkUnload({ 8, 8 }, false));
+
+    const sf::IntRect farView{ { 200000, 200000 }, { 320, 240 } };
+    for (int frame = 0; frame < 5; ++frame)
+    {
+        frames = frame;
+        generator->render(farView, target);
+    }
+
+    bool stillLoaded = false;
+    for (const auto& line : generator->getPositionInfo({ 8, 8 }))
+        if (line.rfind("Type:", 0) == 0)
+            stillLoaded = true;
+    CHECK(stillLoaded);
+
+    // ...and be evicted once it is released again.
+    REQUIRE(generator->setChunkUnload({ 8, 8 }, true));
+    for (int frame = 0; frame < 5; ++frame)
+    {
+        frames = frame;
+        generator->render(farView, target);
+    }
+
+    bool evicted = true;
+    for (const auto& line : generator->getPositionInfo({ 8, 8 }))
+        if (line.rfind("Type:", 0) == 0)
+            evicted = false;
+    CHECK(evicted);
 }

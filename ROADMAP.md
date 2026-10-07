@@ -37,13 +37,16 @@ Stabilize the existing code before adding features.
       unnecessary heap churn (`General`). Removed the unused `sf::Text` member,
       made `Camera::cInput` a value, and replaced the per-tile color lookup and
       the second tile grid in `MapGenerator::generateChunk`.
-- [ ] Revisit thread-safe access to the shared chunk map: replace the single
-      `t_mutex` with a finer-grained or lock-free structure if contention grows
-      (`General`).
-- [ ] Convert HUD components (`CButton`, `CSlider`, `CInputBox`, `CInfoBox`)
-      into proper classes with encapsulated state (`Components`).
-- [ ] Update chunk unload to double-check that no entity or pending change
-      still references the chunk before eviction (`MapGenerator`).
+- [x] Revisit thread-safe access to the shared chunk map: keep the single
+      `t_mutex` for now, but document the lock ordering and stop taking it while
+      touching the self-locking ready container (`General`).
+- [x] Convert HUD components (`CButton`, `CSlider`, `CInputBox`, `CInfoBox`)
+      into proper classes with encapsulated state (`Components`). Shapes and
+      text are now private; placement, hit testing, drawing and input live on
+      the widget.
+- [x] Update chunk unload to double-check that no entity or pending change
+      still references the chunk before eviction (`MapGenerator`). Added
+      `setChunkUnload()` and a pin check before erasing; covered by tests.
 - [x] Expose the logger level through `config.json` instead of hardcoding it
       (`Game`). Added `logger.level` (parsed case-insensitively, unknown values
       throw) and covered it with tests.

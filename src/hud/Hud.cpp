@@ -31,10 +31,10 @@ void Hud::init()
 			switch (static_cast<int>(value["function"]))
 			{
 			case Function::Button::Random:
-				buttons.back()->onClick = [this]() {
+				buttons.back()->setOnClick([this]() {
 					m_map->setSeed();
 					m_map->m_reset = true;
-					};
+					});
 				break;
 			}
 
@@ -59,43 +59,43 @@ void Hud::init()
 			{
 
 			case Function::Slider::ContFreq:
-				sliders.back()->onChange = [this](float val)
+				sliders.back()->setOnChange([this](float val)
 					{
 						m_map->setContFreq(val);
 						m_map->m_reset = true;
-					};
+					});
 				break;
 
 			case Function::Slider::ContMult:
-				sliders.back()->onChange = [this](float val)
+				sliders.back()->setOnChange([this](float val)
 					{
 						m_map->setContMult(val);
 						m_map->m_reset = true;
-					};
+					});
 				break;
 
 			case Function::Slider::WarpFreq:
-				sliders.back()->onChange = [this](float val)
+				sliders.back()->setOnChange([this](float val)
 					{
 						m_map->setWarpFreq(val);
 						m_map->m_reset = true;
-					};
+					});
 				break;
 
 			case Function::Slider::MineralFreq:
-				sliders.back()->onChange = [this](float val)
+				sliders.back()->setOnChange([this](float val)
 					{
 						m_map->setMineralFreq(val);
 						m_map->m_reset = true;
-					};
+					});
 				break;
 
 			case Function::Slider::MineralMult:
-				sliders.back()->onChange = [this](float val)
+				sliders.back()->setOnChange([this](float val)
 					{
 						m_map->setMineralMult(val);
 						m_map->m_reset = true;
-					};
+					});
 				break;
 
 			}
@@ -111,158 +111,20 @@ void Hud::init()
 
 void Hud::render(sf::RenderTarget& window)
 {
-	sf::Vector2f viewCenter = m_camera.getCenter();
-	sf::Vector2f viewSize = m_camera.getSize();
+	// Widgets position themselves relative to the top-left of the HUD view.
+	const sf::Vector2f viewOrigin = m_camera.getCenter() - m_camera.getSize() / 2.f;
 
 	for (auto& b : buttons)
-	{
-		sf::Vector2f screenPos
-		(
-			viewCenter.x - viewSize.x / 2.f + b->m_pos.x,
-			viewCenter.y - viewSize.y / 2.f + b->m_pos.y
-		);
-
-		// Set shape position
-		b->rect.setPosition(screenPos);
-
-		// Set text position
-		sf::FloatRect rectBounds = b->rect.getGlobalBounds();
-		sf::FloatRect textBounds = b->text->getLocalBounds();
-
-		float x = rectBounds.position.x + (rectBounds.size.x / 2.f) - (textBounds.size.x / 2.f) - textBounds.position.x;
-		float y = rectBounds.position.y + (rectBounds.size.y / 2.f) - (textBounds.size.y / 2.f) - textBounds.position.y;
-
-		b->text->setPosition({ x, y });
-
-		// Draw
-		window.draw(b->rect);
-		window.draw(*(b->text));
-	}
+		b->draw(window, viewOrigin);
 
 	for (auto& i : inputs)
-	{
-		sf::Vector2f screenPos(
-			viewCenter.x - viewSize.x / 2.f + i->pos.x,
-			viewCenter.y - viewSize.y / 2.f + i->pos.y
-		);
-
-		// Set shape position
-		i->rect.setPosition(screenPos);
-
-		// Set text position
-		sf::FloatRect rectBounds = i->rect.getGlobalBounds();
-		sf::FloatRect textBounds = i->text->getLocalBounds();
-
-		float x = rectBounds.position.x + (rectBounds.size.x / 2.f) - (textBounds.size.x / 2.f) - textBounds.position.x;
-		float y = rectBounds.position.y + (rectBounds.size.y / 2.f) - (textBounds.size.y / 2.f) - textBounds.position.y;
-
-		i->text->setPosition({ x, y });
-
-		// Draw
-		window.draw(i->rect);
-		window.draw(*(i->text));
-	}
+		i->draw(window, viewOrigin);
 
 	for (auto& s : sliders)
-	{
-		sf::Vector2f screenPos(
-			viewCenter.x - viewSize.x / 2.f + s->pos.x,
-			viewCenter.y - viewSize.y / 2.f + s->pos.y
-		);
+		s->draw(window, viewOrigin);
 
-		// Set bar shape position
-		s->bar.setPosition(screenPos);
-
-		// Set text position
-		s->text->setPosition({ screenPos.x, screenPos.y - s->pos.x });
-
-		// Update handle
-		float ratio = (s->value - s->minValue) / (s->maxValue - s->minValue);
-		float x = s->bar.getPosition().x + ratio * s->bar.getSize().x;
-		float y = s->bar.getPosition().y + s->bar.getSize().y / 2.f;
-		s->handle.setPosition(sf::Vector2f(x, y));
-
-		// Draw
-		window.draw(s->bar);
-		window.draw(s->handle);
-		window.draw(*(s->text));
-	}
-
-	// RENDER INFO BOX
-	if (info_box && info_box->m_text.size() >= 1)
-	{
-		window.draw(info_box->m_rect);
-
-		int text_space{ 0 };
-		for (auto& text : info_box->m_text)
-		{
-			text->setPosition({ info_box->m_pos.x + 20, info_box->m_pos.y + 20 + text_space });
-			window.draw(*(text));
-
-			text_space += 20;
-		}
-	}
-}
-
-bool Hud::checkClick(const std::unique_ptr<CButton>& obj, const sf::Vector2f& mouse_pos)
-{
-	if (obj->rect.getGlobalBounds().contains(mouse_pos))
-	{
-		if (obj->onClick) obj->onClick();
-		return true;
-	}
-
-	return false;
-}
-
-bool Hud::checkClick(const std::unique_ptr<CInputBox>& obj, const sf::Vector2f& mouse_pos)
-{
-	if (obj->rect.getGlobalBounds().contains(mouse_pos))
-	{
-		obj->active = true;
-		obj->inputString.clear();
-		obj->text->setString("");
-		return true;
-	}
-
-	return false;
-}
-
-bool Hud::checkClick(const std::unique_ptr<CSlider>& obj, const sf::Vector2f& mouse_pos)
-{
-	if (obj->handle.getGlobalBounds().contains(mouse_pos) || obj->bar.getGlobalBounds().contains(mouse_pos))
-		obj->active = true;
-
-	return false;
-}
-
-void Hud::writing(const std::unique_ptr<CInputBox>& obj, const sf::Event::TextEntered& textEvent)
-{
-	if (!obj->active) return;
-
-	if (textEvent.unicode == 8) // Backspace
-	{
-		if (!obj->inputString.empty())
-		{
-			obj->inputString.pop_back();
-			obj->text->setString(obj->inputString.empty() ? obj->placeholder : obj->inputString);
-		}
-	}
-	else if (textEvent.unicode == 13) // Enter
-	{
-		if (!obj->inputString.empty())
-		{
-			if (obj->onEnter) obj->onEnter(std::stof(obj->inputString));
-			obj->inputString.clear();
-			obj->text->setString(obj->placeholder);
-			obj->active = false; // unfocuse input after enter
-		}
-	}
-	else if (textEvent.unicode >= '0' && textEvent.unicode <= '9' || textEvent.unicode == '.') // Numbers and dot
-	{
-		obj->inputString += static_cast<char>(textEvent.unicode);
-		obj->text->setString(obj->inputString);
-	}
+	if (info_box)
+		info_box->draw(window);
 }
 
 // ACCESSORIES
@@ -286,10 +148,7 @@ void Hud::infoBox(std::vector<std::string> info)
 void Hud::input(const sf::Event::TextEntered& event)
 {
 	for (auto& i : inputs)
-	{
-		if(i->active)
-			writing(i, event);
-	}
+		i->handleText(event);
 }
 
 // Moused Pressed
@@ -299,14 +158,25 @@ void Hud::input(const sf::Event::MouseButtonPressed& event, sf::Vector2f& mouse_
 	{
 	case sf::Mouse::Button::Left:
 	{
+		const sf::Vector2f viewOrigin = m_camera.getCenter() - m_camera.getSize() / 2.f;
+
 		for (auto& b : buttons)
-			checkClick(b, mouse_position);
+		{
+			if (b->contains(mouse_position, viewOrigin))
+				b->activate();
+		}
 
 		for (auto& i : inputs)
-			checkClick(i, mouse_position);
+		{
+			if (i->contains(mouse_position, viewOrigin))
+				i->activate();
+		}
 
 		for (auto& s : sliders)
-			checkClick(s, mouse_position);
+		{
+			if (s->contains(mouse_position, viewOrigin))
+				s->beginDrag();
+		}
 
 		break;
 	}
@@ -323,7 +193,7 @@ void Hud::input(const sf::Event::MouseButtonReleased& event, sf::Vector2f& mouse
 	case sf::Mouse::Button::Left:
 	{
 		for (auto& s : sliders)
-			s->active = false;
+			s->endDrag();
 
 		break;
 	}
@@ -336,17 +206,5 @@ void Hud::input(const sf::Event::MouseButtonReleased& event, sf::Vector2f& mouse
 void Hud::input(const sf::Event::MouseMoved& event, sf::Vector2f& mouse_position)
 {
 	for (auto& s : sliders)
-	{
-		if (s->active)
-		{
-			float left = s->bar.getPosition().x;
-			float right = left + s->bar.getSize().x;
-			float clampedX = std::max(left, std::min(mouse_position.x, right));
-
-			float ratio = (clampedX - left) / s->bar.getSize().x;
-			s->value = s->minValue + ratio * (s->maxValue - s->minValue);
-
-			if (s->onChange) s->onChange(s->value);
-		}
-	}
+		s->dragTo(mouse_position);
 }

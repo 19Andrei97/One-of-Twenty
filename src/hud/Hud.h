@@ -51,10 +51,6 @@ public:
 
 	// SYSTEMS
 	void render(sf::RenderTarget& window);
-	bool checkClick(const std::unique_ptr<CButton>& obj, const sf::Vector2f& mouse_pos);
-	bool checkClick(const std::unique_ptr<CInputBox>& obj, const sf::Vector2f& mouse_pos);
-	bool checkClick(const std::unique_ptr<CSlider>& obj, const sf::Vector2f& mouse_pos);
-	void writing(const std::unique_ptr<CInputBox>& obj, const sf::Event::TextEntered& textEvent);
 
 	// HUD ACCESSORIES
 	void infoBox(std::vector<std::string> info);

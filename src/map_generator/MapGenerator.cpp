@@ -178,7 +178,8 @@ void MapGenerator::startChunksGenerator()
 	
 		auto chunk = generateChunk(c_chunk_size, c_chunk_size, *optChunkPos);
 
-		std::lock_guard<std::mutex> lock(t_mutex);
+		// tc_chunks_ready has its own mutex; taking t_mutex here would only add
+		// contention on the chunk map for no benefit.
 		tc_chunks_ready.push(chunk);
 	} 
 }
@@ -276,6 +277,15 @@ void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& windo
 				if (dx > (viewBounds.size.x / num_tiles_per_chunk) / 2 + c_chunk_margin ||
 					dy > (viewBounds.size.y / num_tiles_per_chunk) / 2 + c_chunk_margin) 
 				{
+					// Double-check before evicting: a chunk pinned via
+					// setChunkUnload (an entity or a pending change still
+					// references it) must survive even when it is far away.
+					if (it->second && !it->second->unload)
+					{
+						++it;
+						continue;
+					}
+
 					// Too far — unload it
 					it = c_chunks.erase(it);
 				}
@@ -512,6 +522,25 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 	return 0;
 }
 
+
+/*
+*	Pin or release the chunk containing a world position. A pinned chunk
+*	(unload == false) is kept even when it streams outside the view margin.
+*	Returns false if no chunk is loaded at that position.
+*/
+bool MapGenerator::setChunkUnload(const sf::Vector2i& pos, bool unload)
+{
+	sf::Vector2i chunkPos = getNextChunkPosition(pos, c_chunk_size * c_chunk_size);
+
+	std::lock_guard<std::mutex> lock(t_mutex);
+
+	auto it = c_chunks.find(chunkPos);
+	if (it == c_chunks.end() || !it->second)
+		return false;
+
+	it->second->unload = unload;
+	return true;
+}
 
 //Cambia il colore di una tile specifica nella mappa.
 bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_element)
