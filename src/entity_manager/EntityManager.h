@@ -26,8 +26,24 @@ class EntityManager
         // contented entity eventually wanders instead of standing still.
         std::unordered_map<entt::entity, int>   m_entity_idle;
 
+        // Resources gathered by the settlement, totalled by element, plus a count
+        // of completed gathers so progress is observable (HUD / tests).
+        std::unordered_map<Elements, int>       m_stockpile;
+        int                                     m_gathers_completed{ 0 };
+
+        // A remembered tile worth working and what it yields.
+        struct WorkTarget
+        {
+                sf::Vector2i pos;
+                Elements     element;
+        };
+
         // Private function
         void addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color);
+
+        // Nearest remembered gatherable tile, rarest material first. Empty when
+        // nothing workable has been remembered yet.
+        std::optional<WorkTarget> settleElements(const CMemory& memory) const;
 
         // Turn a decision into queued actions. Returns true if the entity is
         // already busy with the need (so the idle counter should reset).
@@ -59,7 +75,9 @@ public:
         // MAIN FUNCTIONS
         void render(sf::RenderTarget& window);
         void update();
-        void addEntity(const EntityType& type);
+        // Spawn at an optional world position (defaults to the origin, which is
+        // what the game uses until there is a city center).
+        void addEntity(const EntityType& type, const sf::Vector2i& spawn = { 0, 0 });
 
         // SETTERS
         void nextTarget(const EntityType& type, sf::Vector2i& targ);
@@ -71,4 +89,9 @@ public:
         std::optional<CBasicNeeds>  firstNeeds() const;
         std::optional<ActionTypes>  firstAction() const;
         int                         entityCount() const;
+
+        // Settlement totals, accumulated as gathers complete.
+        int stockpile(const Elements element) const;
+        int totalStockpile() const;
+        int gathersCompleted() const { return m_gathers_completed; }
 };

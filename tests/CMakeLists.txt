@@ -7,6 +7,7 @@ add_executable(unit_tests
     test_logger.cpp
     test_map_generator.cpp
     test_entity_decision.cpp
+    test_move_cost.cpp
 )
 
 # The helper headers under test are header-only; expose them directly.

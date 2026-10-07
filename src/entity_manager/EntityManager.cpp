@@ -90,8 +90,9 @@ void EntityManager::update()
                 needs.last_update = hour;
         });
 
-        // Finish actions that have run their course, restoring the need they serve.
-        m_registry->view<CActionsQueue, CBasicNeeds>().each([&](auto entity, auto& queue, auto& needs)
+        // Finish actions that have run their course, restoring the need they serve
+        // or banking what a gather produced.
+        m_registry->view<CActionsQueue, CBasicNeeds, CInventory>().each([&](auto entity, auto& queue, auto& needs, auto& inventory)
         {
                 if (queue.actions.empty())
                         return;
@@ -117,6 +118,18 @@ void EntityManager::update()
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
                         needs.satisfy(2);
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        queue.actions.pop_front();
+                }
+                else if (auto action = std::dynamic_pointer_cast<CGather>(front); action
+                        && elapsed - action->timestamp_min > action->duration_min)
+                {
+                        // The gather produced a unit: carry it, then deposit it into
+                        // the settlement stockpile and tally the completed trip.
+                        inventory.gather();
+                        m_stockpile[action->element] += inventory.deposit();
+                        ++m_gathers_completed;
+
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
                 }
@@ -192,6 +205,9 @@ void EntityManager::update()
                                 case static_cast<int>(ActionTypes::Drinking):
                                         info.text[3].setString("Drinking.");
                                         break;
+                                case static_cast<int>(ActionTypes::Gathering):
+                                        info.text[3].setString("Gathering.");
+                                        break;
 
                                 default:
                                         info.text[3].setString("Idle.");
@@ -259,6 +275,25 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                                 return false;
 
                         queue.actions.push_back(std::make_shared<CSleeping>(ActionTypes::Sleeping, m_game_clock->getTimestamp()));
+                        return true;
+                }
+
+                case EntityDecision::Need::Work:
+                {
+                        if (queueHasAction(queue, ActionTypes::Gathering))
+                                return false;
+
+                        if (auto target = settleElements(memory))
+                        {
+                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, target->pos));
+                                queue.actions.push_back(std::make_shared<CGather>(ActionTypes::Gathering, target->pos, target->element,
+                                                                                  m_game_clock->getTimestamp()));
+                        }
+                        else
+                        {
+                                // Nothing workable is remembered yet: explore to find some.
+                                queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, exploreTarget()));
+                        }
                         return true;
                 }
 
@@ -340,19 +375,20 @@ void EntityManager::render(sf::RenderTarget& window)
 
 /// MANAGING ENTITIES //////////////////////////////////////////////////////////////
 
-void EntityManager::addEntity(const EntityType& type)
+void EntityManager::addEntity(const EntityType& type, const sf::Vector2i& spawn)
 {
         auto entity = m_registry->create();
 
         m_registry->emplace<CType>(entity, type);
         m_registry->emplace<CLifespan>(entity, 100);
-        m_registry->emplace<CTransform>(entity, sf::Vector2i{ 0, 0 }, 100.f);
+        m_registry->emplace<CTransform>(entity, spawn, 100.f);
         m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
         m_registry->emplace<CVision>(entity);
         m_registry->emplace<CMemory>(entity);
         m_registry->emplace<CBasicNeeds>(entity);
         m_registry->emplace<CPersonality>(entity);
         m_registry->emplace<CActionsQueue>(entity);
+        m_registry->emplace<CInventory>(entity);
         m_registry->emplace<CEntityInfo>(entity, 60, 40);
 
         m_entity_idle[entity] = 0;
@@ -405,4 +441,36 @@ std::optional<ActionTypes> EntityManager::firstAction() const
 int EntityManager::entityCount() const
 {
         return static_cast<int>(m_registry->view<CType>().size());
+}
+
+std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMemory& memory) const
+{
+        // Rarer, more useful materials first, so an entity that could work any of
+        // several remembered tiles prefers the scarcer one.
+        static constexpr std::array<Elements, 5> kPriority{
+                Elements::silver, Elements::iron, Elements::clay,
+                Elements::forest, Elements::hill,
+        };
+
+        for (const Elements element : kPriority)
+        {
+                const auto pos = memory.getLocation(element);
+                if (pos)
+                        return WorkTarget{ *pos, element };
+        }
+        return std::nullopt;
+}
+
+int EntityManager::stockpile(const Elements element) const
+{
+        const auto it = m_stockpile.find(element);
+        return (it != m_stockpile.end()) ? it->second : 0;
+}
+
+int EntityManager::totalStockpile() const
+{
+        int total = 0;
+        for (const auto& [element, amount] : m_stockpile)
+                total += amount;
+        return total;
 }

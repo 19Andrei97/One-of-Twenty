@@ -435,6 +435,66 @@ TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
     CHECK(tileRegionHas(testColor));
 }
 
+TEST_CASE("tile cost reads the authoritative tile and is always positive")
+{
+#if defined(__linux__)
+    if (std::getenv("DISPLAY") == nullptr)
+    {
+        MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
+        return;
+    }
+#endif
+
+    sf::Font font;
+    int frames = 0;
+
+    auto generator = makeGenerator(font, frames);
+    generator->setSeed(42);
+    generator->setNoises();
+
+    sf::RenderTexture target;
+    bool available = false;
+    try
+    {
+        available = target.resize({ 320, 240 });
+    }
+    catch (const sf::Exception&)
+    {
+        available = false;
+    }
+
+    if (!available)
+    {
+        MESSAGE("Skipping render test: no render texture available in this environment");
+        return;
+    }
+
+    // No chunk loaded yet: the cost must fall back to neutral, not 0.
+    CHECK(generator->getTileCost({ 8, 8 }) == doctest::Approx(MoveCost::kDefault));
+
+    const sf::IntRect view{ { 0, 0 }, { 320, 240 } };
+    const int tileSize = generator->getTileSize();
+    const sf::Vector2i tile{ 2 * tileSize, 2 * tileSize };
+
+    bool loaded = false;
+    for (int frame = 0; frame < 200 && !loaded; ++frame)
+    {
+        frames = frame;
+        generator->render(view, target);
+        for (const auto& line : generator->getPositionInfo(tile))
+            if (line.rfind("Type:", 0) == 0)
+                loaded = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE(loaded);
+
+    CHECK(generator->getTileCost(tile) > 0.f);
+
+    // The cost must follow the stored edit, since movement scales by it.
+    REQUIRE(generator->setTileColor(tile, Elements::forest));
+    CHECK(generator->getTileCost(tile) == doctest::Approx(MoveCost::moveCost(Elements::forest)));
+}
+
 TEST_CASE("height_range caps peaks and floors the lowlands")
 {
     sf::Font font;

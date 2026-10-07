@@ -419,8 +419,10 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 				continue;
 
 			// Query the authoritative map, not a fresh noise sample.
+			// Remember anything usable (water to drink, land to work), so an
+			// entity's memory covers both needs.
 			const Elements element = getElementAtWorld(tileWorldPos);
-			if (element != Elements::ocean && element != Elements::hill)
+			if (!Resources::isResource(element))
 				continue;
 
 			auto it = closest.find(element);
@@ -439,42 +441,31 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 // Return the cost of the tile position.
 float MapGenerator::getTileCost(const sf::Vector2i& pos)
 {
-	sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
+        sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
-	std::lock_guard<std::mutex> lock(t_mutex);
+        std::lock_guard<std::mutex> lock(t_mutex);
 
-	auto it = c_chunks.find(chunkPos);
-	if (it == c_chunks.end() || !it->second)
-	{
-		return 0; // No chunk found, return the input as fallback
-	}
+        auto it = c_chunks.find(chunkPos);
+        if (it == c_chunks.end() || !it->second)
+        {
+                // No chunk loaded here: fall back to the neutral cost rather than
+                // 0, which would freeze the entity for the frame.
+                return MoveCost::kDefault;
+        }
 
-	// Tile that actually contains pos (floored, so negative positions map
-	// correctly).
-	const sf::Vector2i tileCoord = worldToTile(pos);
+        // Tile that actually contains pos (floored, so negative positions map
+        // correctly).
+        const sf::Vector2i tileCoord = worldToTile(pos);
 
-	// Read the authoritative value directly: we already hold t_mutex, so
-	// calling getElementAtWorld (which locks) would deadlock.
-	const auto tileIt = it->second->tile_types.find(tileCoord);
-	const Elements element = (tileIt != it->second->tile_types.end())
-		? tileIt->second
-		: m_terrain.elementAtTile(tileCoord);
+        // Read the authoritative value directly: we already hold t_mutex, so
+        // calling getElementAtWorld (which locks) would deadlock.
+        const auto tileIt = it->second->tile_types.find(tileCoord);
+        const Elements element = (tileIt != it->second->tile_types.end())
+                ? tileIt->second
+                : m_terrain.elementAtTile(tileCoord);
 
-	if (element == Elements::hill)
-		return 1;
-	if (element == Elements::forest)
-		return 0.8;
-	if (element == Elements::sand)
-		return 0.5;
-	if (element == Elements::muntain)
-		return 0.5;
-	if (element == Elements::snow || element == Elements::ocean)
-		return 0.3;
-
-
-	return 0;
+        return MoveCost::moveCost(element);
 }
-
 
 /*
 *       Pin or release the chunk containing a world position. A pinned chunk

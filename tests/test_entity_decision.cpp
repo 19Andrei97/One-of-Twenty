@@ -20,12 +20,13 @@ EntityDecision::Config defaultConfig()
 
 // A personality with every trait pinned, so tests are not at the mercy of the
 // random values CPersonality generates on construction.
-CPersonality personalityWith(int brave, int greedy, int calm)
+CPersonality personalityWith(int brave, int greedy, int calm, int loyal = 50)
 {
     CPersonality p;
     p.traits[static_cast<int>(PersonalityTrait::Brave)] = brave;
     p.traits[static_cast<int>(PersonalityTrait::Greedy)] = greedy;
     p.traits[static_cast<int>(PersonalityTrait::Calm)] = calm;
+    p.traits[static_cast<int>(PersonalityTrait::Loyal)] = loyal;
     return p;
 }
 
@@ -36,6 +37,30 @@ std::string entityConfigPath()
 #else
     return "config/entity_data.json";
 #endif
+}
+
+// First gatherable tile near the origin, as a world position. Terrain near the
+// origin is not guaranteed to be workable, so the gather test seeds its entity
+// on one found by scanning outward.
+std::optional<sf::Vector2i> findGatherableTile(MapGenerator& map, int maxRing = 80)
+{
+    const int tileSize = map.getTileSize();
+    for (int ring = 0; ring <= maxRing; ++ring)
+    {
+        for (int dx = -ring; dx <= ring; ++dx)
+        {
+            for (int dy = -ring; dy <= ring; ++dy)
+            {
+                if (std::max(std::abs(dx), std::abs(dy)) != ring)
+                    continue;
+                const sf::Vector2i tile{ dx, dy };
+                const sf::Vector2i world{ tile.x * tileSize, tile.y * tileSize };
+                if (Resources::isGatherable(map.getElementAtWorld(world)))
+                    return world;
+            }
+        }
+    }
+    return std::nullopt;
 }
 } // namespace
 
@@ -87,13 +112,15 @@ TEST_CASE("computeUrgencies combines need state with the governing trait")
 {
     const auto cfg = defaultConfig();
 
-    SUBCASE("comfortable entity has no urgency")
+    SUBCASE("comfortable entity has no survival urgency but is ready to work")
     {
         CBasicNeeds needs; // thirst/hunger 100, sleep 0
         const auto u = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 50), cfg);
         CHECK(u.thirst == doctest::Approx(0.f));
         CHECK(u.hunger == doctest::Approx(0.f));
         CHECK(u.sleep == doctest::Approx(0.f));
+        // Fully comfortable, so the society drive is at its strongest.
+        CHECK(u.work == doctest::Approx(1.f));
     }
 
     SUBCASE("higher traits act sooner")
@@ -161,7 +188,7 @@ TEST_CASE("strongestNeed respects thresholds and a deterministic tie-break")
     }
 }
 
-TEST_CASE("decide returns needs, idles, then wanders")
+TEST_CASE("decide returns needs, work, then idles and wanders")
 {
     auto cfg = defaultConfig();
     const auto personality = personalityWith(50, 50, 50);
@@ -173,15 +200,40 @@ TEST_CASE("decide returns needs, idles, then wanders")
         CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Thirst);
     }
 
-    SUBCASE("a contented entity idles until the tolerance is spent")
+    SUBCASE("a comfortable entity works for the settlement")
     {
-        CBasicNeeds needs;
+        CBasicNeeds needs; // fully satisfied
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Work);
+    }
+
+    SUBCASE("work is gated off while a need presses, and an entity too uneasy to work idles")
+    {
+        // Threshold above what work can ever reach (work peaks at 1.0, but the
+        // personality multiplier keeps a default entity below this): isolates the
+        // idle/wander fallback from the work behaviour.
+        cfg.work.threshold = 2.0f;
         cfg.idle_tolerance = 3;
+
+        CBasicNeeds needs;
 
         CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::None);
         CHECK(EntityDecision::decide(needs, personality, cfg, 2) == EntityDecision::Need::None);
         CHECK(EntityDecision::decide(needs, personality, cfg, 3) == EntityDecision::Need::Wander);
         CHECK(EntityDecision::decide(needs, personality, cfg, 99) == EntityDecision::Need::Wander);
+
+        // A critical need outranks work.
+        needs.thirst = 0;
+        cfg.work.threshold = 0.f;
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Thirst);
+    }
+
+    SUBCASE("loyalty raises the work drive")
+    {
+        CBasicNeeds needs;
+        const auto loyal = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 50, 100), cfg);
+        const auto indifferent = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 50, 0), cfg);
+        CHECK(loyal.work == doctest::Approx(1.5f));
+        CHECK(indifferent.work == doctest::Approx(0.5f));
     }
 }
 
@@ -190,6 +242,7 @@ TEST_CASE("actionFor maps needs to their satisfying action")
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Thirst) == ActionTypes::Drinking);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Hunger) == ActionTypes::Eating);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Sleep) == ActionTypes::Sleeping);
+    CHECK(EntityDecision::actionFor(EntityDecision::Need::Work) == ActionTypes::Gathering);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Wander) == ActionTypes::Moving);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::None) == ActionTypes::Moving);
 }
@@ -268,5 +321,42 @@ TEST_CASE("EntityManager drives decay and action selection end to end")
         acted = entities.firstAction().has_value();
     }
     CHECK(acted);
+}
+
+TEST_CASE("a comfortable entity works and the settlement accumulates resources")
+{
+    // End to end: a spawns-near-origin entity with no urgent need should take up
+    // work, and completed gathers should show up in the settlement stockpile.
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(font, frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath());
+
+    const auto spawn = findGatherableTile(*map);
+    REQUIRE(spawn.has_value());
+    entities.addEntity(EntityType::Human_Generic, *spawn);
+
+    const auto advanceHour = [&]()
+    {
+        for (int step = 0; step < 60; ++step)
+            clock->update(delta);
+        entities.update();
+    };
+
+    // Long window: survival needs and exploration interleave, so give the entity
+    // plenty of in-game time to find a workable tile and finish a gather.
+    bool gathered = false;
+    for (int hour = 0; hour < 600 && !gathered; ++hour)
+    {
+        advanceHour();
+        gathered = entities.gathersCompleted() > 0;
+    }
+
+    CHECK(gathered);
+    CHECK(entities.gathersCompleted() >= 1);
+    CHECK(entities.totalStockpile() >= 1);
 }
 

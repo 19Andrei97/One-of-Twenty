@@ -60,5 +60,8 @@ inline EntityConfig loadEntityConfig(const std::string& path)
     readNeed("hunger", cfg.decision.hunger);
     readNeed("sleep", cfg.decision.sleep);
 
+    if (decision.contains("work"))
+        readNeed("work", cfg.decision.work);
+
     return cfg;
 }

@@ -119,14 +119,22 @@ Deepen the ECS simulation from generic humans to purposeful agents.
 - [x] Improve the `CVision` debug circle (`Entity`). The vision radius now
       drives both memory gathering (`getResourcesWithinBoundary`) and the
       decision to explore; the debug overlay is unchanged.
-- [ ] Improve tile cost calculation used for pathing/decisions (`Entity`).
-      Movement already scales by `getTileCost`; a richer cost (slope, water
-      avoidance) is still open.
-- [ ] Provide actions that advance society (`Entity`).
+- [x] Improve tile cost calculation used for pathing/decisions (`Entity`).
+      Movement scales by a terrain cost supplied by `helpers/MoveCost.h`, a pure
+      function of the element: open water is slow, hills/forest slower, deposits
+      and sand slower still. Every element has a non-zero cost (a 0 froze the
+      entity) and `getTileCost` falls back to the neutral cost when no chunk is
+      loaded. Unit-tested, and checked against the authoritative tile map.
+- [x] Provide actions that advance society (`Entity`). A contented entity takes
+      up `Need::Work` (gated on overall comfort and the Loyalty trait) to gather
+      the nearest remembered resource — rarest material first — via the new
+      `CGather` action and `CInventory` component. Completed gathers bank into a
+      settlement stockpile, so the simulation now produces something.
 
 **Done when:** entities choose actions from weighted needs/memory rather than
-fixed logic, and the new decision code is unit-testable and tested. — *met for
-the needs/memory/decision core; the remaining two bullets are follow-ups.*
+fixed logic, and the new decision code is unit-testable and tested. — *met:
+needs, memory, decisions, terrain-aware movement and society work are all
+implemented and covered by unit and integration tests.*
 
 ## Milestone 4 — Game structure and HUD
 

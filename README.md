@@ -221,10 +221,15 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
 - [x] Implement weights-based decisions for entities — `EntityDecision` scales
   each need's urgency by `CPersonality` traits and a config bias, picks the
   strongest above threshold, and wanders when contented.
-- Improve `CVision` component debug circle (radius now drives exploration too).
+- [x] Improve `CVision` component debug circle (radius now drives exploration too).
+- [x] Improve Tile Cost calculation — `helpers/MoveCost.h` maps each terrain
+  element to a positive movement multiplier (water slowest, deposits/forest/hill
+  slower, ground fastest); `getTileCost` reads the authoritative tile and never
+  returns 0.
+- [x] Provide actions to advance society — contented entities take up
+  `Need::Work` and gather the nearest remembered resource via `CGather` /
+  `CInventory`, banking units into a settlement stockpile.
 - ADD city center.
-- Provide actions to advance society.
-- Improve Tile Cost calculation (movement already scales by it; deepen the cost).
 - Add ai through llama for civilization politics.
 
 ---
