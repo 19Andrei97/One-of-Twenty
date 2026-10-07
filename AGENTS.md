@@ -47,6 +47,8 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - The logger level comes from `logger.level` in `config.json`; parse it with
   `Logger::levelFromString()` (`helpers/Logger.h`, a namespace), which is
   case-insensitive and throws on an unknown value.
+- Ores use one noise field each (`m_noise_clay`/`iron`/`silver`, seeded apart)
+  rather than a shared mineral field; `getResourceValue()` samples a field.
 - The chunk map `c_chunks` is shared with worker threads; guard access with
   `t_mutex`. Never hold `t_mutex` while touching a `SharedContainer`
   (`tc_chunks_*`): those lock themselves, so nesting breaks the lock order.

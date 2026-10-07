@@ -76,8 +76,9 @@ structural split is last (it is refactoring, not new behavior).
 - [x] Add rivers (`MapGenerator`). `river.enabled` / `river.freq` /
       `river.threshold` carve a dedicated noise field into land tiles.
 - [x] Add configurable depth and height ranges (`MapGenerator`). `height_range.min`/`max` remap the continent field before thresholds; the default `[0,1]` is an identity transform.
-- [ ] Use a distinct noise map per resource so deposits don't overlap
-      (`MapGenerator`).
+- [x] Use a distinct noise map per resource so deposits don't overlap
+      (`MapGenerator`). Clay, iron and silver each sample their own field
+      (seeded apart); `getResourceValue` exposes a field's value directly.
 
 ### 2c. Queries and entity interaction
 - [ ] Improve how entities query resources from the map (`MapGenerator`).

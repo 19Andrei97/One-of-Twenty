@@ -40,8 +40,13 @@ Elements MapGenerator::elementAtTile(const sf::Vector2i& tile) const {
 			return Elements::ocean;
 	}
 
-	// Generate mineral noise
-	float mineral = (m_noise_mineral.GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
+	// Per-resource noise: each ore reads its own field, so the deposits are
+	// uncorrelated instead of all riding one shared mineral field.
+	const auto resourceNoise = [&](const FastNoiseLite& noise) {
+		const float x = warpX * m_mineral_multiplier;
+		const float y = warpY * m_mineral_multiplier;
+		return (noise.GetNoise(x, y) + 1.0f) * 0.5f;
+	};
 
 	// --- OCEAN ---
 
@@ -53,7 +58,7 @@ Elements MapGenerator::elementAtTile(const sf::Vector2i& tile) const {
 	// --- CONTINENT ---
 	if (continent < m_thresholds.at(Elements::hill))
 	{
-		if (mineral > m_thresholds.at(Elements::clay))
+		if (resourceNoise(m_noise_clay) > m_thresholds.at(Elements::clay))
 			return Elements::clay;
 
 		return Elements::hill;
@@ -61,7 +66,7 @@ Elements MapGenerator::elementAtTile(const sf::Vector2i& tile) const {
 
 	if (continent < m_thresholds.at(Elements::forest))
 	{
-		if (mineral > m_thresholds.at(Elements::iron))
+		if (resourceNoise(m_noise_iron) > m_thresholds.at(Elements::iron))
 			return Elements::iron;
 
 		return Elements::forest;
@@ -70,7 +75,7 @@ Elements MapGenerator::elementAtTile(const sf::Vector2i& tile) const {
 
 	if (continent < m_thresholds.at(Elements::muntain))
 	{
-		if (mineral > m_thresholds.at(Elements::silver))
+		if (resourceNoise(m_noise_silver) > m_thresholds.at(Elements::silver))
 			return Elements::silver;
 
 		return Elements::muntain;
@@ -114,6 +119,27 @@ Elements MapGenerator::elementAtWorld(const sf::Vector2i& coord) const {
 */
 Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord) {
 	return elementAtWorld(coord);
+}
+
+/*
+*	Sample the per-resource noise field at a world position, in [0,1]. The warp
+*	and multiplier mirror elementAtTile so the value matches what generation saw.
+*/
+float MapGenerator::getResourceValue(const sf::Vector2i& coord, Elements resource) const
+{
+	const FastNoiseLite* field = nullptr;
+	switch (resource)
+	{
+	case Elements::clay:    field = &m_noise_clay;   break;
+	case Elements::iron:    field = &m_noise_iron;   break;
+	case Elements::silver:  field = &m_noise_silver; break;
+	default:                return 0.0f;
+	}
+
+	const sf::Vector2f coord_f = static_cast<sf::Vector2f>(worldToTile(coord));
+	const float warpX = coord_f.x + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
+	const float warpY = coord_f.y + m_noise_wrap.GetNoise(coord_f.x, coord_f.y) * 100.0f;
+	return (field->GetNoise(warpX * m_mineral_multiplier, warpY * m_mineral_multiplier) + 1.0f) * 0.5f;
 }
 
 /*
@@ -445,8 +471,15 @@ void MapGenerator::setNoises()
 	m_noise_wrap.SetSeed(m_seed);
 	m_noise_wrap.SetFrequency(m_warp_freq);
 
-	m_noise_mineral.SetSeed(m_seed);
-	m_noise_mineral.SetFrequency(m_mineral_freq);
+	// Distinct seeds for each ore so their deposits land in different places.
+	m_noise_clay.SetSeed(m_seed + 2);
+	m_noise_clay.SetFrequency(m_mineral_freq);
+
+	m_noise_iron.SetSeed(m_seed + 3);
+	m_noise_iron.SetFrequency(m_mineral_freq);
+
+	m_noise_silver.SetSeed(m_seed + 4);
+	m_noise_silver.SetFrequency(m_mineral_freq);
 
 	// Offset the seed so rivers do not align with the continent or mineral noise.
 	m_noise_river.SetSeed(m_seed + 1);

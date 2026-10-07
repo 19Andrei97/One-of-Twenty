@@ -175,7 +175,8 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
   rebuilt on edit and queries floor to the containing chunk (`chunkOf`).
 - [x] Increase depths and heights. `height_range.min`/`max` remap the
   continent field before biome thresholds are applied.
-- FIX: different noise map for each resource?
+- [x] Distinct noise map per resource. Clay/iron/silver each read their own
+  field; `getResourceValue()` exposes a field's value.
 - Improve getting resources for entities.
 - [x] Update chunk unload to double check if no entity or changes are present.
   Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and

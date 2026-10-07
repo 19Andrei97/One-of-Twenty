@@ -488,3 +488,40 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
 
     CHECK(floodedWater == 0);
 }
+
+TEST_CASE("each resource uses its own noise field")
+{
+    sf::Font font;
+    int frames = 0;
+
+    auto generator = makeGenerator(font, frames);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    const int tileSize = generator->getTileSize();
+    std::set<std::pair<int, int>> clay, iron, silver;
+    constexpr int range = 2000;
+    for (int x = -range; x <= range; x += 2 * tileSize)
+        for (int y = -range; y <= range; y += 2 * tileSize)
+        {
+            // The deposit of an ore is the region where its own field is high.
+            const auto key = std::make_pair(x, y);
+            if (generator->getResourceValue({ x, y }, Elements::clay) > 0.5f)
+                clay.insert(key);
+            if (generator->getResourceValue({ x, y }, Elements::iron) > 0.5f)
+                iron.insert(key);
+            if (generator->getResourceValue({ x, y }, Elements::silver) > 0.5f)
+                silver.insert(key);
+        }
+
+    // Each field produces a non-trivial deposit...
+    CHECK_FALSE(clay.empty());
+    CHECK_FALSE(iron.empty());
+    CHECK_FALSE(silver.empty());
+
+    // ...and they land in different places: a single shared field would make all
+    // three sets identical.
+    CHECK(clay != iron);
+    CHECK(iron != silver);
+    CHECK(clay != silver);
+}

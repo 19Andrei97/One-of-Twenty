@@ -98,7 +98,11 @@ private:
 
 	FastNoiseLite		m_noise_continent;
 	FastNoiseLite		m_noise_wrap;
-	FastNoiseLite		m_noise_mineral;
+	// One field per ore. A shared mineral field made clay/iron/silver spike at
+	// the same spots; separate fields (seeded apart) keep deposits independent.
+	FastNoiseLite		m_noise_clay;
+	FastNoiseLite		m_noise_iron;
+	FastNoiseLite		m_noise_silver;
 	FastNoiseLite		m_noise_river;
 
 	// Option components, all disabled by default so the classic flat map is
@@ -207,8 +211,14 @@ public:
 		m_noise_wrap.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 		m_noise_wrap.SetFractalType(FastNoiseLite::FractalType_FBm);
 
-		m_noise_mineral.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-		m_noise_mineral.SetFractalType(FastNoiseLite::FractalType_FBm);
+		m_noise_clay.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_noise_clay.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+		m_noise_iron.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_noise_iron.SetFractalType(FastNoiseLite::FractalType_FBm);
+
+		m_noise_silver.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+		m_noise_silver.SetFractalType(FastNoiseLite::FractalType_FBm);
 
 		// A single octave gives the river field narrow, non-branching channels.
 		m_noise_river.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
@@ -268,6 +278,10 @@ public:
 
 	// GETTERS
 	Elements						getBiomeElement(const sf::Vector2i& coord);
+	// Resource noise value in [0,1] at a world position. Returns 0 for a
+	// non-resource element. Sampling the field directly (rather than the final
+	// element) is what lets callers compare the per-resource fields.
+	float								getResourceValue(const sf::Vector2i& coord, Elements resource) const;
 	sf::Color						getBiomeColor(const sf::Vector2i& coord);
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }
