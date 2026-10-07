@@ -320,18 +320,23 @@ TEST_CASE("render streams chunks and shuts down cleanly")
             stillLoaded = true;
     CHECK(stillLoaded);
 
-    // ...and be evicted once it is released again.
+    // ...and be evicted once it is released again. The worker is asynchronous,
+    // so poll until the eviction has actually happened rather than assuming a
+    // fixed number of frames is enough.
     REQUIRE(generator->setChunkUnload({ 8, 8 }, true));
-    for (int frame = 0; frame < 5; ++frame)
+    bool evicted = false;
+    for (int frame = 0; frame < 200 && !evicted; ++frame)
     {
         frames = frame;
         generator->render(farView, target);
-    }
 
-    bool evicted = true;
-    for (const auto& line : generator->getPositionInfo({ 8, 8 }))
-        if (line.rfind("Type:", 0) == 0)
-            evicted = false;
+        evicted = true;
+        for (const auto& line : generator->getPositionInfo({ 8, 8 }))
+            if (line.rfind("Type:", 0) == 0)
+                evicted = false;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
     CHECK(evicted);
 }
 
