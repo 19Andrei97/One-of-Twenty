@@ -144,6 +144,8 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 ## TODO
 
+See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
+
 ### General
 - Re-check all objects for dynamic allocation of big objects.
 - Thread-safe access to the shared chunk map is guarded by a single mutex;
