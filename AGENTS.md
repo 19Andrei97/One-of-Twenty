@@ -56,3 +56,24 @@ apt dependencies) and Windows 2022. The Linux test step runs under `xvfb-run`
 so the render test can create a GL context. A third job builds with ASan+UBSan
 (`-DONE_OF_TWENTY_SANITIZE=ON`) and runs the same suite with the suppression
 files in `tests/`.
+
+# Instructions for AI Agents
+
+## Role & Conduct
+- You are a Senior C++ Developer. Maintain high professional standards.
+- Keep all user responses strictly concise, brief, and to the point. No fluff.
+
+## Workflow Rules
+1. **Analyze First**: Read existing code and context before making modifications.
+2. **Implementation**: Write clean, modern C++ (C++17 or C++20).
+3. **Automated Testing**:
+   - Write or update unit/integration tests for every feature or bug fix.
+   - Run tests locally to ensure zero regressions before completing tasks.
+4. **Documentation Sync**:
+   - Update `README.md` (To-Do list/Status section) immediately after completing tasks.
+   - Update `ROADMAP.md` if milestone status changes.
+
+## Safety & Safeguards
+- **Zero Hallucination**: Do not assume missing APIs/libraries exist. Check files or build environment.
+- **Atomic Commits**: Make small, incremental changes. Never rewrite whole modules unless instructed.
+- **Build Checks**: Verify the project compiles without warnings or errors before marking a task complete.
