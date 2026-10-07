@@ -39,6 +39,10 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - Most `.cpp` files include `<pch.h>` first; it aggregates the common headers.
   A header used directly by a test must be self-contained (include what it
   uses), because tests do not go through the pch.
+- Terrain sampling lives in `generate_terrain.{h,cpp}` (`GenerateTerrain`),
+  a stateless object over a `MapConfig` value type; `Chunk.h` holds `Chunk`
+  and the `ChunkMap` alias. `MapGenerator` is streaming/rendering plus the
+  chunk store, and delegates all sampling. Keep noise out of `MapGenerator`.
 - `MapGenerator::worldToTile` / `tileToWorld` delegate to
   `helpers/CoordMath.h` (floor division so negative coordinates map to the
   correct tile). Keep them as the single source of truth for conversions.

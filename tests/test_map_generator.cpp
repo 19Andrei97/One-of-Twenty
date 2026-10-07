@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "MapGenerator.h"
+#include "generate_terrain.h"
 
 #include <doctest/doctest.h>
 
@@ -590,4 +591,37 @@ TEST_CASE("map queries read the authoritative tile map")
     // of routing entity queries through the authoritative map.
     CHECK(generator->getElementAtWorld(editedWorld) == Elements::test);
     CHECK(generator->getBiomeElement(editedWorld) != Elements::test);
+}
+
+// Exercises the terrain sampler on its own: no font, no thread pool, no GL
+// context. This is the point of splitting GenerateTerrain out of MapGenerator.
+TEST_CASE("terrain sampling is deterministic and seed-dependent without a renderer")
+{
+    const MapConfig config = loadMapConfig(mapConfigPath());
+    REQUIRE(config.tile_size_px > 0);
+
+    GenerateTerrain a(config);
+    GenerateTerrain b(config);
+
+    // Same seed/config => identical terrain over a spread of tiles.
+    constexpr int kStep = 5;
+    constexpr int kSpan = 30;
+    for (int y = -kSpan; y <= kSpan; y += kStep)
+        for (int x = -kSpan; x <= kSpan; x += kStep)
+            CHECK(a.elementAtTile({ x, y }) == b.elementAtTile({ x, y }));
+
+    // A different seed must actually change the terrain somewhere.
+    GenerateTerrain c(config);
+    c.setSeed(config.seed + 9973);
+
+    bool differs = false;
+    for (int y = -kSpan; y <= kSpan && !differs; y += kStep)
+        for (int x = -kSpan; x <= kSpan && !differs; x += kStep)
+            if (a.elementAtTile({ x, y }) != c.elementAtTile({ x, y }))
+                differs = true;
+    CHECK(differs);
+
+    // World lookup floors into the owning tile.
+    const int ts = config.tile_size_px;
+    CHECK(a.elementAtWorld({ ts, ts }) == a.elementAtTile({ 1, 1 }));
 }

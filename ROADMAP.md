@@ -88,8 +88,13 @@ structural split is last (it is refactoring, not new behavior).
       `getTileCost`'s tile mapping now floors like the rest of the codebase.
 
 ### 2d. Structure (largest, do last)
-- [ ] Split `MapGenerator` into chunk store / streamer / renderer
-      (`MapGenerator`).
+- [x] Split `MapGenerator` into chunk store / streamer / renderer
+      (`MapGenerator`). Terrain sampling now lives in a stateless
+      `GenerateTerrain` (no chunks, no threads, no GL context), driven by a
+      `MapConfig` value type loaded from `config/map_data.json`. `Chunk` and
+      the shared `ChunkMap` alias moved to `Chunk.h`. `MapGenerator` keeps
+      streaming/rendering and delegates sampling, so terrain is unit-testable
+      without a renderer. Public API and behaviour are unchanged.
 
 **Done when:** the new generation options are driven by `config/map_data.json`,
 `MapGenerator` tests cover each option, and streaming still shuts down cleanly.

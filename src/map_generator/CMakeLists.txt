@@ -1,4 +1,11 @@
-add_library(MapGenerator MapGenerator.cpp MapGenerator.h)
+add_library(MapGenerator
+    MapGenerator.cpp
+    MapGenerator.h
+    generate_terrain.cpp
+    generate_terrain.h
+    Chunk.h
+    MapConfig.h
+)
 
 target_include_directories(MapGenerator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -182,7 +182,9 @@ Ordered by priority; see `ROADMAP.md` Milestone 2 for the full breakdown.
 - [x] Update chunk unload to double check if no entity or changes are present.
   Added `MapGenerator::setChunkUnload()`; a pinned chunk survives streaming and
   is only evicted once released.
-- Split the class into chunk store / streamer / renderer.
+- [x] Split the class into chunk store / streamer / renderer. Terrain
+  sampling is now a standalone `GenerateTerrain` over a `MapConfig` value
+  type; `Chunk.h` holds the chunk store types. Public API unchanged.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
