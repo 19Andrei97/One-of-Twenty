@@ -556,10 +556,15 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
 
         // Cache tile elements: the search touches the same neighbourhood many
         // times and every uncached read locks the chunk map.
-        std::unordered_map<std::int64_t, Elements> cache;
+        std::unordered_map<std::uint64_t, Elements> cache;
         const auto elementAt = [&](const int tx, const int ty)
         {
-                const std::int64_t key = (static_cast<std::int64_t>(tx) << 32) ^ static_cast<std::uint32_t>(ty);
+                // Combine the two signed tile coordinates into one key. Build it
+                // unsigned: shifting a negative signed value left is undefined
+                // behaviour (UBSan flags it). The high 32 bits hold tx, the low 32
+                // hold ty, both via their bit pattern.
+                const std::uint64_t key = (static_cast<std::uint64_t>(static_cast<std::uint32_t>(tx)) << 32)
+                                        | static_cast<std::uint32_t>(ty);
                 const auto it = cache.find(key);
                 if (it != cache.end())
                         return it->second;
