@@ -6,6 +6,7 @@ add_executable(unit_tests
     test_config.cpp
     test_logger.cpp
     test_map_generator.cpp
+    test_entity_decision.cpp
 )
 
 # The helper headers under test are header-only; expose them directly.
@@ -13,6 +14,7 @@ add_executable(unit_tests
 target_include_directories(unit_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/helpers
     ${CMAKE_SOURCE_DIR}/src/pch
+    ${CMAKE_SOURCE_DIR}/src/entity_manager
 )
 
 # Tests read config/map_data.json; ctest runs from the build tree, so bake in
@@ -29,6 +31,7 @@ target_link_libraries(unit_tests PRIVATE
     SFML::Graphics
     SFML::Window
     MapGenerator
+    EntityManager
 )
 
 if(OpenGL_FOUND)

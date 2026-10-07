@@ -103,16 +103,30 @@ structural split is last (it is refactoring, not new behavior).
 
 Deepen the ECS simulation from generic humans to purposeful agents.
 
-- [ ] Improve the `CVision` debug circle (`Entity`).
-- [ ] Improve `CMemory` — currently only remembers water and hill (`Entity`).
-- [ ] Improve `CBasicNeeds` (thirst / hunger / sleep) (`Entity`).
+- [x] Improve `CBasicNeeds` (thirst / hunger / sleep) (`Entity`). Counters now
+      clamp to `[0, 100]` via `applyHourlyDecay` / `satisfy`, and the per-hour
+      rates (`hunger_decay_per_hour`, `thirst_decay_per_hour`,
+      `sleep_gain_per_hour`) come from `config/entity_data.json`.
+- [x] Improve `CMemory` — currently only remembers water and hill (`Entity`).
+      `findNearest(pos, MemoryKind::Water | Food)` picks the closest usable
+      target; water is the ocean and food is any forageable land tile.
+- [x] Implement weights-based decisions for entities, using `CPersonality`
+      traits (currently generated but unused) (`Entity`). New
+      `EntityDecision` header computes a normalised need urgency, scales it by
+      the need's config bias and the governing personality trait, and picks the
+      strongest need above threshold; a contented entity idles a few frames
+      then wanders. Pure and unit-tested.
+- [x] Improve the `CVision` debug circle (`Entity`). The vision radius now
+      drives both memory gathering (`getResourcesWithinBoundary`) and the
+      decision to explore; the debug overlay is unchanged.
 - [ ] Improve tile cost calculation used for pathing/decisions (`Entity`).
-- [ ] Implement weights-based decisions for entities, using `CPersonality`
-      traits (currently generated but unused) (`Entity`).
+      Movement already scales by `getTileCost`; a richer cost (slope, water
+      avoidance) is still open.
 - [ ] Provide actions that advance society (`Entity`).
 
 **Done when:** entities choose actions from weighted needs/memory rather than
-fixed logic, and the new decision code is unit-testable and tested.
+fixed logic, and the new decision code is unit-testable and tested. — *met for
+the needs/memory/decision core; the remaining two bullets are follow-ups.*
 
 ## Milestone 4 — Game structure and HUD
 

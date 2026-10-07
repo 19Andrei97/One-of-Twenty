@@ -16,6 +16,10 @@
 		"file": "config/map_data.json"
 	},
 
+		"entity": {
+			"file": "config/entity_data.json"
+		},
+
 	"hud": {
 		"file": "config/hud_menu_data.json"
 	},
