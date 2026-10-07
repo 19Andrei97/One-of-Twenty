@@ -33,8 +33,10 @@ The engine core is in place:
 
 Stabilize the existing code before adding features.
 
-- [ ] Re-check all objects for dynamic allocation of big objects; remove
-      unnecessary heap churn (`General`).
+- [x] Re-check all objects for dynamic allocation of big objects; remove
+      unnecessary heap churn (`General`). Removed the unused `sf::Text` member,
+      made `Camera::cInput` a value, and replaced the per-tile color lookup and
+      the second tile grid in `MapGenerator::generateChunk`.
 - [ ] Revisit thread-safe access to the shared chunk map: replace the single
       `t_mutex` with a finer-grained or lock-free structure if contention grows
       (`General`).
@@ -42,8 +44,9 @@ Stabilize the existing code before adding features.
       into proper classes with encapsulated state (`Components`).
 - [ ] Update chunk unload to double-check that no entity or pending change
       still references the chunk before eviction (`MapGenerator`).
-- [ ] Expose the logger level through `config.json` instead of hardcoding it
-      (`Game`).
+- [x] Expose the logger level through `config.json` instead of hardcoding it
+      (`Game`). Added `logger.level` (parsed case-insensitively, unknown values
+      throw) and covered it with tests.
 
 **Done when:** the build is warning-clean, sanitizer CI stays green, and no
 behavior changes are visible in-game.

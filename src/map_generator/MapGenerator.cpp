@@ -3,9 +3,9 @@
 #include "MapGenerator.h"
 
 /*
-*	Decide which color for the biome.
+*	Decide which element belongs at a world coordinate.
 */
-sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord) {
+Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord) {
 
 	sf::Vector2f coord_f = static_cast<sf::Vector2f>(coord);
 
@@ -19,39 +19,46 @@ sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord) {
 
 	// --- OCEAN ---
 
-	if (continent < m_thresholds[Elements::very_deep_ocean]) return m_biomes[Elements::very_deep_ocean];
-	if (continent < m_thresholds[Elements::deep_ocean]) return m_biomes[Elements::deep_ocean];
-	if (continent < m_thresholds[Elements::ocean]) return m_biomes[Elements::ocean];
-	if (continent < m_thresholds[Elements::sand]) return m_biomes[Elements::sand];
+	if (continent < m_thresholds[Elements::very_deep_ocean]) return Elements::very_deep_ocean;
+	if (continent < m_thresholds[Elements::deep_ocean]) return Elements::deep_ocean;
+	if (continent < m_thresholds[Elements::ocean]) return Elements::ocean;
+	if (continent < m_thresholds[Elements::sand]) return Elements::sand;
 
 	// --- CONTINENT ---
 	if (continent < m_thresholds[Elements::hill])
 	{
 		if (mineral > m_thresholds[Elements::clay])
-			return m_biomes[Elements::clay];
+			return Elements::clay;
 
-		return m_biomes[Elements::hill];
+		return Elements::hill;
 	}
 
 	if (continent < m_thresholds[Elements::forest])
 	{
 		if (mineral > m_thresholds[Elements::iron])
-			return m_biomes[Elements::iron];
+			return Elements::iron;
 
-		return m_biomes[Elements::forest];
+		return Elements::forest;
 	}
 
 
 	if (continent < m_thresholds[Elements::muntain])
 	{
 		if (mineral > m_thresholds[Elements::silver])
-			return m_biomes[Elements::silver];
+			return Elements::silver;
 
-		return m_biomes[Elements::muntain];
+		return Elements::muntain;
 	}
 
 
-	return m_biomes[Elements::snow];
+	return Elements::snow;
+}
+
+/*
+*	Decide which color for the biome.
+*/
+sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord) {
+	return m_biomes[getBiomeElement(coord)];
 }
 
 /*
@@ -63,10 +70,14 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 	chunk->position = position;
 	chunk->vertices.setPrimitiveType(sf::PrimitiveType::Triangles);
 
-	// Step 1: store colors of all tiles
 	const int tiles_per_side{ height * width / m_tile_size_px };
 
-	std::vector<std::vector<sf::Color>> colors(tiles_per_side, std::vector<sf::Color>(tiles_per_side));
+	const std::size_t tile_count = static_cast<std::size_t>(tiles_per_side) * tiles_per_side;
+
+	// Classify every tile once, into a single flat buffer (row-major). Keeping
+	// the element alongside its color lets the greedy pass below compare colors
+	// directly instead of re-running the noise or doing a reverse color lookup.
+	std::vector<std::pair<Elements, sf::Color>> tiles(tile_count);
 
 	for (int ty = 0; ty < tiles_per_side; ++ty)
 	{
@@ -74,33 +85,30 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 		{
 			sf::Vector2i world{ position.x + tx * m_tile_size_px, position.y + ty * m_tile_size_px };
 
-			colors[ty][tx] = getBiomeColor(world);
-
-			// TO BE IMPROVED, TEST
-			for (auto& [el, val] : m_biomes)
-			{
-				if (val == colors[ty][tx])
-					chunk->tile_types[sf::Vector2i{ tx, ty }] = el;
-			}
+			const Elements element = getBiomeElement(world);
+			tiles[static_cast<std::size_t>(ty) * tiles_per_side + tx] = { element, m_biomes[element] };
+			chunk->tile_types[sf::Vector2i{ tx, ty }] = element;
 		}
 	}
 
-	// Step 2: scan rectangles of same color
-	std::vector<std::vector<bool>> visited(tiles_per_side, std::vector<bool>(tiles_per_side, false));
+	// Greedy pass: merge runs of the same color into rectangles. Tiles already
+	// covered by a rectangle are marked so the scan never emits them twice. The
+	// visited grid is flat and bit-packed, one allocation for the whole chunk.
+	std::vector<bool> visited(tile_count, false);
 
 	for (int y = 0; y < tiles_per_side; ++y)
 	{
 		for (int x = 0; x < tiles_per_side; ++x)
 		{
-			if (visited[y][x]) continue;
+			if (visited[static_cast<std::size_t>(y) * tiles_per_side + x]) continue;
 
-			sf::Color base = colors[y][x];
+			const sf::Color base = tiles[static_cast<std::size_t>(y) * tiles_per_side + x].second;
 
 			// Step 1: find maximum possible width
 			int maxW = 0;
 			while (x + maxW < tiles_per_side &&
-				colors[y][x + maxW] == base &&
-				!visited[y][x + maxW]) {
+				tiles[static_cast<std::size_t>(y) * tiles_per_side + (x + maxW)].second == base &&
+				!visited[static_cast<std::size_t>(y) * tiles_per_side + (x + maxW)]) {
 				maxW++;
 			}
 
@@ -112,7 +120,8 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 			while (expand && y + h < tiles_per_side) {
 				// check row y+h for consistency up to current maxW
 				for (int w = 0; w < maxW; ++w) {
-					if (colors[y + h][x + w] != base || visited[y + h][x + w]) {
+					const std::size_t idx = static_cast<std::size_t>(y + h) * tiles_per_side + (x + w);
+					if (tiles[idx].second != base || visited[idx]) {
 						maxW = w; // shrink width if mismatch found
 						break;
 					}
@@ -145,7 +154,7 @@ std::shared_ptr<MapGenerator::Chunk> MapGenerator::generateChunk(const int heigh
 			// Step 4: mark visited
 			for (int yy = 0; yy < bestH; ++yy)
 				for (int xx = 0; xx < bestW; ++xx)
-					visited[y + yy][x + xx] = true;
+					visited[static_cast<std::size_t>(y + yy) * tiles_per_side + (x + xx)] = true;
 		}
 	}
 
@@ -381,27 +390,13 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
         return result;
     }
 
-    // Find world tile and biome color
+    // Find world tile and its element
     sf::Vector2i tile = worldToTile(pos);
     sf::Vector2i tileWorld = tileToWorld(tile);
-    sf::Color tileColor = getBiomeColor(pos);
 
-    for (const auto& [key, color] : m_biomes) 
-	{
-        if (color == tileColor)
-        {
-			result.push_back("Type: " + std::to_string(static_cast<int>(key)));
-            break;
-        }
-    }
-
-    if(result.empty())
-        result.push_back("Unknown");
-    else
-    {
-        result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
-        result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
-    }
+    result.push_back("Type: " + std::to_string(static_cast<int>(getBiomeElement(pos))));
+    result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
+    result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
 
     return result;
 }
@@ -458,18 +453,14 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 			if (dist > radius)
 				continue;
 
-			sf::Color color = getBiomeColor(tileWorldPos);
+			const Elements element = getBiomeElement(tileWorldPos);
 
-			for (const auto& [element, biomeColor] : m_biomes)
+			if (element == Elements::ocean || element == Elements::hill)
 			{
-				if ((element == Elements::ocean || element == Elements::hill) && color == biomeColor)
+				auto it = closest.find(element);
+				if (it == closest.end() || dist < it->second.first)
 				{
-					auto it = closest.find(element);
-					if (it == closest.end() || dist < it->second.first)
-					{
-						closest[element] = { dist, tileWorldPos }; // store world coords
-					}
-					break; // biome found → skip rest
+					closest[element] = { dist, tileWorldPos }; // store world coords
 				}
 			}
 		}
@@ -504,17 +495,17 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 		pos.y / m_tile_size_px * m_tile_size_px + m_tile_size_px / 2 
 	};
 
-	sf::Color tileColor{ getBiomeColor(tile) };
+	const Elements element{ getBiomeElement(tile) };
 
-	if (tileColor == m_biomes[Elements::hill])
+	if (element == Elements::hill)
 		return 1;
-	if (tileColor == m_biomes[Elements::forest])
+	if (element == Elements::forest)
 		return 0.8;
-	if (tileColor == m_biomes[Elements::sand])
+	if (element == Elements::sand)
 		return 0.5;
-	if (tileColor == m_biomes[Elements::muntain])
+	if (element == Elements::muntain)
 		return 0.5;
-	if (tileColor == m_biomes[Elements::snow] || tileColor == m_biomes[Elements::ocean])
+	if (element == Elements::snow || element == Elements::ocean)
 		return 0.3;
 
 	

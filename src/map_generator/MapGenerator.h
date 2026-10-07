@@ -196,6 +196,7 @@ public:
 	}
 
 	// GETTERS
+	Elements						getBiomeElement(const sf::Vector2i& coord);
 	sf::Color						getBiomeColor(const sf::Vector2i& coord);
 	int							getTileSize()				const	{ return m_tile_size_px; }
 	int							getSeed()					const	{ return m_seed; }

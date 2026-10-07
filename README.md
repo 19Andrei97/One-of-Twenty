@@ -147,7 +147,9 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
 
 ### General
-- Re-check all objects for dynamic allocation of big objects.
+- [x] Re-check all objects for dynamic allocation of big objects. Removed the
+  unused `sf::Text` member, the heap-allocated `Camera::cInput`, the per-tile
+  color lookup in `generateChunk`, and the second (bit-packed) tile grid.
 - Thread-safe access to the shared chunk map is guarded by a single mutex;
   revisit with a finer-grained or lock-free structure if contention grows.
 
@@ -172,7 +174,7 @@ See [ROADMAP.md](ROADMAP.md) for these items organized into milestones.
 
 ### Game
 - Implement a `Scene` class, pass inputs to scenes.
-- Expose the logger level through `config.json`.
+- [x] Expose the logger level through `config.json` (key `logger.level`).
 
 ### Entity
 - Improve CVision component debug circle.

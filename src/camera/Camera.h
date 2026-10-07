@@ -12,8 +12,8 @@ public:
 	Camera() = default;
 	Camera(int width, int height);
 
-	// COMPONENTS POINTERS
-	std::shared_ptr<CInput>		cInput;
+	// INPUT STATE
+	CInput		cInput;
 
 	// SETTERS
 	void setCamera(int width, int height);

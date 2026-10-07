@@ -10,7 +10,7 @@ Game::Game(const std::string& path)
 	nlohmann::json data = loadJsonFile(path);
 
 	// LOGGER
-	Logger::init(data["logger"]["file"]);
+	Logger::init(data["logger"]["file"], data["logger"].value("level", std::string{ "debug" }));
 
 	// WINDOW AND FRAME
 	sf::State state;
@@ -37,12 +37,6 @@ Game::Game(const std::string& path)
 		std::cerr << "Could not load font!\n";
 	}
 
-	LOG_DEBUG("Creating Text.");
-	m_text = std::make_unique<sf::Text>(m_font);
-	m_text->setFont(m_font);
-	m_text->setCharacterSize(data["font"]["size"]);
-	m_text->setFillColor(sf::Color(data["font"]["color"][0], data["font"]["color"][1], data["font"]["color"][2]));
-
 	// MAP GENERATION
 	LOG_DEBUG("Creating Map Generator.");
 	m_map = std::make_shared<MapGenerator>(m_font, m_currentFrame, data["map"]["file"]);
@@ -56,7 +50,6 @@ Game::Game(const std::string& path)
 	// CAMERA
 	LOG_DEBUG("Creating Camera.");
 	m_camera = std::make_unique<Camera>(data["window"]["width"], data["window"]["height"]);
-	m_camera->cInput = std::make_shared<CInput>();
 	m_window.setView(m_camera->getCamera());
 
 	// ENTITIES MANAGER
@@ -108,20 +101,20 @@ void Game::sMovement()
 	m_entity_manager->update();
 
 
-	if (m_camera->cInput->up)
+	if (m_camera->cInput.up)
 	{
 		m_camera->move(0, -m_camera->getVelocity() * m_deltaTime);
 		m_current_position.y -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-	} else if (m_camera->cInput->down)
+	} else if (m_camera->cInput.down)
 	{
 		m_camera->move(0, m_camera->getVelocity() * m_deltaTime);
 		m_current_position.y += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
 	}
-	if (m_camera->cInput->left)
+	if (m_camera->cInput.left)
 	{
 		m_camera->move(-m_camera->getVelocity() * m_deltaTime, 0);
 		m_current_position.x -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-	} else if (m_camera->cInput->right)
+	} else if (m_camera->cInput.right)
 	{
 		m_camera->move(m_camera->getVelocity() * m_deltaTime, 0);
 		m_current_position.x += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
@@ -170,13 +163,13 @@ void Game::sUserInput()
 			if (!m_paused)
 			{
 				if (keyPressed->code == sf::Keyboard::Key::W)
-					m_camera->cInput->up = true;
+					m_camera->cInput.up = true;
 				if (keyPressed->code == sf::Keyboard::Key::S)
-					m_camera->cInput->down = true;
+					m_camera->cInput.down = true;
 				if (keyPressed->code == sf::Keyboard::Key::A)
-					m_camera->cInput->left = true;
+					m_camera->cInput.left = true;
 				if (keyPressed->code == sf::Keyboard::Key::D)
-					m_camera->cInput->right = true;
+					m_camera->cInput.right = true;
 				if (keyPressed->code == sf::Keyboard::Key::M)
 					m_map->setSeed();
 				if (keyPressed->code == sf::Keyboard::Key::G)
@@ -193,16 +186,16 @@ void Game::sUserInput()
 				switch (keyReleased->code)
 				{
 				case sf::Keyboard::Key::W:
-					m_camera->cInput->up = false;
+					m_camera->cInput.up = false;
 					break;
 				case sf::Keyboard::Key::S:
-					m_camera->cInput->down = false;
+					m_camera->cInput.down = false;
 					break;
 				case sf::Keyboard::Key::A:
-					m_camera->cInput->left = false;
+					m_camera->cInput.left = false;
 					break;
 				case sf::Keyboard::Key::D:
-					m_camera->cInput->right = false;
+					m_camera->cInput.right = false;
 					break;
 				case sf::Keyboard::Key::G:
 					m_map->setDebugWireFrame(false);
