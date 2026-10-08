@@ -60,10 +60,17 @@ std::string makeVariantConfig(const std::string& name, const std::function<void(
     return path.string();
 }
 
-// Water is the only biome family with a zero red channel.
+// Classify by element, not by colour: the palette may give shallow water a
+// non-zero red channel, and fresh water (lakes/rivers) must be distinguishable
+// from the ocean.
 bool isWater(MapGenerator& generator, const sf::Vector2i& world)
 {
-    return generator.getBiomeColor(world).r == 0;
+    return Resources::isWater(generator.getBiomeElement(world));
+}
+
+bool isOcean(MapGenerator& generator, const sf::Vector2i& world)
+{
+    return Resources::isOcean(generator.getBiomeElement(world));
 }
 } // namespace
 
@@ -171,10 +178,10 @@ TEST_CASE("island mode surrounds the origin with water")
     for (int i = 0; i < samples; ++i)
     {
         const int offset = (i - samples / 2) * tileSize * 4;
-        originWater += isWater(*generator, { offset, offset }) ? 1 : 0;
+        originWater += isOcean(*generator, { offset, offset }) ? 1 : 0;
 
         const int edge = edgeTiles * tileSize;
-        edgeWater += isWater(*generator, { edge + offset, edge + offset }) ? 1 : 0;
+        edgeWater += isOcean(*generator, { edge + offset, edge + offset }) ? 1 : 0;
     }
 
     // Origins should hold some land; the far edge must be fully ocean.
@@ -232,6 +239,89 @@ TEST_CASE("rivers carve water into otherwise dry land")
     CHECK(extraWater > 0);
     CHECK(addedWater > 0);
     CHECK(land > 0);
+}
+
+TEST_CASE("lakes carve fresh water into otherwise dry land")
+{
+    int frames = 0;
+
+    // Same seed, lakes off vs on: lakes must add water without removing any, and
+    // must leave the map mostly dry.
+    const std::string plainConfig = makeVariantConfig("lake_off", [](nlohmann::json& js) {
+        js["island"]["enabled"] = false;
+        js["river"]["enabled"] = false;
+        js["lake"]["enabled"] = false;
+    });
+    const std::string lakeConfig = makeVariantConfig("lake_on", [](nlohmann::json& js) {
+        js["island"]["enabled"] = false;
+        js["river"]["enabled"] = false;
+        js["lake"]["enabled"] = true;
+        js["lake"]["level"] = 0.30;
+        js["lake"]["threshold"] = 0.55;
+    });
+
+    auto plain = std::make_unique<MapGenerator>(frames, plainConfig);
+    plain->setSeed(2024);
+    plain->setNoises();
+
+    auto lake = std::make_unique<MapGenerator>(frames, lakeConfig);
+    lake->setSeed(2024);
+    lake->setNoises();
+
+    const int tileSize = plain->getTileSize();
+    int lakes = 0;
+    int removedWater = 0;
+    int land = 0;
+    constexpr int range = 1500;
+    for (int x = -range; x <= range; x += 2 * tileSize)
+    {
+        for (int y = -range; y <= range; y += 2 * tileSize)
+        {
+            const Elements e = lake->getBiomeElement({ x, y });
+            if (e == Elements::lake) ++lakes;
+            if (Resources::isWater(e)) continue;
+            ++land;
+            if (Resources::isWater(plain->getBiomeElement({ x, y }))) ++removedWater;
+        }
+    }
+
+    CHECK(lakes > 0);
+    CHECK(land > 0);
+    CHECK(removedWater == 0);
+}
+
+TEST_CASE("fresh water is drinkable and distinguished from the ocean")
+{
+    int frames = 0;
+    auto generator = makeGenerator(frames);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    // The accessor classification is what survival and knowledge rely on.
+    CHECK(Resources::isWater(Elements::lake));
+    CHECK(Resources::isWater(Elements::river));
+    CHECK(Resources::isWater(Elements::ocean));
+    CHECK_FALSE(Resources::isWater(Elements::very_deep_ocean));
+    CHECK_FALSE(Resources::isWater(Elements::sand));
+
+    CHECK(Resources::isOcean(Elements::ocean));
+    CHECK_FALSE(Resources::isOcean(Elements::lake));
+    CHECK_FALSE(Resources::isOcean(Elements::river));
+
+    // Every lake/river tile found in the world is walkable, so an entity can
+    // stand on it to drink.
+    const int tileSize = generator->getTileSize();
+    int fresh = 0;
+    constexpr int range = 1200;
+    for (int x = -range; x <= range; x += tileSize)
+        for (int y = -range; y <= range; y += tileSize)
+        {
+            const Elements e = generator->getBiomeElement({ x, y });
+            if (e != Elements::lake && e != Elements::river) continue;
+            ++fresh;
+            CHECK(MoveCost::moveCost(e) > 0.f);
+        }
+    CHECK(fresh > 0);
 }
 
 TEST_CASE("setChunkUnload reports when no chunk is loaded")
@@ -515,12 +605,13 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
         {
             const Elements e = generator->getBiomeElement({ x, y });
             ++total;
-            if (isWater(*generator, { x, y })) ++water;
+            if (isOcean(*generator, { x, y })) ++water;
             if (e == Elements::mountain || e == Elements::snow) ++high;
         }
     }
 
-    // Max 0.3 sits below the sand threshold (0.5), so no tile is above the beach.
+    // Max 0.3 sits below the sand threshold, so no tile is above the beach: the
+    // capped lowlands become sea (some of it too deep to stand in).
     CHECK(high == 0);
     CHECK(water > 0);
     CHECK(total > 0);
@@ -541,7 +632,7 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
     int floodedWater = 0;
     for (int x = -range; x <= range; x += 3 * tileSize)
         for (int y = -range; y <= range; y += 3 * tileSize)
-            if (isWater(*flooded, { x, y })) ++floodedWater;
+            if (isOcean(*flooded, { x, y })) ++floodedWater;
 
     CHECK(floodedWater == 0);
 }

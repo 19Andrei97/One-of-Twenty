@@ -82,6 +82,18 @@ void Hud::registerDefaultCallbacks()
                         m_map->setMineralMult(val);
                 onMapChanged();
         });
+
+        registerSliderCallback("lake_level", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setLakeLevel(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("river_threshold", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setRiverThreshold(val);
+                onMapChanged();
+        });
 }
 
 void Hud::init()

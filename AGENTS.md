@@ -126,9 +126,24 @@ A run that is killed by `timeout` (exit 124) is a success; check
   `tileToWorld` / `worldToTile` (`helpers/CoordMath.h`). Noise is sampled in
   tile space so terrain does not depend on `tile_size`.
 - `generateChunk(tiles_per_side, tile_position)` takes the tile position
-  directly; islands and rivers are opt-in via `island.*` / `river.*` in
-  `config/map_data.json` and default to off. `height_range.min`/`max` remap
-  the continent field before thresholds (default `[0,1]` = identity).
+  directly; islands, rivers and lakes are opt-in via `island.*` / `river.*` /
+  `lake.*` in `config/map_data.json`. `height_range.min`/`max` remap the
+  continent field before thresholds (default `[0,1]` = identity).
+- Rivers are the zero crossing of a *single low-frequency Perlin* field
+  (`river.freq` ~0.0035, `river.threshold` ~0.012). One octave keeps the zero
+  contour a long, smooth, meandering channel; a ridged/multi-octave field
+  shatters the same coverage into thousands of disconnected specks (measured:
+  ~2k components vs ~140). Do not re-add octaves to the river field.
+- Lakes flood a low basin (elevation between `lake.level` and the `hill`
+  threshold) where the lake field peaks, and are checked *before* the beach so a
+  basin reads as water, not sand. A low `lake.freq` (~0.004) with a high
+  `lake.threshold` (~0.62) gives a few larger, natural basins rather than many
+  small ones.
+- The map palette (`elements` in `config/map_data.json`) is deliberately dark
+  and desaturated (muted ocean/forest/sand, only snow is bright) so the map does
+  not read as psychedelic. `height_range.min` above ~0.1 also removes the wide
+  flat sandy lowlands; values at or below ~0.05 strand the seeded settlement far
+  from drinkable water (the entity-pathing run test dies out).
 - A chunk's `tile_types` is the authoritative per-tile map: `elementAtTile`
   only seeds it at generation, and `buildChunkVertices` derives the drawn mesh
   from it. Edit tiles through `setTileColor` (which rebuilds the mesh) rather

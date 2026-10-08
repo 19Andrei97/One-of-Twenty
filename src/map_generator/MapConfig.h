@@ -27,13 +27,30 @@ struct MapConfig
 	float                           cont_freq{ 0.023f };
 	float                           warp_freq{ 0.007f };
 	float                           mineral_freq{ 0.004f };
-	float                           river_freq{ 0.01f };
+	float                           river_freq{ 0.0035f };
 
 	bool                            island_enabled{ false };
 	float                           island_falloff{ 0.4f };
 
 	bool                            river_enabled{ false };
-	float                           river_threshold{ 0.03f };
+	float                           river_threshold{ 0.018f };
+
+	// Domain warp: how far (in tiles) the shared warp field may bend a
+	// coordinate. Larger values give more sinuous coastlines and river bends.
+	float                           warp_amplitude{ 45.0f };
+
+	// Ridged highland detail: strength is a fraction of the base elevation, so
+	// it only roughens the peaks; frequency is its own field's scale.
+	float                           mountain_strength{ 0.35f };
+	float                           mountain_freq{ 0.02f };
+
+	// Lakes: a low basin (elevation between lake_level and the sand band)
+	// floods where the lake field peaks. `lake_level` is the elevation floor so
+	// a lake sits above the sea, not merged into it.
+	bool                            lake_enabled{ false };
+	float                           lake_freq{ 0.004f };
+	float                           lake_level{ 0.30f };
+	float                           lake_threshold{ 0.62f };
 
 	// Depth/height range the continent field is remapped into. Defaults to the
 	// full [0,1] so the classic map is unchanged; shrinking it lowers the peaks
@@ -84,11 +101,23 @@ inline MapConfig loadMapConfig(const std::string& path)
 		cfg.island_falloff = js_map["island"].value("falloff", 0.4f);
 	}
 
+	cfg.warp_amplitude = js_map.value("warp_amplitude", cfg.warp_amplitude);
+	cfg.mountain_strength = js_map.value("mountain_strength", cfg.mountain_strength);
+	cfg.mountain_freq = js_map.value("mountain_freq", cfg.mountain_freq);
+
 	if (js_map.contains("river") && js_map["river"].value("enabled", false))
 	{
 		cfg.river_enabled = true;
 		cfg.river_threshold = js_map["river"].value("threshold", 0.03f);
 		cfg.river_freq = js_map["river"].value("freq", 0.01f);
+	}
+
+	if (js_map.contains("lake") && js_map["lake"].value("enabled", false))
+	{
+		cfg.lake_enabled = true;
+		cfg.lake_freq = js_map["lake"].value("freq", 0.012f);
+		cfg.lake_level = js_map["lake"].value("level", 0.45f);
+		cfg.lake_threshold = js_map["lake"].value("threshold", 0.5f);
 	}
 
 	if (js_map.contains("height_range"))
