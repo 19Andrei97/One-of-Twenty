@@ -278,10 +278,19 @@ class CInfoBox
     sf::Color                              m_textColor{ sf::Color::White };
     float                                  m_width{ 0.f };
     float                                  m_lineHeight{ 20.f };
+    // Bottom anchored panels keep a fixed margin from the bottom edge and grow
+    // upward, so the panel stays put as its line count changes.
+    bool                                   m_anchoredBottom{ true };
+    float                                  m_viewHeight{ 0.f };
+    float                                  m_y{ 0.f };
 
     void resizeToFit(size_t lineCount)
     {
-        m_rect.setSize({ m_width, static_cast<float>(lineCount) * m_lineHeight + 40.f });
+        const float height = static_cast<float>(lineCount) * m_lineHeight + 40.f;
+        m_rect.setSize({ m_width, height });
+        if (m_anchoredBottom)
+            m_pos.y = m_viewHeight - height - m_y;
+        m_rect.setPosition(m_pos);
     }
 
 public:
@@ -299,12 +308,15 @@ public:
         float y = 0.f
     )
         : m_rect({ width, height })
-        , m_pos({ x, anchored_bottom ? view.getSize().y - height - y : y })
         , m_font(&font)
         , m_charSize(charSize)
         , m_textColor(text_color)
         , m_width(width)
+        , m_anchoredBottom(anchored_bottom)
+        , m_viewHeight(view.getSize().y)
+        , m_y(y)
     {
+        m_pos = { x, anchored_bottom ? view.getSize().y - height - y : y };
         m_rect.setPosition(m_pos);
         m_rect.setFillColor(fill);
 
@@ -312,6 +324,8 @@ public:
     }
 
     bool empty() const { return m_text.empty(); }
+
+    sf::FloatRect getGlobalBounds() const { return m_rect.getGlobalBounds(); }
 
     // Refresh the lines in place, reusing the existing sf::Text objects and
     // growing the box only when the line count changes. Panels that update every

@@ -132,6 +132,12 @@ public:
 	// HUD ACCESSORIES
 	void infoBox(std::vector<std::string> info);
 
+	// Access to the readout panels, mainly for layout assertions in tests and
+	// for debug overlays. Null until the matching refresh method is called.
+	const CInfoBox* infoBoxWidget() const { return info_box.get(); }
+	const CInfoBox* statsWidget() const { return m_stats.get(); }
+	const CInfoBox* timeWidget() const { return m_time_panel.get(); }
+
 	// Refresh the persistent settlement readout (population, stockpile).
 	void stats(const std::vector<std::string>& lines);
 

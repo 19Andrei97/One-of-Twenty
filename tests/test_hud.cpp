@@ -308,3 +308,45 @@ TEST_CASE("Hud exposes the time-management controls and can relabel them")
     CHECK_NOTHROW(hud.timeReadout({ "Year 1, Spring, Day 1  08:00", "Speed: 1 hour/s" }));
     CHECK_NOTHROW(hud.stats({ "Year 1, Spring, Day 1" }));
 }
+
+
+TEST_CASE("Hud readout panels are pinned to distinct corners and do not overlap")
+{
+    sf::Font font;
+    Hud hud(font, nullptr, "", 1280.f, 720.f);
+    hud.init();
+
+    hud.infoBox({ "Grass", "Elevation: 0.42" });
+    hud.stats({ "Population: 12", "Food: 30" });
+    hud.timeReadout({ "Year 1, Spring, Day 1  08:00", "Speed: 1 hour/s" });
+
+    const CInfoBox* info = hud.infoBoxWidget();
+    const CInfoBox* stats = hud.statsWidget();
+    const CInfoBox* time = hud.timeWidget();
+    REQUIRE(info != nullptr);
+    REQUIRE(stats != nullptr);
+    REQUIRE(time != nullptr);
+
+    const sf::FloatRect infoRect = info->getGlobalBounds();
+    const sf::FloatRect statsRect = stats->getGlobalBounds();
+    const sf::FloatRect timeRect = time->getGlobalBounds();
+
+    // Selection info is pinned to the bottom-right, clear of the top-left
+    // sliders and the top-right clock.
+    CHECK(infoRect.position.y > 720.f / 2.f);
+    CHECK(infoRect.position.x > 1280.f / 2.f);
+    CHECK(infoRect.position.x + infoRect.size.x <= 1280.f + 0.5f);
+    CHECK(infoRect.position.y + infoRect.size.y <= 720.f + 0.5f);
+
+    // Settlement stats sit opposite, at the bottom-left.
+    CHECK(statsRect.position.y > 720.f / 2.f);
+    CHECK(statsRect.position.x < infoRect.position.x);
+
+    // Clock readout stays in the top-right.
+    CHECK(timeRect.position.y < 720.f / 2.f);
+    CHECK(timeRect.position.x > 1280.f / 2.f);
+
+    CHECK_FALSE(infoRect.findIntersection(statsRect).has_value());
+    CHECK_FALSE(infoRect.findIntersection(timeRect).has_value());
+    CHECK_FALSE(statsRect.findIntersection(timeRect).has_value());
+}
