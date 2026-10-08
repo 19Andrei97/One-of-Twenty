@@ -102,4 +102,32 @@ namespace Resources
             default:                        return "unknown";
         }
     }
+
+    // Human-readable label for an element, for the tile info readout. Unlike
+    // name(), this is a display string ("Hill", not the "stone" resource id) and
+    // is safe to reword without breaking the event log or saves.
+    [[nodiscard]] inline const char* displayName(const Elements element) noexcept
+    {
+        switch (element)
+        {
+            case Elements::very_deep_ocean: return "Very Deep Ocean";
+            case Elements::deep_ocean:      return "Deep Ocean";
+            case Elements::ocean:           return "Ocean";
+            case Elements::sand:            return "Sand";
+            case Elements::hill:            return "Hill";
+            case Elements::forest:          return "Forest";
+            case Elements::mountain:        return "Mountain";
+            case Elements::snow:            return "Snow";
+            case Elements::clay:            return "Clay";
+            case Elements::iron:            return "Iron";
+            case Elements::silver:          return "Silver";
+            case Elements::farm:            return "Farm";
+            case Elements::workshop:        return "Workshop";
+            case Elements::house:           return "House";
+            case Elements::city_center:     return "City Center";
+            case Elements::road:            return "Road";
+            case Elements::test:            return "Test";
+            default:                        return "Unknown";
+        }
+    }
 }

@@ -411,10 +411,11 @@ TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
 
     REQUIRE(generator->setTileColor(editedWorld, Elements::test));
 
-    // getPositionInfo must report the stored edit rather than the raw noise.
+    // getPositionInfo must report the stored edit rather than the raw noise, as
+    // a readable terrain name.
     bool reported = false;
     for (const auto& line : generator->getPositionInfo(editedWorld))
-        if (line == "Type: " + std::to_string(static_cast<int>(Elements::test)))
+        if (line == std::string("Type: ") + Resources::displayName(Elements::test))
             reported = true;
     CHECK(reported);
 

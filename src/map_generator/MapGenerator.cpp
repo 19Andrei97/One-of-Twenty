@@ -360,7 +360,7 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 	// edit made through setTileColor.
 	const auto tileIt = it->second->tile_types.find(tile);
 	const Elements element = (tileIt != it->second->tile_types.end()) ? tileIt->second : getBiomeElement(pos);
-	result.push_back("Type: " + std::to_string(static_cast<int>(element)));
+	result.push_back(std::string("Type: ") + Resources::displayName(element));
 	result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
 	result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
 

@@ -324,8 +324,6 @@ void Scene_Play::sUserInput(const sf::Event& event)
 				if (!m_paused && m_camera && m_map)
 				{
 					sf::Vector2f worldPos = m_game->getWindow().mapPixelToCoords(pixel, m_camera->getCamera());
-					if (m_hud)
-						m_hud->infoBox(m_map->getPositionInfo(static_cast<sf::Vector2i>(worldPos)));
 
 					// Map edit
 					m_map->setTileColor(static_cast<sf::Vector2i>(worldPos), Elements::test);
@@ -354,11 +352,24 @@ void Scene_Play::sUserInput(const sf::Event& event)
 	// MOUSE MOVING
 	if (const auto* mouseMoved = event.getIf<sf::Event::MouseMoved>())
 	{
-		if (m_game && m_hud)
+		if (m_game)
 		{
 			auto pixel = sf::Mouse::getPosition(m_game->getWindow());
-			sf::Vector2f mouseHudPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());
-			m_hud->input(*mouseMoved, mouseHudPos);
+
+			if (m_hud)
+			{
+				sf::Vector2f mouseHudPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());
+				m_hud->input(*mouseMoved, mouseHudPos);
+			}
+
+			// Tile info follows the pointer while the simulation runs, so the readout
+			// always shows whatever tile the cursor is over.
+			if (!m_paused && m_camera && m_map)
+			{
+				sf::Vector2f worldPos = m_game->getWindow().mapPixelToCoords(pixel, m_camera->getCamera());
+				if (m_hud)
+					m_hud->infoBox(m_map->getPositionInfo(static_cast<sf::Vector2i>(worldPos)));
+			}
 		}
 	}
 
