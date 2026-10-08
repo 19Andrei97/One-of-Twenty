@@ -20,6 +20,7 @@ enum class Job
     Lumberjack,
     Miner,
     Builder,
+    Explorer,
 
     Count
 };
@@ -40,6 +41,7 @@ inline constexpr std::size_t kJobCount = static_cast<std::size_t>(Job::Count);
         case Job::Lumberjack: return "Lumberjack";
         case Job::Miner:      return "Miner";
         case Job::Builder:    return "Builder";
+        case Job::Explorer:   return "Explorer";
         default:              return "?";
     }
 }
@@ -57,6 +59,7 @@ inline constexpr std::size_t kJobCount = static_cast<std::size_t>(Job::Count);
     if (lower == "lumberjack") return Job::Lumberjack;
     if (lower == "miner")      return Job::Miner;
     if (lower == "builder")    return Job::Builder;
+    if (lower == "explorer")   return Job::Explorer;
     if (lower == "idle")       return Job::Idle;
     return std::nullopt;
 }

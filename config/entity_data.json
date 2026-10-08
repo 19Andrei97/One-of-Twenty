@@ -20,8 +20,14 @@
         "Human_Generic":    { "job": "builder" },
         "Human_Farmer":     { "job": "farmer" },
         "Human_Lumberjack": { "job": "lumberjack" },
+        "Human_Explorer":   { "job": "explorer" },
         "Animal_Dog":       { "job": "idle" },
         "Animal_Cat":       { "job": "idle" }
+    },
+
+    "knowledge": {
+        "cell_size": 8,
+        "max_cells": 65536
     },
 
     "economy": {
@@ -29,7 +35,8 @@
             "farmer": 4,
             "lumberjack": 2,
             "miner": 1,
-            "builder": 1
+            "builder": 1,
+            "explorer": 1
         },
         "food_spoilage_percent_per_day": 5,
         "farm_wood_cost": 5,

@@ -26,8 +26,13 @@ The engine core and the survival loop are in place:
 - Data-driven HUD (buttons, sliders, input boxes) loaded from JSON, with named
   callbacks, multiple levels and a persistent stats panel (`src/hud`,
   `config/hud_menu_data.json`).
-- Weighted, personality-scaled entity decisions over needs and memory, with
-  terrain-cost movement and a gather-to-stockpile work loop (`src/entity_manager`).
+- Weighted, personality-scaled entity decisions over needs and a settlement-wide
+  shared map knowledge store (`helpers/Knowledge.h`), with terrain-cost movement
+  and a gather-to-stockpile work loop (`src/entity_manager`). What one entity
+  observes is known to all, so the store does not grow with the population.
+- **Exploration.** An `Explorer` job roams to fresh land tiles while everyone
+  else gathers; its vision scan extends the settlement's explored cells, and the
+  HUD reports how much of the map the civilization has seen.
 - **Pathfinding and collision.** Entities route over the terrain cost map with a
   pure A* (`helpers/Pathfinding.h`) instead of walking in a straight line, so
   they go around oceans and prefer cheap ground. `Scene_Play::sCollision` keeps
@@ -51,7 +56,8 @@ The engine core and the survival loop are in place:
   run produces a story instead of a static crowd.
 - **Settlement economy and jobs.** Entities have roles (`helpers/Jobs.h`) bound
   to their type through the `entity_types` block, so farmers, lumberjacks,
-  miners and builders gather their preferred resource; gathers bank into a
+  miners, builders and explorers pursue their role (explorers map the frontier
+  rather than gather); gathers bank into a
   per-good stockpile (`helpers/Goods.h`), the shortage rule reassigns idle
   entities to understaffed jobs (`helpers/Economy.h`), farms and workshops run
   recipes, food spoils daily, and eating draws on the store. Buildings are placed

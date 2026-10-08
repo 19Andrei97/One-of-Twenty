@@ -2,6 +2,7 @@
 #include "EntityManager.h"
 #include "EventLog.h"
 #include "GameClock.h"
+#include "Knowledge.h"
 #include "MapGenerator.h"
 #include "RunSummary.h"
 
@@ -264,11 +265,10 @@ TEST_CASE("a busy entity drops a wander for a critical need in the update loop")
     const entt::entity entity = entities.addEntity(EntityType::Human_Generic, spawn);
     REQUIRE(entities.entityCount() == 1);
 
-    // One update lets the entity remember nearby water/food in its vision.
+    // One update lets the settlement remember nearby water/food in its shared
+    // knowledge.
     entities.update();
-    auto* memory = entities.memoryOf(entity);
-    REQUIRE(memory != nullptr);
-    const bool knowsWater = memory->findNearest(spawn, MemoryKind::Water).has_value();
+    const bool knowsWater = entities.knowledge().findNearest(spawn, CivKnowledge::Kind::Water).has_value();
 
     // Force the entity onto a long, non-survival errand and make it critically
     // thirsty. The update should abandon the wander for a drink.
@@ -334,4 +334,73 @@ TEST_CASE("a fresh settlement survives its first day within the population cap")
 
     CHECK(entities.births() >= 0);
     CHECK(entities.deaths() >= 0);
+}
+
+// CivKnowledge is a pure value type (Chunk.h + Resources.h only), so it is
+// tested directly without a map or registry.
+TEST_CASE("shared knowledge merges observations and deduplicates tiles")
+{
+    CivKnowledge knowledge(8);
+
+    const std::unordered_map<Elements, sf::Vector2i> first{
+        { Elements::ocean, { 10, 10 } },
+        { Elements::forest, { 20, 20 } },
+    };
+    knowledge.remember(first);
+    CHECK(knowledge.knownLocations() == 2);
+    CHECK(knowledge.location(Elements::ocean, { 0, 0 }) == std::optional<sf::Vector2i>{ { 10, 10 } });
+
+    // Re-observing the same tiles adds nothing, so knowledge does not grow with
+    // repeated scans of the same area.
+    knowledge.remember(first);
+    CHECK(knowledge.knownLocations() == 2);
+
+    // A second entity's observation merges into the one shared store.
+    knowledge.remember({ { Elements::ocean, { 50, 50 } } });
+    CHECK(knowledge.knownLocations() == 3);
+}
+
+TEST_CASE("shared knowledge finds the nearest remembered location of a kind")
+{
+    CivKnowledge knowledge(8);
+    knowledge.remember({ { Elements::ocean, { 100, 0 } } });
+    knowledge.remember({ { Elements::ocean, { 5, 0 } } });
+    knowledge.remember({ { Elements::forest, { 9, 0 } } });
+
+    // Water covers every ocean tile; the nearest to the query wins.
+    CHECK(knowledge.findNearest({ 0, 0 }, CivKnowledge::Kind::Water) == std::optional<sf::Vector2i>{ { 5, 0 } });
+    CHECK(knowledge.findNearest({ 0, 0 }, CivKnowledge::Kind::Food) == std::optional<sf::Vector2i>{ { 9, 0 } });
+
+    // Querying from elsewhere returns the nearer of the known water tiles.
+    CHECK(knowledge.findNearest({ 90, 0 }, CivKnowledge::Kind::Water) == std::optional<sf::Vector2i>{ { 100, 0 } });
+}
+
+TEST_CASE("explored coverage is bucketed and bounded by max_cells")
+{
+    CivKnowledge knowledge(8);
+    knowledge.observe({ 0, 0 }, 8);
+    CHECK(knowledge.isExplored({ 0, 0 }));
+    CHECK(knowledge.isExplored({ 7, 7 }));          // same 8-tile cell as the origin
+    CHECK(knowledge.isExplored({ -1, -1 }));        // the cell containing the origin too
+
+    // The cap holds even after many observations: coverage cannot grow without
+    // bound no matter how long the settlement explores.
+    CivKnowledge capped(8, /*max_cells=*/4);
+    for (int i = 0; i < 100; ++i)
+        capped.observe({ i * 40, i * 40 }, 8);
+    CHECK(capped.exploredCells() == 4);
+}
+
+TEST_CASE("the frontier is the nearest unexplored cell")
+{
+    // Nothing observed yet: the unexplored cell underfoot is the frontier, and
+    // it is returned as a cell coordinate (the caller scales it back to tiles).
+    CivKnowledge fresh(8);
+    CHECK(fresh.nearestFrontier({ 3, 3 }) == std::optional<sf::Vector2i>{ { 0, 0 } });
+
+    // With the surrounding cells known, the frontier is the nearest unknown cell
+    // at the edge of the known world.
+    CivKnowledge knowledge(8);
+    knowledge.observe({ 0, 0 }, 0);
+    CHECK(knowledge.nearestFrontier({ 0, 0 }) == std::optional<sf::Vector2i>{ { -2, -2 } });
 }

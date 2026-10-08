@@ -76,6 +76,8 @@ void Scene_Play::refreshStats()
 			+ "   Tools: " + std::to_string(m_entity_manager->good(Goods::Good::Tools)),
 		"Buildings: " + std::to_string(m_entity_manager->buildingCount())
 			+ "   Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
+		"Explored: " + std::to_string(m_entity_manager->knowledge().exploredCells())
+			+ " cells   Known: " + std::to_string(m_entity_manager->knowledge().knownLocations()),
 		lastEventLine(),
 	});
 }

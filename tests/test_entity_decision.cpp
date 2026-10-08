@@ -206,6 +206,16 @@ TEST_CASE("decide returns needs, work, then idles and wanders")
         CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Work);
     }
 
+    SUBCASE("an explorer explores instead of gathering when work is the winning drive")
+    {
+        CBasicNeeds needs; // fully satisfied, so work wins
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0, Jobs::Job::Explorer) == EntityDecision::Need::Explore);
+
+        // Survival still outranks exploration.
+        needs.thirst = 0;
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0, Jobs::Job::Explorer) == EntityDecision::Need::Thirst);
+    }
+
     SUBCASE("work is gated off while a need presses, and an entity too uneasy to work idles")
     {
         // Threshold above what work can ever reach (work peaks at 1.0, but the

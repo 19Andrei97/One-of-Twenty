@@ -64,6 +64,26 @@ A run that is killed by `timeout` (exit 124) is a success; check
   a drink target in the sea is approached from the nearest land tile.
   `Scene_Play::sCollision` calls `EntityManager::resolveCollisions`, which keeps
   entities on land and separates overlapping ones.
+- Entity vision feeds one *settlement-wide* knowledge store,
+  `CivKnowledge` (`helpers/Knowledge.h`, SFML/EnTT-free), not a per-entity
+  memory. Every entity's scan merges into the same store, so a resource found by
+  one is known to all and the store does not grow with the population. Entities
+  carry only `CKnowledgeScan` (the last scanned tile, to avoid rescanning every
+  frame). Knowledge keeps known resource tiles bucketed by element (nearest wins
+  per query) and *coarse* explored cells capped by `max_cells`; do not replace
+  the coarse cells with per-tile coverage or it grows without bound.
+- The `Explorer` job (`Jobs::Job::Explorer`) maps rather than gathers:
+  `EntityDecision::decide` returns `Need::Explore` for it, and
+  `EntityManager::startActionFor` roams to a random land tile within sight (the
+  same local step as `Wander`), never routing to a distant frontier. Do not
+  re-add frontier A*: the frontier drifts as knowledge grows, so it re-planned
+  every leg toward an often-unreachable target (tens of thousands of route
+  attempts over a population run, almost all failing), and each attempt copied a
+  ~1k-tile window. The vision scan the roaming triggers is what grows the map.
+- `copyTileBlock` returns a *dense row-major* `std::vector<Elements>` and its
+  clamped side; `findRoute` reads tiles by index. Keep it dense (not a hash map):
+  the block copy dominates pathfinding, and a hash insert per tile was the bulk
+  of the explorer regression.
 - Observability lives in two pure, SFML/EnTT-free headers: `helpers/EventLog.h`
   (a bounded ring of timestamped events with cause, queried with `countOf`/
   `since`/`recent`) and `helpers/RunSummary.h` (`RunHistory` samples the
