@@ -21,6 +21,15 @@ bool queueHasAction(const CActionsQueue& queue, const ActionTypes type)
                        [type](const std::shared_ptr<CAction>& action)
                        { return action && action->action_name == type; });
 }
+
+// Squared distance between two positions. Squared so comparisons stay integer
+// and avoid a square root in the per-candidate selection loops.
+int squaredDistance(const sf::Vector2i& a, const sf::Vector2i& b) noexcept
+{
+    const int dx = a.x - b.x;
+    const int dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
 } // namespace
 
 void EntityManager::update()
@@ -100,18 +109,21 @@ void EntityManager::update()
 
         // UPDATE ENTITIES
 
-        // Update Memory. The vision scan touches ~1k tiles per entity, so only
-        // redo it when the entity steps onto a new tile: the remembered set
-        // changes slowly and this is the dominant per-frame cost.
-        m_registry->view<CTransform, CMemory, CVision>().each([&](auto entity, auto& trs, auto& memory, auto& vision)
+        // Update the settlement's shared knowledge. The vision scan touches ~1k
+        // tiles per entity, so only redo it when the entity steps onto a new tile:
+        // the known set changes slowly and this is the dominant per-frame cost.
+        // Every entity's observation feeds the same civ-level store, so a resource
+        // found by one is known to all and nothing is duplicated per entity.
+        m_registry->view<CTransform, CKnowledgeScan, CVision>().each([&](auto entity, auto& trs, auto& scan, auto& vision)
         {
                 const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, m_map->getTileSize());
-                if (memory.last_scan_tile && *memory.last_scan_tile == tile)
+                if (scan.last_scan_tile && *scan.last_scan_tile == tile)
                         return;
 
-                memory.last_scan_tile = tile;
+                scan.last_scan_tile = tile;
                 const auto found = m_map->getResourcesWithinBoundary(trs.pos, vision.radius);
-                memory.rememberLocation(found);
+                m_knowledge.remember(found);
+                m_knowledge.observe(tile, static_cast<int>(vision.radius / static_cast<float>(m_map->getTileSize())));
                 for (const auto& [element, pos] : found)
                         recordDiscovery(element);
         });
@@ -271,8 +283,8 @@ void EntityManager::update()
 
         // Decide what each entity should do. A busy entity keeps its plan; an idle
         // one asks the weighted policy and starts the winning action.
-        m_registry->view<CActionsQueue, CTransform, CBasicNeeds, CMemory, CPersonality, CVision, CPath, CJob>()
-                .each([&](auto entity, auto& queue, auto& trs, auto& needs, auto& memory, auto& personality, auto& vision, auto& path, auto& job)
+        m_registry->view<CActionsQueue, CTransform, CBasicNeeds, CPersonality, CVision, CPath, CJob>()
+                .each([&](auto entity, auto& queue, auto& trs, auto& needs, auto& personality, auto& vision, auto& path, auto& job)
         {
                 int& idle = m_entity_idle[entity];
 
@@ -303,9 +315,9 @@ void EntityManager::update()
                                 // explore every frame instead of working toward it.
                                 bool hasTarget = urgent.has_value();
                                 if (urgent == EntityDecision::Need::Thirst)
-                                        hasTarget = memory.findNearest(trs.pos, MemoryKind::Water).has_value();
+                                        hasTarget = m_knowledge.findNearest(trs.pos, CivKnowledge::Kind::Water).has_value();
                                 else if (urgent == EntityDecision::Need::Hunger)
-                                        hasTarget = memory.findNearest(trs.pos, MemoryKind::Food).has_value();
+                                        hasTarget = m_knowledge.findNearest(trs.pos, CivKnowledge::Kind::Food).has_value();
 
                                 if (urgent && hasTarget
                                         && !queueHasAction(queue, EntityDecision::actionFor(*urgent)))
@@ -324,7 +336,7 @@ void EntityManager::update()
                                                 path.waypoints.clear();
                                         }
                                         const ActionTypes wanted = EntityDecision::actionFor(*urgent);
-                                        startActionFor(*urgent, trs.pos, vision.radius, memory, queue, path, job.job);
+                                        startActionFor(*urgent, trs.pos, vision.radius, m_knowledge, queue, path, job.job);
                                         if (queueHasAction(queue, wanted))
                                         {
                                                 idle = 0;
@@ -341,7 +353,7 @@ void EntityManager::update()
                 }
 
                 const EntityDecision::Need need =
-                        EntityDecision::decide(needs, personality, m_config.decision, idle);
+                        EntityDecision::decide(needs, personality, m_config.decision, idle, job.job);
 
                 if (need == EntityDecision::Need::None)
                 {
@@ -349,7 +361,7 @@ void EntityManager::update()
                         return;
                 }
 
-                if (startActionFor(need, trs.pos, vision.radius, memory, queue, path, job.job))
+                if (startActionFor(need, trs.pos, vision.radius, m_knowledge, queue, path, job.job))
                         idle = 0;
         });
 
@@ -413,12 +425,12 @@ void EntityManager::recordDiscovery(const Elements element)
 
 // Translate a decision into queued actions. A need with a remembered target
 // walks there first (routed around water); a need with no memory (or a wander
-// decision) walks to a random land tile so the entity explores and refreshes its
-// memory. Targets that no land route reaches fall back to exploring.
+// decision) walks to a random land tile so the entity explores and refreshes the
+// shared knowledge. Targets that no land route reaches fall back to exploring.
 bool EntityManager::startActionFor(const EntityDecision::Need need,
                                    const sf::Vector2i& pos,
                                    const float visionRadius,
-                                   const CMemory& memory,
+                                   const CivKnowledge& knowledge,
                                    CActionsQueue& queue,
                                    CPath& path,
                                    const Jobs::Job job)
@@ -471,7 +483,7 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                         if (queueHasAction(queue, ActionTypes::Drinking))
                                 return false;
 
-                        if (auto target = memory.findNearest(pos, MemoryKind::Water))
+                        if (auto target = knowledge.findNearest(pos, CivKnowledge::Kind::Water))
                         {
                                 if (queueMoveTo(pos, approachLand(*target), path, queue))
                                 {
@@ -488,7 +500,7 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                         if (queueHasAction(queue, ActionTypes::Eating))
                                 return false;
 
-                        if (auto target = memory.findNearest(pos, MemoryKind::Food))
+                        if (auto target = knowledge.findNearest(pos, CivKnowledge::Kind::Food))
                         {
                                 if (queueMoveTo(pos, *target, path, queue))
                                 {
@@ -513,7 +525,7 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                         if (queueHasAction(queue, ActionTypes::Gathering))
                                 return false;
 
-                        if (auto target = settleElements(memory, job))
+                        if (auto target = settleElements(knowledge, job, pos))
                         {
                                 if (queueMoveTo(pos, target->pos, path, queue))
                                 {
@@ -522,6 +534,20 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                                         return true;
                                 }
                         }
+                        return queueExplore();
+                }
+
+                case EntityDecision::Need::Explore:
+                {
+                        if (queueHasAction(queue, ActionTypes::Moving))
+                                return false;
+
+                        // An explorer roams. It does not route to a distant frontier:
+                        // the frontier moves as knowledge grows, so routing to it every
+                        // leg both re-planned constantly and could pace in place. Walking
+                        // to a random land tile within sight keeps it moving over fresh
+                        // ground, and the vision scan it triggers is what actually grows
+                        // the settlement's shared map.
                         return queueExplore();
                 }
 
@@ -564,20 +590,23 @@ std::optional<std::vector<sf::Vector2i>> EntityManager::findRoute(const sf::Vect
         const sf::Vector2i topLeft{ std::min(startTile.x, goalTile.x) - margin,
                                     std::min(startTile.y, goalTile.y) - margin };
 
-        m_map->copyTileBlock(topLeft, side, m_tile_block);
+        const int blockSide = m_map->copyTileBlock(topLeft, side, m_tile_block);
         const auto& block = m_tile_block;
         // Outside the copied window is unknown; treat it as impassable so the
         // search cannot wander off the snapshot.
         const auto elementAt = [&](const sf::Vector2i& tile) -> Elements
         {
-                const auto it = block.find(tile - topLeft);
-                return (it != block.end()) ? it->second : Elements::very_deep_ocean;
+                const sf::Vector2i rel = tile - topLeft;
+                if (rel.x < 0 || rel.y < 0 || rel.x >= blockSide || rel.y >= blockSide)
+                        return Elements::very_deep_ocean;
+                return block[static_cast<std::size_t>(rel.y) * blockSide + rel.x];
         };
 
         const auto path = Pathfinding::findPath(
                 startTile, goalTile,
                 [&](const sf::Vector2i& tile) { return MoveCost::moveCost(elementAt(tile)); },
-                [&](const sf::Vector2i& tile) { return !Resources::isOcean(elementAt(tile)); });
+                [&](const sf::Vector2i& tile) { return !Resources::isOcean(elementAt(tile)); },
+                Pathfinding::kDefaultNodeCap);
         if (path.empty())
                 return std::vector<sf::Vector2i>{};
 
@@ -974,7 +1003,7 @@ entt::entity EntityManager::addEntity(const EntityType& type, const sf::Vector2i
         m_registry->emplace<CTransform>(entity, spawn, 100.f);
         m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
         m_registry->emplace<CVision>(entity);
-        m_registry->emplace<CMemory>(entity);
+        m_registry->emplace<CKnowledgeScan>(entity);
         m_registry->emplace<CBasicNeeds>(entity);
         m_registry->emplace<CHealth>(entity);
         m_registry->emplace<CPersonality>(entity);
@@ -1196,11 +1225,6 @@ const CActionsQueue* EntityManager::actionsOf(const entt::entity entity) const
         return m_registry->valid(entity) ? m_registry->try_get<CActionsQueue>(entity) : nullptr;
 }
 
-CMemory* EntityManager::memoryOf(const entt::entity entity)
-{
-        return m_registry->valid(entity) ? m_registry->try_get<CMemory>(entity) : nullptr;
-}
-
 std::vector<entt::entity> EntityManager::entityHandles() const
 {
         std::vector<entt::entity> handles;
@@ -1211,22 +1235,27 @@ std::vector<entt::entity> EntityManager::entityHandles() const
         return handles;
 }
 
-std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMemory& memory, const Jobs::Job job) const
+std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CivKnowledge& knowledge, const Jobs::Job job, const sf::Vector2i& from) const
 {
-        // Gather the remembered tiles, then pick the best one for *this job*:
-        // lowest preference rank wins (see Goods::jobPreference). Idle entities
-        // fall back to rarest-material-first so they still contribute.
+        // Gather the known tiles, then pick the best one for *this job*: lowest
+        // preference rank wins (see Goods::jobPreference), and ties go to the
+        // closest tile. Idle entities fall back to rarest-material-first so they
+        // still contribute. The knowledge is the settlement's, so an entity may
+        // work a resource another one found.
         std::optional<WorkTarget> best;
         int bestRank = 0;
+        int bestDist = 0;
 
         const auto consider = [&](const Elements element, const sf::Vector2i& pos, const int rank)
         {
                 if (rank < 0)
                         return;
-                if (!best || rank < bestRank)
+                const int dist = squaredDistance(pos, from);
+                if (!best || rank < bestRank || (rank == bestRank && dist < bestDist))
                 {
                         best = WorkTarget{ pos, element };
                         bestRank = rank;
+                        bestDist = dist;
                 }
         };
 
@@ -1238,15 +1267,16 @@ std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMe
                 };
                 for (std::size_t i = 0; i < kPriority.size(); ++i)
                 {
-                        const auto pos = memory.getLocation(kPriority[i]);
+                        const auto pos = knowledge.location(kPriority[i], from);
                         if (pos)
                                 return WorkTarget{ *pos, kPriority[i] };
                 }
                 return std::nullopt;
         }
 
-        for (const auto& [element, pos] : memory.locations)
-                consider(element, pos, Goods::jobPreference(job, element));
+        for (const auto& [element, positions] : knowledge.tiles())
+                for (const auto& pos : positions)
+                        consider(element, pos, Goods::jobPreference(job, element));
 
         return best;
 }

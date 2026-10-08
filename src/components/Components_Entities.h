@@ -30,6 +30,7 @@ enum class EntityType
     Human_Generic,
     Human_Farmer,
     Human_Lumberjack,
+    Human_Explorer,
     Animal_Dog,
     Animal_Cat,
 
@@ -146,78 +147,14 @@ struct CReproduction
     int cooldown_hours{ 0 };
 };
 
-// What a remembered location is good for. Keeping the set small (rather than
-// remembering every biome) is deliberate: memory exists to answer "where do I
-// drink?" and "where do I work?".
-enum class MemoryKind
+// What a remembered location is good for. The settlement's knowledge lives in
+// CivKnowledge (helpers/Knowledge.h); an entity only tracks the last tile it
+// scanned so a stationary entity does not rescan every frame.
+struct CKnowledgeScan
 {
-    Water,
-    Food
-};
-
-struct CMemory
-{
-    std::unordered_map<Elements, sf::Vector2i> locations;
-
-    // The tile the memory was last refreshed at. The vision scan is the
-    // expensive part of an entity's update and the remembered set changes
-    // slowly, so refresh on entering a new tile rather than every frame.
+    // The tile the entity last observed. Its vision is the expensive part of the
+    // update, so refresh on entering a new tile rather than every frame.
     std::optional<sf::Vector2i> last_scan_tile;
-
-    CMemory(){}
-
-    void rememberLocation(const std::unordered_map<Elements, sf::Vector2i>& map)
-    {
-        for(auto& [key, val] : map)
-            locations[key] = val;
-    }
-
-    std::optional<sf::Vector2i> getLocation(const Elements& type) const
-    {
-        const auto it = locations.find(type);
-
-        if (it != locations.end())
-            return it->second;
-        return std::nullopt;
-    }
-
-    // The elements that count as drinkable / workable, from the shared
-    // classification so memory and gathering agree.
-    static bool isWater(const Elements element) noexcept
-    {
-        return Resources::isWater(element);
-    }
-
-    static bool isFood(const Elements element) noexcept
-    {
-        return Resources::isFood(element);
-    }
-
-    // Closest remembered location of the given kind, if any. Iterates the
-    // remembered set, so it is O(remembered).
-    std::optional<sf::Vector2i> findNearest(const sf::Vector2i& from, const MemoryKind kind) const
-    {
-        std::optional<sf::Vector2i> best;
-        float bestDist = 0.f;
-
-        for (const auto& [element, pos] : locations)
-        {
-            const bool usable = (kind == MemoryKind::Water) ? isWater(element) : isFood(element);
-            if (!usable)
-                continue;
-
-            const float dx = static_cast<float>(pos.x - from.x);
-            const float dy = static_cast<float>(pos.y - from.y);
-            const float dist = dx * dx + dy * dy;
-
-            if (!best || dist < bestDist)
-            {
-                best = pos;
-                bestDist = dist;
-            }
-        }
-        return best;
-    }
 };
 
 // What an entity gathers by working a tile. One unit per completed gather, so

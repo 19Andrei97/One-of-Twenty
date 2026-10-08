@@ -406,6 +406,7 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 	std::unordered_map<Elements, std::pair<float, sf::Vector2i>> closest;
 	const sf::Vector2i centerTile = worldToTile(pos);
 	const int tileRadius = static_cast<int>(radius / m_config.tile_size_px) + 1;
+	const float radiusSq = radius * radius;
 	// One lock for the whole scan. Taking it per tile (through
 	// getElementAtWorld) would re-lock the chunk map once per candidate,
 	// and this runs for every entity every frame.
@@ -417,26 +418,32 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 		{
 			const sf::Vector2i tile = centerTile + sf::Vector2i(dx, dy);
 			const sf::Vector2i tileWorldPos = tileToWorld(tile);
-			const float dist = std::hypot(static_cast<float>(tileWorldPos.x - pos.x),
-			                              static_cast<float>(tileWorldPos.y - pos.y));
-			if (dist > radius)
+			const float ddx = static_cast<float>(tileWorldPos.x - pos.x);
+			const float ddy = static_cast<float>(tileWorldPos.y - pos.y);
+			const float distSq = ddx * ddx + ddy * ddy;
+			if (distSq > radiusSq)
 				continue;
 
-			// Read the authoritative map (we already hold t_mutex), not a
-			// fresh noise sample, and fall back to noise where no chunk is
-			// loaded. Remember anything usable (water to drink, land to
-			// work), so an entity's memory covers both needs.
+			// Read the authoritative map (we already hold t_mutex). Noise is
+			// only the fallback where no loaded chunk owns the tile: sampling
+			// it for every tile in the square dominates this hot path.
 			const auto chunkIt = c_chunks.find(chunkOf(tile));
-			Elements element = m_terrain.elementAtTile(tile);
+			Elements element;
 			if (chunkIt != c_chunks.end() && chunkIt->second)
 			{
 				const auto tileIt = chunkIt->second->tile_types.find(tile);
-				if (tileIt != chunkIt->second->tile_types.end())
-					element = tileIt->second;
+				element = (tileIt != chunkIt->second->tile_types.end())
+					? tileIt->second
+					: m_terrain.elementAtTile(tile);
+			}
+			else
+			{
+				element = m_terrain.elementAtTile(tile);
 			}
 			if (!Resources::isResource(element))
 				continue;
 
+			const float dist = std::sqrt(distSq);
 			auto it = closest.find(element);
 			if (it == closest.end() || dist < it->second.first)
 				closest[element] = { dist, tileWorldPos };
@@ -480,32 +487,40 @@ float MapGenerator::getTileCost(const sf::Vector2i& pos)
 }
 
 int MapGenerator::copyTileBlock(const sf::Vector2i& topLeftTile, const int side,
-                                std::unordered_map<sf::Vector2i, Elements, Vector2iHash>& out) const
+                                std::vector<Elements>& out) const
 {
-        out.clear();
         const int n = std::clamp(side, 1, kMaxTileBlock);
-        out.reserve(static_cast<std::size_t>(n) * n);
+        out.resize(static_cast<std::size_t>(n) * n);
 
         // One lock for the whole block: pathfinding reads many tiles at once, and
-        // per-tile locking (via getElementAtWorld) would thrash the mutex.
+        // per-tile locking (via getElementAtWorld) would thrash the mutex. The
+        // destination is a dense row-major buffer, so writing a tile is an indexed
+        // store instead of a hash insert - the block copy dominates pathfinding.
         std::lock_guard<std::mutex> lock(t_mutex);
         for (int y = 0; y < n; ++y)
         {
                 for (int x = 0; x < n; ++x)
                 {
                         const sf::Vector2i tile{ topLeftTile.x + x, topLeftTile.y + y };
+                        // Prefer the authoritative tile map. Noise is only the
+                        // fallback for tiles a loaded chunk does not own.
                         const auto chunkIt = c_chunks.find(chunkOf(tile));
-                        Elements element = m_terrain.elementAtTile(tile);
-                        if (chunkIt != c_chunks.end() && chunkIt->second)
+                        Elements element = Elements::very_deep_ocean;
+                        if (chunkIt == c_chunks.end() || !chunkIt->second)
+                        {
+                                element = m_terrain.elementAtTile(tile);
+                        }
+                        else
                         {
                                 const auto tileIt = chunkIt->second->tile_types.find(tile);
-                                if (tileIt != chunkIt->second->tile_types.end())
-                                        element = tileIt->second;
+                                element = (tileIt != chunkIt->second->tile_types.end())
+                                        ? tileIt->second
+                                        : m_terrain.elementAtTile(tile);
                         }
-                        out[tile - topLeftTile] = element;
+                        out[static_cast<std::size_t>(y) * n + x] = element;
                 }
         }
-        return n * n;
+        return n;
 }
 
 /*

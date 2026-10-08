@@ -81,6 +81,21 @@ struct EntityConfig
 
     Economy economy{};
 
+    // Shared civilization knowledge: the store is one per settlement (not per
+    // entity), so this only tunes how coarse the explored map is and how large it
+    // may grow. Defaults ship so older configs load unchanged.
+    struct Knowledge
+    {
+        // Side, in tiles, of one explored cell. Coverage is bucketed so the store
+        // does not grow one entry per tile the settlement ever sees.
+        int cell_size{ 8 };
+        // Hard cap on explored cells, so a long run cannot grow the store without
+        // bound.
+        std::size_t max_cells{ 65536 };
+    };
+
+    Knowledge knowledge{};
+
     // Weighted decision policy (thresholds, biases, idle tolerance).
     EntityDecision::Config decision{};
 
@@ -143,6 +158,7 @@ inline EntityConfig loadEntityConfig(const std::string& path)
     cfg.economy.job_targets[Jobs::index(Jobs::Job::Lumberjack)] = 2;
     cfg.economy.job_targets[Jobs::index(Jobs::Job::Miner)]      = 1;
     cfg.economy.job_targets[Jobs::index(Jobs::Job::Builder)]    = 1;
+    cfg.economy.job_targets[Jobs::index(Jobs::Job::Explorer)]   = 0;
 
     if (js.contains("economy"))
     {
@@ -169,6 +185,14 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         }
     }
 
+    // Shared knowledge tuning. Optional: older configs keep the defaults.
+    if (js.contains("knowledge"))
+    {
+        const auto& knowledge = js.at("knowledge");
+        cfg.knowledge.cell_size = knowledge.value("cell_size", cfg.knowledge.cell_size);
+        cfg.knowledge.max_cells = knowledge.value("max_cells", cfg.knowledge.max_cells);
+    }
+
     // Per-entity-type starting job. Names match the EntityType enumerators.
     if (js.contains("entity_types"))
     {
@@ -186,6 +210,7 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         readType("Human_Generic", EntityType::Human_Generic);
         readType("Human_Farmer", EntityType::Human_Farmer);
         readType("Human_Lumberjack", EntityType::Human_Lumberjack);
+        readType("Human_Explorer", EntityType::Human_Explorer);
         readType("Animal_Dog", EntityType::Animal_Dog);
         readType("Animal_Cat", EntityType::Animal_Cat);
     }

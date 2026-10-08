@@ -143,6 +143,11 @@ struct Stock
             if (element == Elements::hill)   return 1;      // stone
             return -1;
 
+        case Jobs::Job::Explorer:
+            // An explorer does not gather; its value is the knowledge it brings
+            // back, not the goods it carries.
+            return -1;
+
         default:
             return -1;
     }

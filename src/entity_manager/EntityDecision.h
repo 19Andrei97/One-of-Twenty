@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components_Entities.h"
+#include "../helpers/Jobs.h"
 
 #include <algorithm>
 #include <array>
@@ -41,8 +42,10 @@ struct Config
 };
 
 // The need a decision was made for. `Work` means "gather a nearby resource for
-// the settlement". `Wander` means "nothing urgent": move to a random reachable
-// target. `None` means "stay put" (idle tolerance not yet spent).
+// the settlement". `Explore` means "push back the frontier so the settlement
+// learns more of the map" (the Explorer job). `Wander` means "nothing urgent":
+// move to a random reachable target. `None` means "stay put" (idle tolerance not
+// yet spent).
 enum class Need
 {
     None,
@@ -50,6 +53,7 @@ enum class Need
     Hunger,
     Sleep,
     Work,
+    Explore,
     Wander
 };
 
@@ -155,11 +159,13 @@ struct Urgencies
 {
     switch (need)
     {
-        case Need::Thirst: return ActionTypes::Drinking;
-        case Need::Hunger: return ActionTypes::Eating;
-        case Need::Sleep:  return ActionTypes::Sleeping;
-        case Need::Work:   return ActionTypes::Gathering;
-        default:           return ActionTypes::Moving; // Wander / None
+        case Need::Thirst:  return ActionTypes::Drinking;
+        case Need::Hunger:  return ActionTypes::Eating;
+        case Need::Sleep:   return ActionTypes::Sleeping;
+        case Need::Work:    return ActionTypes::Gathering;
+        // Exploration and wandering are both "walk somewhere": they differ only in
+        // how the destination is chosen.
+        default:            return ActionTypes::Moving; // Explore / Wander / None
     }
 }
 
@@ -187,13 +193,15 @@ struct Urgencies
 }
 
 // Decide what an entity should do. Survival needs come first; if none is
-// pressing and the entity is comfortable enough to work, it gathers for the
-// settlement. Otherwise it idles, and once `idleFrames` reaches the tolerance it
-// wanders instead of standing still.
+// pressing and the entity is comfortable enough to work, an explorer sets off to
+// extend the settlement's knowledge while everyone else gathers. Otherwise it
+// idles, and once `idleFrames` reaches the tolerance it wanders instead of
+// standing still.
 [[nodiscard]] inline Need decide(const CBasicNeeds& needs,
                                  const CPersonality& personality,
                                  const Config& cfg,
-                                 const int idleFrames) noexcept
+                                 const int idleFrames,
+                                 const Jobs::Job job = Jobs::Job::Idle) noexcept
 {
     const Urgencies u = computeUrgencies(needs, personality, cfg);
 
@@ -202,7 +210,7 @@ struct Urgencies
         return strongest;
 
     if (u.work >= cfg.work.threshold)
-        return Need::Work;
+        return (job == Jobs::Job::Explorer) ? Need::Explore : Need::Work;
 
     return (idleFrames >= cfg.idle_tolerance) ? Need::Wander : Need::None;
 }

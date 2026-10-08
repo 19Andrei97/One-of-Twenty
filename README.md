@@ -232,18 +232,28 @@ Retired from the roadmap; kept here as a record.
   documented the chunk-map lock order and stopped taking the mutex around the
   self-locking ready container; converted HUD widgets into classes; added
   `setChunkUnload()` with a pin check; exposed `logger.level` in `config.json`;
-  removed the dead `Scene_Play::spawnEntities`; and refreshed entity memory only
-  when an entity enters a new tile, which cuts the per-frame vision scan from
+  removed the dead `Scene_Play::spawnEntities`; and refresh the shared knowledge
+  only when an entity enters a new tile, which cuts the per-frame vision scan from
   every entity every frame to roughly once per tile traversed.
 - [x] **Map depth.** Tile-space coordinates end to end; `tile_types` is
   authoritative and edits rebuild the chunk mesh; island/river/height-range
   options; one noise field per resource; `getElementAtWorld` for post-edit
   queries; split sampling into `GenerateTerrain` + `MapConfig` + `Chunk.h`.
-- [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; `CMemory`
-  finds the nearest water/food; `EntityDecision` scales need urgency by
-  personality and config bias; vision drives memory and exploration; `MoveCost`
-  gives every element a positive cost; `CGather`/`CInventory` bank work into a
-  settlement stockpile.
+- [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; the
+  settlement's shared map knowledge (`helpers/Knowledge.h`) finds the nearest
+  water/food and replaces the old per-entity memory, so what one entity sees is
+  known to all and the store does not grow with the population; `EntityDecision`
+  scales need urgency by personality and config bias; vision feeds that store;
+  `MoveCost` gives every element a positive cost; `CGather`/`CInventory` bank
+  work into a settlement stockpile.
+- [x] **Exploration.** A settlement-wide `CivKnowledge` tracks known resource
+  tiles (bucketed by element) and explored coarse cells, capped so a long run
+  stays bounded. The `Explorer` job (`Jobs::Job::Explorer`) returns
+  `Need::Explore` and roams to fresh land tiles within sight; the vision scan it
+  triggers is what grows the shared map, without routing to a distant frontier
+  that would re-plan every leg. The HUD reports explored cells and known
+  locations. Knowledge tuning (`cell_size`, `max_cells`) lives in
+  `config/entity_data.json`.
 - [x] **Game structure and HUD.** Abstract `Scene` with `Scene_Play` and
   `Scene_Menu`; multiple HUD levels with layered/exact modes; HUD callbacks
   bound by name instead of numeric id.

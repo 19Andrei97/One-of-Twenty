@@ -7,6 +7,7 @@
 #include "EntityVitals.h"
 
 #include "../helpers/EventLog.h"
+#include "../helpers/Knowledge.h"
 #include "../helpers/RunSummary.h"
 
 #include <array>
@@ -34,6 +35,11 @@ class EntityManager
         // Consecutive decisions that produced "nothing urgent", per entity, so a
         // contented entity eventually wanders instead of standing still.
         std::unordered_map<entt::entity, int>   m_entity_idle;
+
+        // The settlement's shared map knowledge: one store for the whole
+        // civilization, fed by every entity's vision. Replaces the per-entity
+        // memory map, so its size does not grow with the population.
+        CivKnowledge                            m_knowledge;
 
         // Observability. `m_events` is the run's story (births, deaths with
         // cause, gathers, discoveries, production); `m_history` samples the
@@ -88,9 +94,10 @@ class EntityManager
                 Elements     element;
         };
 
-        // Scratch tile block reused by findRoute so routing does not allocate a
-        // map per call.
-        std::unordered_map<sf::Vector2i, Elements, Vector2iHash> m_tile_block;
+        // Scratch tile block reused by findRoute so routing does not allocate per
+        // call. A dense row-major buffer (index y * width + x) over the copied
+        // window, so a tile read is an indexed load rather than a hash lookup.
+        std::vector<Elements> m_tile_block;
 
         // Private function
         void addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color);
@@ -114,7 +121,8 @@ class EntityManager
 
         // Nearest remembered gatherable tile this job can work, in the job's
         // preference order. Empty when nothing workable has been remembered yet.
-        std::optional<WorkTarget> settleElements(const CMemory& memory, Jobs::Job job) const;
+        std::optional<WorkTarget> settleElements(const CivKnowledge& knowledge, Jobs::Job job,
+                                                 const sf::Vector2i& from) const;
 
         // Reassign idle entities to the most understaffed job, so the settlement
         // responds to shortages. Called when an entity completes a job assignment
@@ -151,7 +159,7 @@ class EntityManager
         bool startActionFor(const EntityDecision::Need need,
                             const sf::Vector2i& pos,
                             float visionRadius,
-                            const CMemory& memory,
+                            const CivKnowledge& knowledge,
                             CActionsQueue& queue,
                             CPath& path,
                             Jobs::Job job);
@@ -170,6 +178,10 @@ public:
                 , m_config(loadEntityConfig(entity_file))
                 , m_config_path(entity_file)
         {
+                // Size the shared knowledge store from config. Cell size is fixed at
+                // construction: reloading the config does not rebuild the explored
+                // map, because re-bucketing it mid-run would discard what is known.
+                m_knowledge = CivKnowledge(m_config.knowledge.cell_size, m_config.knowledge.max_cells);
                 m_registry = std::make_unique<entt::registry>();
         }
 
@@ -220,7 +232,8 @@ public:
         CBasicNeeds* needsOf(entt::entity entity);
         CActionsQueue* actionsOf(entt::entity entity);
         const CActionsQueue* actionsOf(entt::entity entity) const;
-        CMemory* memoryOf(entt::entity entity);
+        // The settlement's shared knowledge, for the HUD and tests.
+        const CivKnowledge& knowledge() const { return m_knowledge; }
         // Handles of every live entity, for tooling and tests.
         std::vector<entt::entity> entityHandles() const;
 

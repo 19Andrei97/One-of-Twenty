@@ -2,9 +2,9 @@
 
 #include "../map_generator/Chunk.h"
 
-// What a terrain element is usable for. Kept in one place so memory gathering
-// (MapGenerator), memory queries (CMemory) and the decision policy agree on
-// which tiles are drinkable or worth gathering.
+// What a terrain element is usable for. Kept in one place so map scanning
+// (MapGenerator), shared knowledge (CivKnowledge) and the decision policy agree
+// on which tiles are drinkable or worth gathering.
 namespace Resources
 {
     // Drinkable: only the surface ocean. Deep water is not reachable on foot.
