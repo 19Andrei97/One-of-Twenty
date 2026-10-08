@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "EntityDecision.h"
+#include "GameClock.h"
 
 #include <nlohmann/json.hpp>
 
@@ -17,29 +18,37 @@ struct EntityConfig
     int thirst_decay_per_hour{ 5 };
     int sleep_gain_per_hour{ 2 };
 
-    // Population dynamics: ageing, lethal needs and reproduction. Defaults are
-    // shipped so the simulation runs even with an older config file.
+    // Population dynamics: ageing, lethal needs, health and reproduction.
+    // Defaults are shipped so the simulation runs even with an older config file.
     struct Survival
     {
         // How many entities the scene spawns at the start.
         int initial_population{ 8 };
 
         // Hard ceiling on the population, so births cannot run away.
-        int max_population{ 40 };
+        int max_population{ 120 };
 
-        // A need counter at or below this kills the entity. Fullness counters
-        // (thirst/hunger) run 100 (comfortable) down to 0 (dire), so 0 means
-        // "dies of starvation/dehydration".
+        // A need counter at or below this starts draining health. Fullness
+        // counters (thirst/hunger) run 100 (comfortable) down to 0 (dire).
         int lethal_threshold{ 0 };
 
         // How many in-game hours an entity lives before dying of old age.
-        int lifespan_hours{ 720 }; // 30 in-game days
+        // Expressed in years in the config (a year is GameTime::kHoursPerYear).
+        int lifespan_hours{ GameTime::kHoursPerYear * 65 };
+
+        // How long after a birth the same entity can give birth again. Expressed
+        // in days in the config. Kept per entity, so a larger settlement grows
+        // faster than a small one.
+        int birth_interval_hours{ GameTime::kHoursPerDay * 300 };
 
         // Reproduction: an entity gives birth when it is at least this
-        // comfortable (1 = every need satisfied) and enough hours have passed
-        // since the settlement's last birth.
+        // comfortable (1 = every need satisfied) and its own interval has passed.
         float birth_comfort{ 0.8f };
-        int birth_cooldown_hours{ 48 };
+
+        // Health: how fast starvation/dehydration drains it, and how fast a
+        // comfortable entity recovers. Death happens when health reaches zero.
+        int starvation_damage_per_hour{ 4 };
+        int health_regen_per_hour{ 1 };
     };
 
     Survival survival{};
@@ -84,9 +93,20 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         s.initial_population   = survival.value("initial_population", s.initial_population);
         s.max_population       = survival.value("max_population", s.max_population);
         s.lethal_threshold     = survival.value("lethal_threshold", s.lethal_threshold);
-        s.lifespan_hours       = survival.value("lifespan_hours", s.lifespan_hours);
         s.birth_comfort        = survival.value("birth_comfort", s.birth_comfort);
-        s.birth_cooldown_hours = survival.value("birth_cooldown_hours", s.birth_cooldown_hours);
+        s.starvation_damage_per_hour = survival.value("starvation_damage_per_hour", s.starvation_damage_per_hour);
+        s.health_regen_per_hour      = survival.value("health_regen_per_hour", s.health_regen_per_hour);
+
+        // Lifespan can be given directly in hours (older configs) or in years,
+        // which is friendlier for a value on the scale of a human life.
+        s.lifespan_hours = survival.value("lifespan_hours", s.lifespan_hours);
+        if (survival.contains("lifespan_years"))
+            s.lifespan_hours = survival.at("lifespan_years").get<int>() * GameTime::kHoursPerYear;
+
+        // Same idea for the reproduction interval: days (preferred) or hours.
+        s.birth_interval_hours = survival.value("birth_cooldown_hours", s.birth_interval_hours);
+        if (survival.contains("birth_interval_days"))
+            s.birth_interval_hours = survival.at("birth_interval_days").get<int>() * GameTime::kHoursPerDay;
     }
 
     const auto readNeed = [&decision](const char* key, EntityDecision::Config::Need& out)

@@ -1,12 +1,12 @@
 {
-  "button_random": 
+  "button_random":
   {
     "type": "button",
     "width": 150,
     "height": 30,
-    "position": 
+    "position":
     {
-        "x": 20, 
+        "x": 20,
         "y": 15
     },
     "label": "Random Seed",
@@ -18,14 +18,14 @@
     "function": "random"
   },
 
-  "continent_frequency": 
+  "continent_frequency":
   {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position": 
+    "position":
     {
-        "x": 20, 
+        "x": 20,
         "y": 70
     },
     "minimum_value": 0,
@@ -37,14 +37,14 @@
     "function": "continent_frequency"
   },
 
-  "cont_multiplier": 
+  "cont_multiplier":
   {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position": 
+    "position":
     {
-        "x": 20, 
+        "x": 20,
         "y": 100
     },
     "minimum_value": 0,
@@ -56,14 +56,14 @@
     "function": "cont_multiplier"
   },
 
-   "warp_frequency": 
+   "warp_frequency":
   {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position": 
+    "position":
     {
-        "x": 20, 
+        "x": 20,
         "y": 130
     },
     "minimum_value": 0,
@@ -75,14 +75,14 @@
     "function": "warp_frequency"
   },
 
-  "mineral_frequency": 
+  "mineral_frequency":
   {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position": 
+    "position":
     {
-        "x": 20, 
+        "x": 20,
         "y": 160
     },
     "minimum_value": 0,
@@ -94,14 +94,14 @@
     "function": "mineral_frequency"
   },
 
-  "mineral_multiplier": 
+  "mineral_multiplier":
   {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position": 
+    "position":
     {
-        "x": 20, 
+        "x": 20,
         "y": 190
     },
     "minimum_value": 0,
@@ -111,5 +111,62 @@
     "handle_color": [255, 255, 255],
     "level": 0,
     "function": "mineral_multiplier"
+  },
+
+  "time_slower":
+  {
+    "type": "button",
+    "width": 60,
+    "height": 30,
+    "position":
+    {
+        "x": 1004,
+        "y": 110
+    },
+    "label": "<<",
+    "color_fill": [255, 255, 255],
+    "outline": [0, 0, 0],
+    "thickness": 2,
+    "text_size": 16,
+    "level": 0,
+    "function": "time_slower"
+  },
+
+  "time_pause":
+  {
+    "type": "button",
+    "width": 120,
+    "height": 30,
+    "position":
+    {
+        "x": 1068,
+        "y": 110
+    },
+    "label": "Pause",
+    "color_fill": [255, 255, 255],
+    "outline": [0, 0, 0],
+    "thickness": 2,
+    "text_size": 16,
+    "level": 0,
+    "function": "time_pause"
+  },
+
+  "time_faster":
+  {
+    "type": "button",
+    "width": 72,
+    "height": 30,
+    "position":
+    {
+        "x": 1192,
+        "y": 110
+    },
+    "label": ">>",
+    "color_fill": [255, 255, 255],
+    "outline": [0, 0, 0],
+    "thickness": 2,
+    "text_size": 16,
+    "level": 0,
+    "function": "time_faster"
   }
 }

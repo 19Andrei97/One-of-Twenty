@@ -24,6 +24,12 @@
 		"file": "config/hud_menu_data.json"
 	},
 
+	"time": {
+		"start_hour": 8,
+		"start_minute": 0,
+		"speed_index": 1
+	},
+
 	"logger": {
 		"file": "logs/game.log",
 		"level": "debug"

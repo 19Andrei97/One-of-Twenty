@@ -103,6 +103,32 @@ struct CBasicNeeds
     }
 };
 
+// A slow resource separate from the needs: starvation and dehydration drain it,
+// a comfortable entity slowly regains it, and the entity dies when it reaches
+// zero. Keeping death on health rather than on a need crossing zero means an
+// entity weakens and can recover instead of dropping dead the instant it runs
+// out of water, which also makes coarse clock steps survivable.
+struct CHealth
+{
+    static constexpr int kMax{ 100 };
+
+    int value{ kMax };
+
+    [[nodiscard]] bool isAlive() const noexcept { return value > 0; }
+
+    void damage(const int amount) { value = std::clamp(value - amount, 0, kMax); }
+    void heal(const int amount) { value = std::clamp(value + amount, 0, kMax); }
+};
+
+// Per-entity reproduction timer. Decrementing this every in-game hour and
+// resetting it on a birth is what keeps growth proportional to the number of
+// comfortable adults rather than to one settlement-wide cooldown, and it stops a
+// newborn from immediately reproducing.
+struct CReproduction
+{
+    int cooldown_hours{ 0 };
+};
+
 // What a remembered location is good for. Keeping the set small (rather than
 // remembering every biome) is deliberate: memory exists to answer "where do I
 // drink?" and "where do I work?".

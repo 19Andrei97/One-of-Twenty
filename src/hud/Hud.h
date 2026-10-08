@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "../components/Components_HUD.h"
+#include "../helpers/GameClock.h"
 #include "../map_generator/MapGenerator.h"
 
 enum class HudLevelMode
@@ -53,6 +54,10 @@ private:
 	std::string						m_file;
 	sf::View						m_camera;
 	std::shared_ptr<MapGenerator>	m_map;
+	// Optional: when set, the built-in time controls (slower/pause/faster)
+	// drive this clock directly. The scene may override any of them to keep
+	// its own pause state in step.
+	std::shared_ptr<GameClock>	m_clock;
 
 	int								m_currentLevel{ 0 };
 	int								m_maxLevel{ 0 };
@@ -66,6 +71,9 @@ private:
 	// Persistent settlement readout (population, stockpile), refreshed each frame
 	// from the scene. Kept apart from the hover/selection info box.
 	std::unique_ptr<CInfoBox>	m_stats;
+	// Small clock readout (date, time of day, current speed), refreshed each
+	// frame by the scene and anchored to the top-right, clear of the stats.
+	std::unique_ptr<CInfoBox>	m_time_panel;
 
 	std::unordered_map<std::string, ButtonCallback> m_buttonCallbacks;
 	std::unordered_map<std::string, SliderCallback> m_sliderCallbacks;
@@ -126,6 +134,16 @@ public:
 
 	// Refresh the persistent settlement readout (population, stockpile).
 	void stats(const std::vector<std::string>& lines);
+
+	// Refresh the small clock readout (date/time and current speed). Lines are
+	// shown in a panel pinned to the top-right of the view.
+	void timeReadout(const std::vector<std::string>& lines);
+
+	// Relabel a button by the function name it was bound to, so a control whose
+	// meaning flips (Pause / Play) can update its own text.
+	void setButtonLabel(const std::string& functionName, const std::string& label);
+	// Attach the game clock the built-in time controls act on.
+	void setClock(std::shared_ptr<GameClock> clock) { m_clock = std::move(clock); }
 
 	// INPUTS
 	void input(const sf::Event::TextEntered& event);

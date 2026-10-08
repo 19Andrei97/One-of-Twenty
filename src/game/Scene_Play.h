@@ -27,6 +27,10 @@ class Scene_Play : public Scene
 	void sCollision();
 	// Push the current population/stockpile readout into the HUD.
 	void refreshStats();
+	// Push the clock readout (date, time, speed) into the HUD.
+	void refreshTimeReadout();
+	// Bind the HUD's time-management buttons to the clock.
+	void registerTimeControls();
 
 public:
 	Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& config);

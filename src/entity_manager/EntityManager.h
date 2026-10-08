@@ -33,11 +33,15 @@ class EntityManager
         // Population bookkeeping, exposed for the HUD and tests.
         int                                     m_births{ 0 };
         int                                     m_deaths{ 0 };
-        int                                     m_last_birth_hour{ 0 };
         // Last simulation minute for which survival dynamics ran. The clock can
         // advance several hours per frame (and wraps at midnight), so this is a
         // monotonic timestamp rather than the hour-of-day.
         std::int64_t                            m_last_survival_tick{ -1 };
+        // Timestamp (in in-game minutes) at the previous update. Movement consumes
+        // the game-time elapsed since then rather than the real frame delta, so an
+        // entity walks the same in-game distance whether the clock runs at a
+        // minute or a month per second, and a paused clock freezes it too.
+        std::int64_t                            m_last_frame_minutes{ -1 };
         bool                                    m_seeded_population{ false };
 
         // A remembered tile worth working and what it yields.
@@ -76,12 +80,14 @@ class EntityManager
         bool consumeFromStockpile(Elements element);
 
         // Population dynamics, run once per in-game hour. `ageEntities` advances
-        // lifespan, `killTheDying` removes entities that starved or aged out, and
-        // `tryBirths` adds a newborn when the settlement is comfortable enough.
+        // lifespan, `applyHealth` drains/restores health from the needs,
+        // `killTheDying` removes entities whose health or lifespan ran out, and
+        // `tryBirths` adds newborns from comfortable adults.
         void decayNeeds(std::int64_t hourIndex);
         void ageEntities();
-        void killTheDying(int hour);
-        void tryBirths(int hour);
+        void applyHealth();
+        void killTheDying();
+        void tryBirths();
 
         // Turn a decision into queued actions. Returns true if the entity is
         // already busy with the need (so the idle counter should reset).
@@ -112,8 +118,9 @@ public:
         void render(sf::RenderTarget& window);
         void update();
         // Spawn at an optional world position (defaults to the origin, which is
-        // what the game uses until there is a city center).
-        void addEntity(const EntityType& type, const sf::Vector2i& spawn = { 0, 0 });
+        // what the game uses until there is a city center). Returns the new
+        // entity so callers can tune it (e.g. stagger founders' ages).
+        entt::entity addEntity(const EntityType& type, const sf::Vector2i& spawn = { 0, 0 });
 
         // Push entities out of the ocean and apart from each other. Called once
         // per frame from Scene_Play::sCollision.
@@ -134,9 +141,9 @@ public:
 
         // Snapshot of the first live entity, for the HUD and for tests.
         std::optional<CBasicNeeds>  firstNeeds() const;
+        std::optional<int>          firstHealth() const;
         std::optional<ActionTypes>  firstAction() const;
         int                         entityCount() const;
-
         // World positions of every live entity, for tests that need to reason
         // about where the settlement actually stands.
         std::vector<sf::Vector2i>   entityPositions() const;
@@ -153,4 +160,5 @@ public:
         int deaths() const { return m_deaths; }
         int maxPopulation() const { return m_config.survival.max_population; }
         int lifespanHours() const { return m_config.survival.lifespan_hours; }
+        int birthIntervalHours() const { return m_config.survival.birth_interval_hours; }
 };
