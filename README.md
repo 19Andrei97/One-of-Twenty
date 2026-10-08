@@ -293,7 +293,9 @@ Retired from the roadmap; kept here as a record.
   `config/entity_data.json`.
 - [x] **Game structure and HUD.** Abstract `Scene` with `Scene_Play` and
   `Scene_Menu`; multiple HUD levels with layered/exact modes; HUD callbacks
-  bound by name instead of numeric id.
+  bound by name instead of numeric id. Readout panels are pinned to distinct
+  corners (settlement stats bottom-left, tile info bottom-right, clock
+  top-right) so they no longer overlap the top-left map controls.
 - [x] **Time management.** `GameClock` keeps a 360-day calendar (year/month/day)
   and runs from 12 min/s up to 1 month/s, with pause/resume and a speed label.
   A compact top-right HUD panel shows the date, clock and speed next to

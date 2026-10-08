@@ -334,23 +334,30 @@ void Hud::render(sf::RenderTarget& window)
 
 void Hud::infoBox(std::vector<std::string> info)
 {
-	info_box = std::make_unique<CInfoBox>
-		(
-			200.f,
-			200.f,
-			m_font,
-			info,
-			m_camera
-		);	
+	// A compact selection readout pinned to the bottom-right, clear of the
+	// top-left map controls, the top-right clock and the bottom-left stats.
+	// Refreshed in place so a repeated click does not reallocate the panel.
+	if (!info_box)
+	{
+		constexpr float kWidth{ 220.f };
+		constexpr float kMargin{ 16.f };
+		const float x = m_camera.getSize().x - kWidth - kMargin;
+		info_box = std::make_unique<CInfoBox>(kWidth, 0.f, m_font, std::vector<std::string>{}, m_camera,
+		                                      sf::Color(0, 0, 0, 160), sf::Color::White, 16U, true, x, kMargin);
+	}
+
+	info_box->setLines(info);
 }
 
 void Hud::stats(const std::vector<std::string>& lines)
 {
 	// Refresh the persistent panel in place; rebuild only on the first call.
-	// The top-left corner keeps it clear of the bottom-anchored selection box.
+	// Pinned to the bottom-left, clear of the top-left map controls and the
+	// bottom-right selection box.
+	constexpr float kMargin{ 16.f };
 	if (!m_stats)
 		m_stats = std::make_unique<CInfoBox>(240.f, 0.f, m_font, std::vector<std::string>{}, m_camera,
-		                                     sf::Color(0, 0, 0, 128), sf::Color::White, 16U, false);
+		                                     sf::Color(0, 0, 0, 128), sf::Color::White, 16U, true, kMargin, kMargin);
 
 	m_stats->setLines(lines);
 }
