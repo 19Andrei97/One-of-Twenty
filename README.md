@@ -57,6 +57,13 @@ cmake --build --preset vs
 Or open the folder directly in Visual Studio and let it use `CMakePresets.json`.
 `CMakeSettings.json` is also provided for the VS "Open Folder" workflow.
 
+Visual Studio ships CMake 4, which dropped support for projects declaring
+`cmake_minimum_required(VERSION <3.5)`. SFML 3.0.0 bundles FreeType 2.13.2,
+whose build still declares 3.0, so fetching SFML (the Windows default, since
+FreeType is usually not installed system-wide) fails during configure. The root
+`CMakeLists.txt` sets `CMAKE_POLICY_VERSION_MINIMUM` for CMake 4 to allow the
+bundled dependency to configure; no manual flag is needed.
+
 ### Presets
 
 `CMakePresets.json` defines `default` (Ninja/Release), `debug`, and `vs`
