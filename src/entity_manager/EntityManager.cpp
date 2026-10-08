@@ -1222,11 +1222,13 @@ entt::entity EntityManager::addEntity(const EntityType& type, const sf::Vector2i
 {
         auto entity = m_registry->create();
 
+        const Jobs::Job job = defaultJobFor(type);
+
         m_registry->emplace<CType>(entity, type);
-        m_registry->emplace<CJob>(entity, defaultJobFor(type));
+        m_registry->emplace<CJob>(entity, job);
         m_registry->emplace<CLifespan>(entity, m_config.survival.lifespan_hours);
         m_registry->emplace<CTransform>(entity, spawn, 100.f);
-        m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
+        m_registry->emplace<CShape>(entity, lookFor(type, job));
         m_registry->emplace<CVision>(entity);
         m_registry->emplace<CKnowledgeScan>(entity);
         m_registry->emplace<CBasicNeeds>(entity);
@@ -1382,6 +1384,15 @@ Jobs::Job EntityManager::defaultJobFor(const EntityType& type) const
         }
 }
 
+Appearance::Look EntityManager::lookFor(const EntityType& type, const Jobs::Job job) const
+{
+        // A configured job look personalizes the profession and wins; otherwise
+        // the type's look applies; otherwise the default (white 10-unit circle).
+        if (job != Jobs::Job::Idle && m_config.has_job_look[Jobs::index(job)])
+                return m_config.job_looks[Jobs::index(job)];
+        return m_config.type_looks[static_cast<std::size_t>(type)];
+}
+
 // HELPER FUNCTION
 void EntityManager::addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color)
 {
@@ -1531,8 +1542,8 @@ void EntityManager::reassignJobs()
         const auto counts = jobCounts();
         std::array<int, Jobs::kJobCount> projected = counts;
 
-        m_registry->view<CJob, CActionsQueue>().each(
-                [&](auto, CJob& job, const CActionsQueue& queue)
+        m_registry->view<CJob, CActionsQueue, CType, CShape>().each(
+                [&](auto, CJob& job, const CActionsQueue& queue, const CType& type, CShape& shape)
         {
                 if (!queue.actions.empty())
                         return;
@@ -1543,6 +1554,8 @@ void EntityManager::reassignJobs()
                         projected[Jobs::index(job.job)] -= 1;
                         projected[Jobs::index(want)] += 1;
                         job.job = want;
+                        // Repaint the entity so its look follows its profession.
+                        shape.circle = lookFor(type.type, want).makeShape();
                 }
         });
 }

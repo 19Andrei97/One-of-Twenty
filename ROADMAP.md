@@ -98,10 +98,16 @@ The engine core and the survival loop are in place:
   and summarizes them (`helpers/EventLog.h`, `helpers/RunSummary.h`). A busy
   entity now interrupts a non-survival plan when a need turns critical, and the
   entity config can be reloaded at runtime (`R`) so tuning needs no rebuild.
+- **Entity appearance is data-driven.** A profession's (and a type's) look —
+  shape, fill, outline and size — comes from the `appearance` block in
+  `config/entity_data.json` (`helpers/Appearance.h`), resolved per entity and
+  repainted when a job changes or the config reloads, so a modder can recolour
+  and reshape professions without a rebuild. Unconfigured entities keep the
+  default white circle, so older configs are unchanged.
 - Unit tests (doctest) across coordinates, `SharedContainer`, `GameClock`,
-  config, map lifetime/determinism, decisions, move cost, HUD, scenes,
-  survival/population, the economy/jobs and observability (event log, run
-  history, interruption, runtime reload).
+  config, map lifetime/determinism, decisions, move cost, appearance, HUD,
+  scenes, survival/population, the economy/jobs and observability (event log,
+  run history, interruption, runtime reload).
 - CI on Linux + Windows plus an ASan/UBSan job (`.github/workflows/build.yml`)
   and a real-game smoke test (`.github/workflows/game-smoke.yml`).
 

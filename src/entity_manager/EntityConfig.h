@@ -1,11 +1,15 @@
 #pragma once
 
+#include "Appearance.h"
 #include "Config.h"
 #include "EntityDecision.h"
 #include "GameClock.h"
 #include "Jobs.h"
 
 #include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <cstdint>
 
 // Per-entity simulation tuning, loaded from config/entity_data.json.
 //
@@ -59,6 +63,16 @@ struct EntityConfig
     // (human -> Builder, animal -> Idle), so the config stays backward compatible.
     std::array<Jobs::Job, kEntityTypeCount> type_jobs{}; // indexed by EntityType
     std::array<bool, kEntityTypeCount>      has_type_job{};
+
+    // Per-entity-type and per-job appearance, from an optional top-level
+    // "appearance" block in the entity file (each keyed by the EntityType name
+    // and the job name). A missing entry keeps the shipped default look, so the
+    // block is fully backward compatible.
+    std::array<Appearance::Look, kEntityTypeCount> type_looks{}; // indexed by EntityType
+    std::array<Appearance::Look, Jobs::kJobCount>  job_looks{};  // indexed by Jobs::Job
+    // Whether an entry was configured at all, so the resolver can fall back
+    // instead of guessing from a value that happens to equal the default.
+    std::array<bool, Jobs::kJobCount> has_job_look{};
 
     // Settlement economy: how many of each job to staff and what the buildings
     // produce. Defaults ship so the game runs on an older config file.
@@ -227,6 +241,83 @@ inline EntityConfig loadEntityConfig(const std::string& path)
 
     if (decision.contains("work"))
         readNeed("work", cfg.decision.work);
+
+    // Appearance: optional "appearance" block with per-entity-type ("types") and
+    // per-job ("jobs") looks. Each value may set shape, color, outline,
+    // outline_thickness, radius and points; unset fields keep the default look.
+    if (js.contains("appearance"))
+    {
+        const auto& appearance = js.at("appearance");
+
+        const auto readColor = [](const nlohmann::json& node) -> std::optional<sf::Color>
+        {
+            if (node.is_string())
+            {
+                const std::string name = node.get<std::string>();
+                if (name == "white")  return sf::Color::White;
+                if (name == "black")  return sf::Color::Black;
+                if (name == "red")    return sf::Color::Red;
+                if (name == "green")  return sf::Color::Green;
+                if (name == "blue")   return sf::Color::Blue;
+                if (name == "yellow") return sf::Color::Yellow;
+                if (name == "cyan")   return sf::Color::Cyan;
+                if (name == "magenta") return sf::Color::Magenta;
+                return std::nullopt;
+            }
+            if (node.is_array() && node.size() >= 3)
+            {
+                const auto channel = [](const nlohmann::json& v)
+                {
+                    return static_cast<std::uint8_t>(std::clamp(v.get<int>(), 0, 255));
+                };
+                const auto alpha = node.size() >= 4 ? channel(node.at(3)) : static_cast<std::uint8_t>(255);
+                return sf::Color{ channel(node.at(0)), channel(node.at(1)), channel(node.at(2)), alpha };
+            }
+            return std::nullopt;
+        };
+
+        const auto readLook = [&readColor](const nlohmann::json& node, Appearance::Look& out)
+        {
+            if (node.contains("shape"))
+                if (const auto shape = Appearance::shapeFromString(node.at("shape").get<std::string>()))
+                    out.shape = *shape;
+            if (node.contains("color"))
+                if (const auto color = readColor(node.at("color")))
+                    out.fill = *color;
+            if (node.contains("outline_color"))
+                if (const auto color = readColor(node.at("outline_color")))
+                    out.outline = *color;
+            out.outline_thickness = node.value("outline_thickness", out.outline_thickness);
+            out.radius            = node.value("radius", out.radius);
+            out.points            = node.value("points", out.points);
+        };
+
+        if (appearance.contains("types"))
+        {
+            const auto& types = appearance.at("types");
+            const auto readTypeLook = [&](const char* key, const EntityType type)
+            {
+                if (types.contains(key))
+                    readLook(types.at(key), cfg.type_looks[static_cast<std::size_t>(type)]);
+            };
+            readTypeLook("Human_Generic", EntityType::Human_Generic);
+            readTypeLook("Human_Farmer", EntityType::Human_Farmer);
+            readTypeLook("Human_Lumberjack", EntityType::Human_Lumberjack);
+            readTypeLook("Human_Explorer", EntityType::Human_Explorer);
+            readTypeLook("Animal_Dog", EntityType::Animal_Dog);
+            readTypeLook("Animal_Cat", EntityType::Animal_Cat);
+        }
+
+        if (appearance.contains("jobs"))
+        {
+            for (const auto& [key, value] : appearance.at("jobs").items())
+                if (const auto job = Jobs::fromString(key))
+                {
+                    readLook(value, cfg.job_looks[Jobs::index(*job)]);
+                    cfg.has_job_look[Jobs::index(*job)] = true;
+                }
+        }
+    }
 
     return cfg;
 }

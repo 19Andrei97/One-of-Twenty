@@ -117,7 +117,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `P` | Pause / resume |
 | `[` / `]` | Slower / faster clock |
 | `H` / `Tab` | Cycle HUD level |
-| `R` | Reload `entity_data.json` tuning at runtime |
+| `R` | Reload `entity_data.json`/`buildings.json` tuning and recolour entities at runtime |
 | `M` | Re-randomize the map seed |
 | `G` (hold) | Debug wireframe view |
 | `1` | Spawn a generic human entity |
@@ -151,12 +151,37 @@ port is reachable by others. Full details and limits: `tools/stream/README.md`.
 | `src/components` | ECS component and HUD widget definitions |
 | `src/hud` | Data-driven HUD (buttons, sliders, input boxes) loaded from JSON |
 | `src/camera` | World camera and view bounds |
-| `src/helpers` | Header-only utilities: `Logger`, `GameClock`, `Random`, `SharedContainer`, `Config`, `CoordMath`, `FastNoiseLite` |
+| `src/helpers` | Header-only utilities: `Logger`, `GameClock`, `Random`, `SharedContainer`, `Config`, `CoordMath`, `Appearance`, `FastNoiseLite` |
 | `src/pch` | Precompiled header aggregating the common includes |
 
 Config files live in `config/`: `config.json` (window/logger/font/map/HUD
 paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
-`hud_menu_data.json` (HUD element layout and bindings).
+`hud_menu_data.json` (HUD element layout and bindings). `entity_data.json`
+(survival tuning, `entity_types` jobs and the `appearance` block) and
+`buildings.json` are covered by the milestones below.
+
+### Personalizing entity looks
+
+Every entity is drawn from a JSON look rather than a hardcoded color. Add an
+`appearance` block to `config/entity_data.json` and set a look per profession
+(`jobs`, keyed by job name) or per entity type (`types`, keyed by the
+`EntityType` name):
+
+```json
+"appearance": {
+    "types": { "Animal_Cat": { "shape": "triangle", "color": [ 180, 180, 205 ], "radius": 7 } },
+    "jobs": {
+        "farmer":   { "shape": "circle", "color": [ 90, 200, 90 ] },
+        "explorer": { "shape": "triangle", "color": [ 220, 110, 110 ] }
+    }
+}
+```
+
+Each entry may set `shape` (`circle`, `square`, `diamond`, `triangle`), `color`
+(an RGB/RGBA array or a name such as `red`), `outline_color`,
+`outline_thickness`, `radius` and `points`. A profession's look wins over its
+type's; an unconfigured entity keeps the default white circle, so the block is
+optional. Press `R` in game to reload and see color changes immediately.
 
 ## Libraries
 
@@ -208,6 +233,11 @@ the active work starts at milestone 3 (social station and importance).
   minimap and stats overlay, real menu, audio).
 
 ### On the side
+- [x] **Entity appearance in JSON.** Each profession (and entity type) draws
+  from a configurable look (`shape`, `color`, `outline`, `radius`, `points`) in
+  `entity_data.json`'s `appearance` block, so entities can be personalized
+  without a rebuild; `R` repaints them live. Unconfigured entities keep the
+  default white circle.
 - [x] **Survival and population dynamics** (implemented). Kept here for now
   rather than as an active milestone: entities age and die, starvation and
   dehydration drain health while a comfortable entity recovers, and comfortable
