@@ -50,9 +50,24 @@ void EntityManager::update()
                 ageEntities();
                 applyHealth();
                 killTheDying();
+                produceGoods();
                 tryBirths();
         }
         m_last_survival_tick = now;
+
+        // Spoilage runs once per in-game day, not per hour, so a store of food
+        // decays at a steady rate regardless of how many hours a frame spans.
+        const std::int64_t dayIndex = now / GameTime::kMinutesPerDay;
+        if (m_last_spoilage_day < 0)
+                m_last_spoilage_day = dayIndex;
+        else if (dayIndex > m_last_spoilage_day)
+        {
+                spoilFood();
+                m_last_spoilage_day = dayIndex;
+        }
+
+        // Keep the roles staffed: idle entities move to whichever job is short.
+        reassignJobs();
 
         // REMOVE ENTITIES
         std::vector<entt::entity> toDestroy;
@@ -205,10 +220,11 @@ void EntityManager::update()
                 if (auto action = std::dynamic_pointer_cast<CEating>(front); action
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
-                        // Prefer drawing from the settlement stores; when they are
-                        // empty the entity foraged the tile directly, so the meal
-                        // still satisfies hunger.
-                        consumeFromStockpile(Elements::forest) || consumeFromStockpile(Elements::hill);
+                        // Draw a meal from the settlement's food store. The action
+                        // still satisfies hunger when the store is empty, so a
+                        // settlement run short of food is a food *shortage* (mood
+                        // and production), not an instant death loop.
+                        m_goods.take(Goods::Good::Food, Economy::kMealFoodCost);
                         needs.satisfy(1);
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -216,7 +232,6 @@ void EntityManager::update()
                 else if (auto action = std::dynamic_pointer_cast<CDrinking>(front); action
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
-                        consumeFromStockpile(Elements::ocean);
                         needs.satisfy(0);
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -232,9 +247,10 @@ void EntityManager::update()
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
                         // The gather produced a unit: carry it, then deposit it into
-                        // the settlement stockpile and tally the completed trip.
+                        // the settlement stores as the good its tile yields, and
+                        // tally the completed trip.
                         inventory.gather();
-                        m_stockpile[action->element] += inventory.deposit();
+                        m_goods.add(Goods::fromElement(action->element), inventory.deposit());
                         ++m_gathers_completed;
 
                         std::lock_guard<std::mutex> lock(m_mutex);
@@ -244,8 +260,8 @@ void EntityManager::update()
 
         // Decide what each entity should do. A busy entity keeps its plan; an idle
         // one asks the weighted policy and starts the winning action.
-        m_registry->view<CActionsQueue, CTransform, CBasicNeeds, CMemory, CPersonality, CVision, CPath>()
-                .each([&](auto entity, auto& queue, auto& trs, auto& needs, auto& memory, auto& personality, auto& vision, auto& path)
+        m_registry->view<CActionsQueue, CTransform, CBasicNeeds, CMemory, CPersonality, CVision, CPath, CJob>()
+                .each([&](auto entity, auto& queue, auto& trs, auto& needs, auto& memory, auto& personality, auto& vision, auto& path, auto& job)
         {
                 int& idle = m_entity_idle[entity];
 
@@ -264,68 +280,46 @@ void EntityManager::update()
                         return;
                 }
 
-                if (startActionFor(need, trs.pos, vision.radius, memory, queue, path))
+                if (startActionFor(need, trs.pos, vision.radius, memory, queue, path, job.job))
                         idle = 0;
         });
 
         // Update Entity info box
-        m_registry->view<CActionsQueue, CBasicNeeds, CHealth, CEntityInfo>().each([&](auto entity, auto& queue, auto& needs, auto& health, auto& info)
+        m_registry->view<CActionsQueue, CBasicNeeds, CHealth, CEntityInfo, CJob>()
+                .each([&](auto entity, auto& queue, auto& needs, auto& health, auto& info, const CJob& job)
         {
-                        const std::string healthLine = "Health: " + std::to_string(health.value);
-
                         if (info.text.empty())
                         {
-                                // Hunger
-                                addTextToEntityInfo(info.text, "Hunger: " + std::to_string(needs.hunger), info.size, info.text_color);
-
-                                // Thirst
-                                addTextToEntityInfo(info.text, "Thirst: " + std::to_string(needs.thirst), info.size, info.text_color);
-
-                                // Sleep
-                                addTextToEntityInfo(info.text, "Sleep: " + std::to_string(needs.sleep), info.size, info.text_color);
-
-                                // Health
-                                addTextToEntityInfo(info.text, "Health: " + std::to_string(health.value), info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Hunger: 100", info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Thirst: 100", info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Sleep: 0", info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Health: 100", info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Job: Idle", info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Idle.", info.size, info.text_color);
                         }
-                        else
+
+                        info.text[0].setString("Hunger: " + std::to_string(needs.hunger));
+                        info.text[1].setString("Thirst: " + std::to_string(needs.thirst));
+                        info.text[2].setString("Sleep: " + std::to_string(needs.sleep));
+                        info.text[3].setString("Health: " + std::to_string(health.value));
+                        info.text[4].setString("Job: " + Jobs::name(job.job));
+
+                        static const std::array<std::pair<ActionTypes, const char*>, 5> kActions{ {
+                                { ActionTypes::Moving,    "Moving." },
+                                { ActionTypes::Eating,    "Eating." },
+                                { ActionTypes::Sleeping,  "Sleeping." },
+                                { ActionTypes::Drinking,  "Drinking." },
+                                { ActionTypes::Gathering, "Gathering." },
+                        } };
+
+                        std::string status = "Idle.";
+                        if (!queue.actions.empty() && queue.actions.front())
                         {
-                                info.text[0].setString("Hunger: " + std::to_string(needs.hunger));
-                                info.text[1].setString("Thirst: " + std::to_string(needs.thirst));
-                                info.text[2].setString("Sleep: " + std::to_string(needs.sleep));
-                                info.text[3].setString(healthLine);
-
-                                // Update current action
-                                if(info.text.size() < 5)
-                                        addTextToEntityInfo(info.text, "Idle.", info.size, info.text_color);
-
-                                if (queue.actions.empty())
-                                {
-                                        info.text[4].setString("Idle.");
-                                        return;
-                                }
-
-                                switch (static_cast<int>(queue.actions.front()->action_name))
-                                {
-                                case static_cast<int>(ActionTypes::Moving):
-                                        info.text[4].setString("Moving.");
-                                        break;
-                                case static_cast<int>(ActionTypes::Eating):
-                                        info.text[4].setString("Eating.");
-                                        break;
-                                case static_cast<int>(ActionTypes::Sleeping):
-                                        info.text[4].setString("Sleeping.");
-                                        break;
-                                case static_cast<int>(ActionTypes::Drinking):
-                                        info.text[4].setString("Drinking.");
-                                        break;
-                                case static_cast<int>(ActionTypes::Gathering):
-                                        info.text[4].setString("Gathering.");
-                                        break;
-
-                                default:
-                                        info.text[4].setString("Idle.");
-                                }
+                                for (const auto& [action, label] : kActions)
+                                        if (queue.actions.front()->action_name == action)
+                                                status = label;
                         }
+                        info.text[5].setString(status);
         });
 
 }
@@ -339,7 +333,8 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                                    const float visionRadius,
                                    const CMemory& memory,
                                    CActionsQueue& queue,
-                                   CPath& path)
+                                   CPath& path,
+                                   const Jobs::Job job)
 {
         // Water is not walkable, so a drink target is approached from the nearest
         // land tile. The closest water tile can itself be ringed by ocean, so
@@ -431,7 +426,7 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                         if (queueHasAction(queue, ActionTypes::Gathering))
                                 return false;
 
-                        if (auto target = settleElements(memory))
+                        if (auto target = settleElements(memory, job))
                         {
                                 if (queueMoveTo(pos, target->pos, path, queue))
                                 {
@@ -622,14 +617,78 @@ void EntityManager::resolveCollisions()
         }
 }
 
-bool EntityManager::consumeFromStockpile(Elements element)
+// Economy ////////////////////////////////////////////////////////////////////////
+
+void EntityManager::produceGoods()
 {
-        const auto it = m_stockpile.find(element);
-        if (it == m_stockpile.end() || it->second <= 0)
+        for (const auto& site : m_buildings)
+        {
+                switch (site.element)
+                {
+                case Elements::farm:
+                {
+                        // A farm grows food with no raw input, one unit per hour per
+                        // building. Food is what feeds the settlement, so this is the
+                        // base of the production chain.
+                        const int grown = std::max(0, m_config.economy.farm_food_per_hour);
+                        m_goods.add(Goods::Good::Food, grown);
+                        m_food_produced += grown;
+                        break;
+                }
+                case Elements::workshop:
+                        // A workshop converts raw goods into crafted ones: the first
+                        // recipe whose inputs are available is applied. A workshop
+                        // with nothing to work simply idles this hour.
+                        (void)Economy::produceOnce(m_goods, Economy::Building::Workshop);
+                        break;
+                default:
+                        break;
+                }
+        }
+}
+
+void EntityManager::spoilFood()
+{
+        Goods::spoil(m_goods, m_config.economy.food_spoilage_percent_per_day);
+}
+
+bool EntityManager::placeBuilding(Economy::Building building, const sf::Vector2i& worldPos)
+{
+        if (building == Economy::Building::None || building == Economy::Building::Count)
                 return false;
 
-        --it->second;
+        const Elements element = (building == Economy::Building::Farm) ? Elements::farm : Elements::workshop;
+        const Goods::Good cost_good = Goods::Good::Wood;
+        const int cost = (building == Economy::Building::Farm)
+                       ? m_config.economy.farm_wood_cost
+                       : m_config.economy.workshop_wood_cost;
+
+        // Do not stack a new structure on an existing one: the tile would just be
+        // overwritten and the old site would keep producing from the list.
+        for (const auto& site : m_buildings)
+                if (site.pos == worldPos)
+                        return false;
+
+        if (!m_goods.has(cost_good, cost))
+                return false;
+
+        if (!m_map->setTileColor(worldPos, element))
+                return false;
+
+        m_goods.take(cost_good, cost);
+        m_buildings.push_back(BuildingSite{ worldPos, element });
+        LOG_INFO("Built {} at ({},{}).", Economy::buildingName(building), worldPos.x, worldPos.y);
         return true;
+}
+
+int EntityManager::stockpile(const Elements element) const
+{
+        return m_goods.count(Goods::fromElement(element));
+}
+
+int EntityManager::totalStockpile() const
+{
+        return m_goods.total();
 }
 
 // Population dynamics ////////////////////////////////////////////////////////////
@@ -800,6 +859,7 @@ entt::entity EntityManager::addEntity(const EntityType& type, const sf::Vector2i
         auto entity = m_registry->create();
 
         m_registry->emplace<CType>(entity, type);
+        m_registry->emplace<CJob>(entity, defaultJobFor(type));
         m_registry->emplace<CLifespan>(entity, m_config.survival.lifespan_hours);
         m_registry->emplace<CTransform>(entity, spawn, 100.f);
         m_registry->emplace<CShape>(entity, 10, 4, sf::Color::White);
@@ -940,6 +1000,24 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
         return sf::Vector2i{ chosen.x * tileSize, chosen.y * tileSize };
 }
 
+Jobs::Job EntityManager::defaultJobFor(const EntityType& type) const
+{
+        const std::size_t index = static_cast<std::size_t>(type);
+        if (index < kEntityTypeCount && m_config.has_type_job[index])
+                return m_config.type_jobs[index];
+
+        // Fall back by species: humans build, animals idle. A type the config did
+        // not mention still gets a useful role.
+        switch (type)
+        {
+                case EntityType::Animal_Dog:
+                case EntityType::Animal_Cat:
+                        return Jobs::Job::Idle;
+                default:
+                        return Jobs::Job::Builder;
+        }
+}
+
 // HELPER FUNCTION
 void EntityManager::addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color)
 {
@@ -993,34 +1071,83 @@ std::vector<sf::Vector2i> EntityManager::entityPositions() const
         return positions;
 }
 
-std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMemory& memory) const
+std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMemory& memory, const Jobs::Job job) const
 {
-        // Rarer, more useful materials first, so an entity that could work any of
-        // several remembered tiles prefers the scarcer one.
-        static constexpr std::array<Elements, 5> kPriority{
-                Elements::silver, Elements::iron, Elements::clay,
-                Elements::forest, Elements::hill,
+        // Gather the remembered tiles, then pick the best one for *this job*:
+        // lowest preference rank wins (see Goods::jobPreference). Idle entities
+        // fall back to rarest-material-first so they still contribute.
+        std::optional<WorkTarget> best;
+        int bestRank = 0;
+
+        const auto consider = [&](const Elements element, const sf::Vector2i& pos, const int rank)
+        {
+                if (rank < 0)
+                        return;
+                if (!best || rank < bestRank)
+                {
+                        best = WorkTarget{ pos, element };
+                        bestRank = rank;
+                }
         };
 
-        for (const Elements element : kPriority)
+        if (job == Jobs::Job::Idle)
         {
-                const auto pos = memory.getLocation(element);
-                if (pos)
-                        return WorkTarget{ *pos, element };
+                static constexpr std::array<Elements, 5> kPriority{
+                        Elements::silver, Elements::iron, Elements::clay,
+                        Elements::forest, Elements::hill,
+                };
+                for (std::size_t i = 0; i < kPriority.size(); ++i)
+                {
+                        const auto pos = memory.getLocation(kPriority[i]);
+                        if (pos)
+                                return WorkTarget{ *pos, kPriority[i] };
+                }
+                return std::nullopt;
         }
-        return std::nullopt;
+
+        for (const auto& [element, pos] : memory.locations)
+                consider(element, pos, Goods::jobPreference(job, element));
+
+        return best;
 }
 
-int EntityManager::stockpile(const Elements element) const
+std::array<int, Jobs::kJobCount> EntityManager::jobCounts() const
 {
-        const auto it = m_stockpile.find(element);
-        return (it != m_stockpile.end()) ? it->second : 0;
+        std::array<int, Jobs::kJobCount> counts{};
+        m_registry->view<CJob>().each([&](auto, const CJob& job)
+        {
+                counts[Jobs::index(job.job)] += 1;
+        });
+        return counts;
 }
 
-int EntityManager::totalStockpile() const
+Jobs::Job EntityManager::firstJob() const
 {
-        int total = 0;
-        for (const auto& [element, amount] : m_stockpile)
-                total += amount;
-        return total;
+        auto view = m_registry->view<CJob>();
+        if (view.begin() == view.end())
+                return Jobs::Job::Idle;
+        return view.get<CJob>(*view.begin()).job;
+}
+
+void EntityManager::reassignJobs()
+{
+        // Only entities that have no plan are candidates, so a worker mid-trip is
+        // not yanked off it. The most understaffed job wins each free entity.
+        const auto counts = jobCounts();
+        std::array<int, Jobs::kJobCount> projected = counts;
+
+        m_registry->view<CJob, CActionsQueue>().each(
+                [&](auto, CJob& job, const CActionsQueue& queue)
+        {
+                if (!queue.actions.empty())
+                        return;
+
+                const Jobs::Job want = Economy::assignJob(m_config.economy.job_targets, projected);
+                if (want != Jobs::Job::Idle && want != job.job)
+                {
+                        projected[Jobs::index(job.job)] -= 1;
+                        projected[Jobs::index(want)] += 1;
+                        job.job = want;
+                }
+        });
 }

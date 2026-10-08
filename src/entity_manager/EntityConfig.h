@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "EntityDecision.h"
 #include "GameClock.h"
+#include "Jobs.h"
 
 #include <nlohmann/json.hpp>
 
@@ -52,6 +53,33 @@ struct EntityConfig
     };
 
     Survival survival{};
+
+    // Optional per-entity-type starting job, from an "entity_types" block keyed
+    // by the EntityType name. Unlisted types fall back to a sensible default
+    // (human -> Builder, animal -> Idle), so the config stays backward compatible.
+    std::array<Jobs::Job, kEntityTypeCount> type_jobs{}; // indexed by EntityType
+    std::array<bool, kEntityTypeCount>      has_type_job{};
+
+    // Settlement economy: how many of each job to staff and what the buildings
+    // produce. Defaults ship so the game runs on an older config file.
+    struct Economy
+    {
+        // How many of each job the settlement wants staffed, indexed by Job.
+        Jobs::JobTargets job_targets{};
+
+        // Food lost per in-game day, as a percentage of the stored food.
+        int food_spoilage_percent_per_day{ 5 };
+
+        // Cost to place a building, in goods, taken from the stockpile.
+        int farm_wood_cost{ 5 };
+        int workshop_wood_cost{ 5 };
+
+        // Food each farm / workshop produces per in-game hour.
+        int farm_food_per_hour{ 1 };
+        int workshop_output_per_hour{ 1 };
+    };
+
+    Economy economy{};
 
     // Weighted decision policy (thresholds, biases, idle tolerance).
     EntityDecision::Config decision{};
@@ -107,6 +135,59 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         s.birth_interval_hours = survival.value("birth_cooldown_hours", s.birth_interval_hours);
         if (survival.contains("birth_interval_days"))
             s.birth_interval_hours = survival.at("birth_interval_days").get<int>() * GameTime::kHoursPerDay;
+    }
+
+    // Default staffing: enough food production to feed the founders, a couple of
+    // gatherers and one craftsperson. Overridden by the config's economy block.
+    cfg.economy.job_targets[Jobs::index(Jobs::Job::Farmer)]     = 4;
+    cfg.economy.job_targets[Jobs::index(Jobs::Job::Lumberjack)] = 2;
+    cfg.economy.job_targets[Jobs::index(Jobs::Job::Miner)]      = 1;
+    cfg.economy.job_targets[Jobs::index(Jobs::Job::Builder)]    = 1;
+
+    if (js.contains("economy"))
+    {
+        const auto& economy = js.at("economy");
+        auto& e = cfg.economy;
+
+        e.food_spoilage_percent_per_day = economy.value("food_spoilage_percent_per_day", e.food_spoilage_percent_per_day);
+        e.farm_wood_cost                = economy.value("farm_wood_cost", e.farm_wood_cost);
+        e.workshop_wood_cost            = economy.value("workshop_wood_cost", e.workshop_wood_cost);
+        e.farm_food_per_hour            = economy.value("farm_food_per_hour", e.farm_food_per_hour);
+        e.workshop_output_per_hour      = economy.value("workshop_output_per_hour", e.workshop_output_per_hour);
+
+        if (economy.contains("jobs"))
+        {
+            for (const auto& [key, value] : economy.at("jobs").items())
+            {
+                if (const auto job = Jobs::fromString(key))
+                {
+                    if (*job == Jobs::Job::Idle)
+                        continue;
+                    e.job_targets[Jobs::index(*job)] = value.get<int>();
+                }
+            }
+        }
+    }
+
+    // Per-entity-type starting job. Names match the EntityType enumerators.
+    if (js.contains("entity_types"))
+    {
+        const auto& types = js.at("entity_types");
+        const auto readType = [&](const char* key, const EntityType type)
+        {
+            if (!types.contains(key))
+                return;
+            if (const auto job = Jobs::fromString(types.at(key).value("job", std::string{})))
+            {
+                cfg.type_jobs[static_cast<std::size_t>(type)] = *job;
+                cfg.has_type_job[static_cast<std::size_t>(type)] = true;
+            }
+        };
+        readType("Human_Generic", EntityType::Human_Generic);
+        readType("Human_Farmer", EntityType::Human_Farmer);
+        readType("Human_Lumberjack", EntityType::Human_Lumberjack);
+        readType("Animal_Dog", EntityType::Animal_Dog);
+        readType("Animal_Cat", EntityType::Animal_Cat);
     }
 
     const auto readNeed = [&decision](const char* key, EntityDecision::Config::Need& out)

@@ -16,6 +16,28 @@
         "health_regen_per_hour": 1
     },
 
+    "entity_types": {
+        "Human_Generic":    { "job": "builder" },
+        "Human_Farmer":     { "job": "farmer" },
+        "Human_Lumberjack": { "job": "lumberjack" },
+        "Animal_Dog":       { "job": "idle" },
+        "Animal_Cat":       { "job": "idle" }
+    },
+
+    "economy": {
+        "jobs": {
+            "farmer": 4,
+            "lumberjack": 2,
+            "miner": 1,
+            "builder": 1
+        },
+        "food_spoilage_percent_per_day": 5,
+        "farm_wood_cost": 5,
+        "workshop_wood_cost": 5,
+        "farm_food_per_hour": 1,
+        "workshop_output_per_hour": 1
+    },
+
     "decision": {
         "idle_tolerance": 3,
         "thirst": { "threshold": 0.20, "bias": 1.0 },
