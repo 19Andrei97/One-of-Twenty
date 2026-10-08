@@ -107,6 +107,13 @@ A run that is killed by `timeout` (exit 124) is a success; check
   does not. `Buildings::walkCost(element, catalog)` layers the catalog override
   over `MoveCost` for both movement and pathfinding. Keep catalog lookups by
   `byId`/`byElement`, not by rebuilding maps.
+- Entity appearance is data-driven: `helpers/Appearance.h` holds a `Look`
+  (shape/color/outline/size) and builds the `CShape` circle; the `appearance`
+  block in `config/entity_data.json` configures it per entity type (`types`) and
+  per job (`jobs`). `EntityManager::lookFor` resolves job-over-type, the spawn
+  and `reassignJobs` repaint, and `reloadConfig` repaints every live entity so
+  `R` shows a change at once. Keep the default (white 10-unit circle) for an
+  unconfigured entry so older configs are unchanged.
 - Ores use one noise field each (`m_noise_clay`/`iron`/`silver`, seeded apart)
   rather than a shared mineral field; `getResourceValue()` samples a field.
 - The chunk map `c_chunks` is shared with worker threads; guard access with

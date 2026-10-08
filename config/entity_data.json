@@ -25,6 +25,20 @@
         "Animal_Cat":       { "job": "idle" }
     },
 
+    "appearance": {
+        "types": {
+            "Animal_Dog": { "shape": "circle",   "color": [ 196, 160, 110 ], "radius": 7 },
+            "Animal_Cat": { "shape": "triangle", "color": [ 180, 180, 205 ], "radius": 7 }
+        },
+        "jobs": {
+            "farmer":     { "shape": "circle",   "color": [  90, 200,  90 ] },
+            "lumberjack": { "shape": "square",   "color": [  90, 140, 220 ] },
+            "miner":      { "shape": "diamond",  "color": [ 190, 190, 200 ] },
+            "builder":    { "shape": "square",   "color": [ 220, 180,  90 ] },
+            "explorer":   { "shape": "triangle", "color": [ 220, 110, 110 ] }
+        }
+    },
+
     "knowledge": {
         "cell_size": 8,
         "max_cells": 65536

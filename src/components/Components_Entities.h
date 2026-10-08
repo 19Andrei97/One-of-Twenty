@@ -2,6 +2,7 @@
 
 #include "../map_generator/MapGenerator.h"
 #include "../helpers/Resources.h"
+#include "../helpers/Appearance.h"
 #include "../helpers/Jobs.h"
 #include "../helpers/Economy.h"
 
@@ -192,14 +193,12 @@ struct CShape
 {
 	sf::CircleShape circle;
 
-	CShape(float radius, int points, const sf::Color& fill)
-		: circle(radius, points)
-	{
-		circle.setFillColor(fill);
-		//circle.setOutlineColor(outline);
-		//circle.setOutlineThickness(thickness);
-		circle.setOrigin({ radius, radius });
-	}
+	// The look (shape, fill, outline, size) comes from the entity config, so a
+	// profession can be recolored or reshaped from JSON. Appearance.h owns the
+	// geometry; this is just the renderable component.
+	explicit CShape(const Appearance::Look& look)
+		: circle(look.makeShape())
+	{}
 };
 
 struct CVision

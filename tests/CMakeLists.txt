@@ -13,6 +13,7 @@ add_executable(unit_tests
     test_buildings.cpp
     test_economy.cpp
     test_observability.cpp
+    test_appearance.cpp
     test_pathfinding.cpp
     test_hud.cpp
     test_scene.cpp

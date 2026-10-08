@@ -140,6 +140,12 @@ class EntityManager
         // idle). The shortage rule can reassign it afterwards.
         Jobs::Job defaultJobFor(const EntityType& type) const;
 
+        // Resolved appearance for an entity type and its current job. The job
+        // look takes precedence (it personalizes a profession), falling back to
+        // the type look and then the shipped default, so any of the three may be
+        // left unconfigured.
+        Appearance::Look lookFor(const EntityType& type, Jobs::Job job) const;
+
         // Movement cost of the tile under a world position, consulting the
         // catalog so a road speeds movement while terrain is unchanged.
         float tileCostAt(const sf::Vector2i& worldPos) const
@@ -269,6 +275,14 @@ public:
                 m_config = loadEntityConfig(m_config_path);
                 m_catalog = Buildings::loadCatalog(m_buildings_path);
                 m_settlement = Buildings::loadSettlement(m_buildings_path);
+
+                // Repaint live entities so a look change is visible immediately,
+                // without a restart.
+                m_registry->view<CType, CJob, CShape>().each(
+                        [&](auto, const CType& type, const CJob& job, CShape& shape)
+                        {
+                                shape.circle = lookFor(type.type, job.job).makeShape();
+                        });
         }
 
         // The settlement's construction plan for this hour: cost and start a site.
@@ -319,6 +333,11 @@ public:
         const CivKnowledge& knowledge() const { return m_knowledge; }
         // Handles of every live entity, for tooling and tests.
         std::vector<entt::entity> entityHandles() const;
+
+        // The raw registry, for tooling and tests that need a component the
+        // convenience accessors do not cover (e.g. an entity's CShape).
+        entt::registry& registry() { return *m_registry; }
+        const entt::registry& registry() const { return *m_registry; }
 
         // Settlement totals, accumulated as gathers complete.
         int stockpile(const Elements element) const;

@@ -424,30 +424,43 @@ def main() -> None:
     frames = FrameSource(disp, args.quality, args.scale, args.fps)
     frames.start()
 
-    if args.window_name:
-        window = find_window(disp, args.window_name)
-        if window:
-            window.set_input_focus(X.RevertToParent, X.CurrentTime)
-            disp.sync()
-            print(f"focused window: {args.window_name!r} ({window.id:#x})")
-        else:
-            print(f"window {args.window_name!r} not found; input follows pointer/focus")
-
     StreamHandler.frames = frames
     StreamHandler.controller = controller
     StreamHandler.password = args.password
     StreamHandler.display_name = args.display
 
+    # Bind and start serving before touching window focus. Focusing is only a
+    # convenience for interactive use: walking the window tree can block, and
+    # SetInputFocus raises BadMatch for a window that is not viewable (which
+    # happens under bare Xvfb), so it must never delay or abort startup.
     server = ThreadingHTTPServer((args.bind, args.port), StreamHandler)
+    serving = threading.Thread(target=server.serve_forever, name="http", daemon=True)
+    serving.start()
     suffix = f"?pw={args.password}" if args.password else ""
     print(f"streaming {args.display} ({frames.width}x{frames.height}) "
           f"at http://{args.bind}:{args.port}/{suffix}", flush=True)
+
+    if args.window_name:
+        try:
+            window = find_window(disp, args.window_name)
+            if window:
+                window.set_input_focus(X.RevertToParent, X.CurrentTime)
+                disp.sync()
+                print(f"focused window: {args.window_name!r} ({window.id:#x})")
+            else:
+                print(f"window {args.window_name!r} not found; input follows pointer/focus")
+        except Exception as exc:  # focus is best-effort; keep streaming regardless
+            print(f"could not focus {args.window_name!r}: {exc}; "
+                  "input follows pointer/focus")
+
     try:
-        server.serve_forever()
+        while serving.is_alive():
+            serving.join(timeout=1.0)
     except KeyboardInterrupt:
         pass
     finally:
         frames.stop()
+        server.shutdown()
         server.server_close()
 
 
