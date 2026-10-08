@@ -76,7 +76,21 @@ void Scene_Play::refreshStats()
 			+ "   Tools: " + std::to_string(m_entity_manager->good(Goods::Good::Tools)),
 		"Buildings: " + std::to_string(m_entity_manager->buildingCount())
 			+ "   Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
+		lastEventLine(),
 	});
+}
+
+std::string Scene_Play::lastEventLine() const
+{
+	if (!m_entity_manager)
+		return {};
+
+	// Prefer the most recent recorded event; fall back to the run's compact
+	// summary so the panel always shows something current.
+	const auto& events = m_entity_manager->events();
+	if (!events.empty())
+		return "Event: " + events.events().back().format();
+	return "Run: " + m_entity_manager->runSummary().format();
 }
 
 void Scene_Play::refreshTimeReadout()
@@ -202,6 +216,16 @@ void Scene_Play::sUserInput(const sf::Event& event)
 		{
 			if (m_hud)
 				m_hud->cycleLevel();
+		}
+		else if (keyPressed->code == sf::Keyboard::Key::R)
+		{
+			// Reload the tuning without a rebuild. A malformed file keeps the
+			// previous config and logs the error rather than losing it.
+			if (m_entity_manager)
+			{
+				try { m_entity_manager->reloadConfig(); LOG_INFO("Reloaded entity config."); }
+				catch (const std::exception& e) { LOG_ERROR("Reload failed: {}", e.what()); }
+			}
 		}
 
 		if (!m_paused)

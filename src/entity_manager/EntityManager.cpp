@@ -82,6 +82,11 @@ void EntityManager::update()
 
         for (auto entity : toDestroy)
         {
+                auto cause = m_death_cause.find(entity);
+                m_events.record(Observability::EventKind::Death,
+                                cause != m_death_cause.end() ? cause->second : Observability::EventCause::Natural,
+                                now);
+                m_death_cause.erase(entity);
                 m_registry->destroy(entity);
                 m_entity_idle.erase(entity);
         }
@@ -105,7 +110,10 @@ void EntityManager::update()
                         return;
 
                 memory.last_scan_tile = tile;
-                memory.rememberLocation(m_map->getResourcesWithinBoundary(trs.pos, vision.radius));
+                const auto found = m_map->getResourcesWithinBoundary(trs.pos, vision.radius);
+                memory.rememberLocation(found);
+                for (const auto& [element, pos] : found)
+                        recordDiscovery(element);
         });
 
         // Moving
@@ -250,8 +258,11 @@ void EntityManager::update()
                         // the settlement stores as the good its tile yields, and
                         // tally the completed trip.
                         inventory.gather();
-                        m_goods.add(Goods::fromElement(action->element), inventory.deposit());
+                        const Elements yielded = action->element;
+                        m_goods.add(Goods::fromElement(yielded), inventory.deposit());
                         ++m_gathers_completed;
+                        m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
+                                        1, Goods::name(Goods::fromElement(yielded)));
 
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -268,6 +279,64 @@ void EntityManager::update()
                 if (!queue.actions.empty())
                 {
                         idle = 0;
+
+                        // Survival first: a busy entity drops a non-survival plan
+                        // (a long gather trip, a wander) for a need that has turned
+                        // critical, so a long trip cannot starve it. A plan that is
+                        // already addressing a survival need is left alone, so two
+                        // pressing needs cannot ping-pong the entity between them.
+                        const bool busySurviving = queueHasAction(queue, ActionTypes::Eating)
+                                                || queueHasAction(queue, ActionTypes::Drinking)
+                                                || queueHasAction(queue, ActionTypes::Sleeping);
+                        if (!busySurviving)
+                        {
+                                const auto& front = queue.actions.front();
+                                const ActionTypes current = front ? front->action_name : ActionTypes::Idle;
+                                const auto urgent = EntityDecision::interruptFor(needs, personality, m_config.decision, current);
+
+                                // Only bother when the urgent need's action is not
+                                // already on the way (the entity may be walking to
+                                // it), and there is something to head for: sleeping
+                                // needs no target, thirst needs remembered water and
+                                // hunger remembered food. Without the target check a
+                                // need with nothing remembered would re-plan an
+                                // explore every frame instead of working toward it.
+                                bool hasTarget = urgent.has_value();
+                                if (urgent == EntityDecision::Need::Thirst)
+                                        hasTarget = memory.findNearest(trs.pos, MemoryKind::Water).has_value();
+                                else if (urgent == EntityDecision::Need::Hunger)
+                                        hasTarget = memory.findNearest(trs.pos, MemoryKind::Food).has_value();
+
+                                if (urgent && hasTarget
+                                        && !queueHasAction(queue, EntityDecision::actionFor(*urgent)))
+                                {
+                                        // Plan the interruption transactionally: keep
+                                        // the old plan unless the new one actually
+                                        // starts the urgent need's action, so an
+                                        // unreachable target does not strand the entity
+                                        // with an empty queue or a cleared route.
+                                        auto previous = queue.actions;
+                                        std::vector<sf::Vector2i> previous_path;
+                                        {
+                                                std::lock_guard<std::mutex> lock(m_mutex);
+                                                previous_path = path.waypoints;
+                                                queue.actions.clear();
+                                                path.waypoints.clear();
+                                        }
+                                        const ActionTypes wanted = EntityDecision::actionFor(*urgent);
+                                        startActionFor(*urgent, trs.pos, vision.radius, memory, queue, path, job.job);
+                                        if (queueHasAction(queue, wanted))
+                                        {
+                                                idle = 0;
+                                        }
+                                        else
+                                        {
+                                                std::lock_guard<std::mutex> lock(m_mutex);
+                                                queue.actions = std::move(previous);
+                                                path.waypoints = std::move(previous_path);
+                                        }
+                                }
+                        }
                         return;
                 }
 
@@ -322,6 +391,24 @@ void EntityManager::update()
                         info.text[5].setString(status);
         });
 
+        // Observability: sample the run on its daily cadence. Sampling here (once
+        // per update) rather than per hour keeps the history one point per day
+        // regardless of how many hours a single frame spans.
+        m_history.sample(Observability::RunPoint{ now, entityCount(),
+                                                  buildingCount(), m_goods });
+}
+
+void EntityManager::recordDiscovery(const Elements element)
+{
+        // A "discovery" is the settlement first noticing a resource category. The
+        // key is the element itself, so a lake and a second lake are one event,
+        // while food, wood and ore each record separately. Logging once per
+        // category (not per entity or per tile) keeps the log readable.
+        const int key = static_cast<int>(element);
+        if (!m_discovered.insert(key).second)
+                return;
+        m_events.record(Observability::EventKind::Discovery, m_game_clock->getTimestamp(),
+                        0, Resources::name(element));
 }
 
 // Translate a decision into queued actions. A need with a remembered target
@@ -633,13 +720,18 @@ void EntityManager::produceGoods()
                         const int grown = std::max(0, m_config.economy.farm_food_per_hour);
                         m_goods.add(Goods::Good::Food, grown);
                         m_food_produced += grown;
+                        if (grown > 0)
+                                m_events.record(Observability::EventKind::Production, m_game_clock->getTimestamp(),
+                                                grown, Goods::name(Goods::Good::Food));
                         break;
                 }
                 case Elements::workshop:
                         // A workshop converts raw goods into crafted ones: the first
                         // recipe whose inputs are available is applied. A workshop
                         // with nothing to work simply idles this hour.
-                        (void)Economy::produceOnce(m_goods, Economy::Building::Workshop);
+                        if (Economy::produceOnce(m_goods, Economy::Building::Workshop))
+                                m_events.record(Observability::EventKind::Production, m_game_clock->getTimestamp(),
+                                                1, "workshop");
                         break;
                 default:
                         break;
@@ -737,11 +829,28 @@ void EntityManager::killTheDying()
         // Mark the dead; the removal pass below destroys them and tallies the
         // deaths. Marking is idempotent and deliberately does not count here: a
         // single frame can step several hours, so counting per hour-step would
-        // charge one entity's death to every hour it was already marked.
-        m_registry->view<CLifespan, CHealth>().each([&](auto entity, CLifespan& life, CHealth& health)
+        // charge one entity's death to every hour it was already marked. The
+        // cause is decided here (needs are still readable) and carried to the
+        // removal pass that records the event.
+        m_registry->view<CLifespan, CHealth, CBasicNeeds>()
+                .each([&](auto entity, CLifespan& life, CHealth& health, const CBasicNeeds& needs)
         {
-                if (EntityVitals::isAged(life) || !health.isAlive())
-                        life.remaining = 0;
+                if (!EntityVitals::isAged(life) && health.isAlive())
+                        return;
+
+                const bool aged = EntityVitals::isAged(life);
+                life.remaining = 0;
+                if (m_death_cause.find(entity) != m_death_cause.end())
+                        return;
+
+                Observability::EventCause cause = Observability::EventCause::Natural;
+                if (aged && !EntityVitals::isStarving(needs, m_config.survival.lethal_threshold))
+                        cause = Observability::EventCause::Aged;
+                else if (needs.thirst <= m_config.survival.lethal_threshold)
+                        cause = Observability::EventCause::Dehydrated;
+                else if (needs.hunger <= m_config.survival.lethal_threshold)
+                        cause = Observability::EventCause::Starved;
+                m_death_cause[entity] = cause;
         });
 }
 
@@ -782,6 +891,7 @@ void EntityManager::tryBirths()
         {
                 addEntity(EntityType::Human_Generic, spawn);
                 ++m_births;
+                m_events.record(Observability::EventKind::Birth, m_game_clock->getTimestamp(), 1);
         }
 
         if (!spawns.empty())
@@ -1069,6 +1179,36 @@ std::vector<sf::Vector2i> EntityManager::entityPositions() const
                 positions.push_back(trs.pos);
         });
         return positions;
+}
+
+CBasicNeeds* EntityManager::needsOf(const entt::entity entity)
+{
+        return m_registry->valid(entity) ? m_registry->try_get<CBasicNeeds>(entity) : nullptr;
+}
+
+CActionsQueue* EntityManager::actionsOf(const entt::entity entity)
+{
+        return m_registry->valid(entity) ? m_registry->try_get<CActionsQueue>(entity) : nullptr;
+}
+
+const CActionsQueue* EntityManager::actionsOf(const entt::entity entity) const
+{
+        return m_registry->valid(entity) ? m_registry->try_get<CActionsQueue>(entity) : nullptr;
+}
+
+CMemory* EntityManager::memoryOf(const entt::entity entity)
+{
+        return m_registry->valid(entity) ? m_registry->try_get<CMemory>(entity) : nullptr;
+}
+
+std::vector<entt::entity> EntityManager::entityHandles() const
+{
+        std::vector<entt::entity> handles;
+        m_registry->view<CType>().each([&](auto entity, const CType&)
+        {
+                handles.push_back(entity);
+        });
+        return handles;
 }
 
 std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const CMemory& memory, const Jobs::Job job) const

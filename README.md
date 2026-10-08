@@ -115,6 +115,9 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `W` / `A` / `S` / `D` | Move the camera |
 | Mouse wheel | Zoom in / out |
 | `P` | Pause / resume |
+| `[` / `]` | Slower / faster clock |
+| `H` / `Tab` | Cycle HUD level |
+| `R` | Reload `entity_data.json` tuning at runtime |
 | `M` | Re-randomize the map seed |
 | `G` (hold) | Debug wireframe view |
 | `1` | Spawn a generic human entity |
@@ -167,20 +170,20 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 ## TODO
 
 See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core, the
-survival loop and pathfinding are folded into the baseline; milestone 1
-(settlement economy and jobs) is complete and the active work starts at
-milestone 2.
+survival loop and pathfinding are folded into the baseline; milestones 1
+(settlement economy and jobs) and 2 (observability and tuning) are complete and
+the active work starts at milestone 3.
 
 ### Next milestones
 - [x] Settlement economy and jobs (entity-type roles, recipes/production, food as
   a resource, stockpile HUD, placeable buildings).
+- [x] Observability and tuning (event log, run summaries, runtime config reload,
+  interrupt a busy entity when a need turns critical).
 - [ ] Threats and defense (wildlife, combat, walls) — gives survival a reason.
 - [ ] Social bonds and society (kinship, relationships, roles, leadership) —
   the "one of twenty" premise.
 - [ ] Performance and scale (indexed resource queries, spatial entity index,
   incremental memory, headless benchmark in CI).
-- [ ] Observability and tuning (event log, run summaries, runtime config reload,
-  interrupt a busy entity when a need turns critical).
 - [ ] Presentation and UX (day/night lighting, sprites and camera follow,
   minimap and stats overlay, real menu, audio).
 
@@ -203,6 +206,13 @@ milestone 2.
 
 Retired from the roadmap; kept here as a record.
 
+- [x] **Observability and tuning.** A bounded event log (`helpers/EventLog.h`)
+  records births, deaths with cause, gathers and discoveries, stamped with the
+  in-game minute and queryable in tests; a `RunHistory` (`helpers/RunSummary.h`)
+  samples the population and stores once per in-game day and summarizes them for
+  a baseline. A busy entity interrupts a non-survival plan when a need turns
+  critical (`EntityDecision::interruptFor`), and `entity_data.json` reloads at
+  runtime with `R`.
 - [x] **Settlement economy and jobs.** Entity types are bound to jobs
   (`helpers/Jobs.h`, `config/entity_data.json` `entity_types` block, with
   defaults for older configs). Gathers bank into a per-good stockpile

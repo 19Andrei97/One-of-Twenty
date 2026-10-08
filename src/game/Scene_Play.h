@@ -27,6 +27,8 @@ class Scene_Play : public Scene
 	void sCollision();
 	// Push the current population/stockpile readout into the HUD.
 	void refreshStats();
+	// The most recent event (or the run summary when none yet), for the HUD.
+	std::string lastEventLine() const;
 	// Push the clock readout (date, time, speed) into the HUD.
 	void refreshTimeReadout();
 	// Bind the HUD's time-management buttons to the clock.

@@ -6,9 +6,14 @@
 #include "EntityDecision.h"
 #include "EntityVitals.h"
 
+#include "../helpers/EventLog.h"
+#include "../helpers/RunSummary.h"
+
 #include <array>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class EntityManager
@@ -23,9 +28,23 @@ class EntityManager
 
         // Tuning for needs decay and the weighted decision policy.
         EntityConfig                    m_config;
+        // Where the tuning was loaded from, so it can be reloaded at runtime
+        // without a rebuild.
+        std::string                     m_config_path;
         // Consecutive decisions that produced "nothing urgent", per entity, so a
         // contented entity eventually wanders instead of standing still.
         std::unordered_map<entt::entity, int>   m_entity_idle;
+
+        // Observability. `m_events` is the run's story (births, deaths with
+        // cause, gathers, discoveries, production); `m_history` samples the
+        // population and stores on in-game days so a run's shape can be compared
+        // against a baseline. `m_death_cause` carries the cause decided when an
+        // entity is marked dead to the removal pass that records the event, and
+        // `m_discovered` logs each resource the settlement first finds once.
+        Observability::EventLog                 m_events{ 1024 };
+        Observability::RunHistory               m_history;
+        std::unordered_map<entt::entity, Observability::EventCause> m_death_cause;
+        std::unordered_set<int>                 m_discovered;
 
         // Settlement stores, plus a count of completed gathers so progress is
         // observable (HUD / tests). Goods are the economy's currency: raw gathers
@@ -123,6 +142,10 @@ class EntityManager
         void killTheDying();
         void tryBirths();
 
+        // Log a resource the first time the settlement remembers it, so a run
+        // records its discoveries without spamming one event per entity per tile.
+        void recordDiscovery(Elements element);
+
         // Turn a decision into queued actions. Returns true if the entity is
         // already busy with the need (so the idle counter should reset).
         bool startActionFor(const EntityDecision::Need need,
@@ -145,9 +168,17 @@ public:
                 , m_game_clock(clock)
                 , m_delta_time(deltatime)
                 , m_config(loadEntityConfig(entity_file))
+                , m_config_path(entity_file)
         {
                 m_registry = std::make_unique<entt::registry>();
         }
+
+        // Re-read the entity config from disk so tuning does not need a rebuild.
+        // Existing entities keep the components they already have; only the rules
+        // consulted next (decay, decisions, survival, economy targets) change.
+        // Throws std::runtime_error if the file is missing or malformed, so the
+        // caller can keep the previous tuning rather than lose it silently.
+        void reloadConfig() { m_config = loadEntityConfig(m_config_path); }
 
         // MAIN FUNCTIONS
         void render(sf::RenderTarget& window);
@@ -183,6 +214,16 @@ public:
         // about where the settlement actually stands.
         std::vector<sf::Vector2i>   entityPositions() const;
 
+        // Direct component access for tooling and tests: the entity returned by
+        // addEntity can be driven without going through a full update. Returns
+        // nullptr when the entity is dead or does not have the component.
+        CBasicNeeds* needsOf(entt::entity entity);
+        CActionsQueue* actionsOf(entt::entity entity);
+        const CActionsQueue* actionsOf(entt::entity entity) const;
+        CMemory* memoryOf(entt::entity entity);
+        // Handles of every live entity, for tooling and tests.
+        std::vector<entt::entity> entityHandles() const;
+
         // Settlement totals, accumulated as gathers complete.
         int stockpile(const Elements element) const;
         int totalStockpile() const;
@@ -212,4 +253,22 @@ public:
         int maxPopulation() const { return m_config.survival.max_population; }
         int lifespanHours() const { return m_config.survival.lifespan_hours; }
         int birthIntervalHours() const { return m_config.survival.birth_interval_hours; }
+
+        // Observability, for the HUD and tests.
+        const Observability::EventLog& events() const { return m_events; }
+        const Observability::RunHistory& history() const { return m_history; }
+        // Summary of the samples taken so far (peak/trough population, days).
+        Observability::RunSummary runSummary() const
+        {
+                Observability::RunSummary summary = m_history.summarize();
+                summary.births = m_births;
+                summary.deaths = m_deaths;
+                summary.gathers = m_gathers_completed;
+                return summary;
+        }
+        int lastEventMinute() const
+        {
+                return m_events.empty() ? 0
+                     : static_cast<int>(m_events.events().back().timestamp_min);
+        }
 };
