@@ -6,6 +6,7 @@
 #include "EntityDecision.h"
 #include "EntityVitals.h"
 
+#include "../helpers/Buildings.h"
 #include "../helpers/EventLog.h"
 #include "../helpers/Knowledge.h"
 #include "../helpers/RunSummary.h"
@@ -16,6 +17,18 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+// Default catalog path for the EntityManager constructor. Tests define
+// ONE_OF_TWENTY_SOURCE_DIR, so they find the real catalog regardless of the
+// working directory; the game passes the path from config.json explicitly.
+[[nodiscard]] inline std::string defaultBuildingsPath()
+{
+#ifdef ONE_OF_TWENTY_SOURCE_DIR
+        return std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/buildings.json";
+#else
+        return "config/buildings.json";
+#endif
+}
 
 class EntityManager
 {
@@ -59,15 +72,35 @@ class EntityManager
         int                                     m_gathers_completed{ 0 };
         int                                     m_food_produced{ 0 };
 
-        // A placed building: the tile it occupies and the element written into the
-        // map for it. The list is what the hourly production pass iterates, so it
-        // does not have to rescan the terrain for structures.
-        struct BuildingSite
+        // The building catalog (behaviour, cost, color per building) and its
+        // settlement-wide tuning, loaded from config/buildings.json. Data-driven:
+        // a new building is a JSON entry plus one Elements value.
+        Buildings::Catalog                      m_catalog;
+        Buildings::Settlement                   m_settlement;
+        std::string                             m_buildings_path;
+
+        // A placed building: which catalog definition it is, where it stands and
+        // how much construction work remains. `complete` is false while builders
+        // are still working it; once true its effects apply. The list is what the
+        // hourly production pass and the capacity/effects queries iterate, so the
+        // terrain never has to be rescanned for structures.
+        struct PlacedBuilding
         {
-                sf::Vector2i pos;       // world position (tile corner)
-                Elements     element;   // Elements::farm / Elements::workshop
+                std::size_t  def_index{ 0 };    // index into m_catalog.all()
+                sf::Vector2i origin;            // world position (tile corner)
+                int          work_remaining{ 0 };
+                bool         complete{ false };
         };
-        std::vector<BuildingSite>               m_buildings;
+        std::vector<PlacedBuilding>             m_buildings;
+
+        // The settlement's anchor (the city center), in world coordinates, once a
+        // city center is complete. Used by the construction planner's radius and
+        // as the newborn spawn. Empty until then.
+        std::optional<sf::Vector2i>             m_anchor;
+
+        // Last in-game hour the construction planner ran, so it fires once per
+        // hour rather than every frame.
+        std::int64_t                            m_last_plan_hour{ -1 };
 
         // Last in-game day for which spoilage ran, so it fires exactly once per
         // day even when a frame advances several hours.
@@ -107,6 +140,13 @@ class EntityManager
         // idle). The shortage rule can reassign it afterwards.
         Jobs::Job defaultJobFor(const EntityType& type) const;
 
+        // Movement cost of the tile under a world position, consulting the
+        // catalog so a road speeds movement while terrain is unchanged.
+        float tileCostAt(const sf::Vector2i& worldPos) const
+        {
+                return Buildings::walkCost(m_map->getElementAtWorld(worldPos), m_catalog);
+        }
+
         // A* route from one world position to another. Returns the world-space
         // waypoints (tile corners, excluding the tile the entity already stands
         // on), `nullopt` when already on the target tile, or an empty vector when
@@ -134,6 +174,32 @@ class EntityManager
         // and stored food spoils once per day.
         void produceGoods();
         void spoilFood();
+
+        // The construction planner, run once per in-game hour: decide the next
+        // building (city center first, then by priority/max_count/affordability),
+        // find a valid site within the build radius, spend its cost and mark it a
+        // site. Roads are laid separately as paths between completed buildings.
+        void planConstruction();
+
+        // Find a land tile for a new building near the anchor: flat, unoccupied by
+        // any placed building or road, scanning outward ring by ring. Returns
+        // nullopt when the radius offers nothing buildable.
+        std::optional<sf::Vector2i> findBuildSite() const;
+
+        // The nearest incomplete construction site (world distance), or nullopt
+        // when everything is built. Builders walk to it and apply work.
+        std::optional<sf::Vector2i> nearestIncompleteSite(const sf::Vector2i& from) const;
+
+        // The placed building occupying a world position, or nullptr.
+        PlacedBuilding* findBuildingAt(const sf::Vector2i& worldPos);
+
+        // Apply a finished building's effects: record the anchor for the city
+        // center, log production recipes etc. Capacity is computed from completed
+        // houses on demand, so it needs no stored effect.
+        void applyBuildEffect(PlacedBuilding& building);
+
+        // How many placed buildings use a given def index (for max_count checks).
+        int countOf(std::size_t def_index) const;
 
         // Withdraw one unit of `element` from the settlement stores if any is
         // held, so eating/drinking can be gated on supply. Returns false when the
@@ -169,14 +235,21 @@ public:
         bool show_vision = false;
 
         // CONSTRUCTOR
+        // The buildings file is a defaulted argument so existing call sites (and
+        // tests) keep compiling while still allowing the scene to pass the path
+        // from config.json.
         EntityManager(const sf::Font& font, std::shared_ptr<MapGenerator> map, std::shared_ptr<GameClock> clock, float& deltatime,
-                      const std::string& entity_file)
+                      const std::string& entity_file,
+                      const std::string& buildings_file = defaultBuildingsPath())
                 : m_font(font)
                 , m_map(map)
                 , m_game_clock(clock)
                 , m_delta_time(deltatime)
                 , m_config(loadEntityConfig(entity_file))
                 , m_config_path(entity_file)
+                , m_catalog(Buildings::loadCatalog(buildings_file))
+                , m_settlement(Buildings::loadSettlement(buildings_file))
+                , m_buildings_path(buildings_file)
         {
                 // Size the shared knowledge store from config. Cell size is fixed at
                 // construction: reloading the config does not rebuild the explored
@@ -189,8 +262,18 @@ public:
         // Existing entities keep the components they already have; only the rules
         // consulted next (decay, decisions, survival, economy targets) change.
         // Throws std::runtime_error if the file is missing or malformed, so the
-        // caller can keep the previous tuning rather than lose it silently.
-        void reloadConfig() { m_config = loadEntityConfig(m_config_path); }
+        // caller can keep the previous tuning rather than lose it silently. The
+        // building catalog is re-read too, so new buildings/costs need no rebuild.
+        void reloadConfig()
+        {
+                m_config = loadEntityConfig(m_config_path);
+                m_catalog = Buildings::loadCatalog(m_buildings_path);
+                m_settlement = Buildings::loadSettlement(m_buildings_path);
+        }
+
+        // The settlement's construction plan for this hour: cost and start a site.
+        // Exposed so tests can drive the planner deterministically.
+        void planConstructionForTest() { planConstruction(); }
 
         // MAIN FUNCTIONS
         void render(sf::RenderTarget& window);
@@ -247,23 +330,43 @@ public:
         const Goods::Stock& goods() const { return m_goods; }
         int foodProduced() const { return m_food_produced; }
         int buildingCount() const { return static_cast<int>(m_buildings.size()); }
+        int completedBuildingCount() const;
+        // The building catalog, for the scene (to color the map) and tests.
+        const Buildings::Catalog& buildings() const { return m_catalog; }
+        // How many of each building element exist (placed, complete or not), for
+        // the HUD readout.
+        int countOfElement(Elements element) const;
+
+        // The population cap: the entity config's `survival.max_population` base
+        // plus each completed building's `population_capacity` bonus (houses), so
+        // a built settlement can outgrow its founding cap.
+        int populationCapacity() const;
+        // Whether a city center has been completed; the settlement's anchor.
+        bool hasCityCenter() const;
+        // The settlement anchor (city-center origin) once it exists.
+        std::optional<sf::Vector2i> settlementAnchor() const { return m_anchor; }
 
         // Current job staffing, indexed by Jobs::Job, for the HUD.
         std::array<int, Jobs::kJobCount> jobCounts() const;
         Jobs::Job firstJob() const;
 
-        // Build a structure on a tile: spend the wood cost and write the element
-        // into the map so it renders and can be worked. Returns false (placing
-        // nothing) when the spot is occupied by another building or the stock is
-        // short.
-        bool placeBuilding(Economy::Building building, const sf::Vector2i& worldPos);
+        // Start a construction site for a catalog building on a tile: spend its
+        // cost, write the element into the map so it renders, and push an
+        // incomplete PlacedBuilding. Returns false (placing nothing) when the def
+        // is unknown, the spot is occupied, or the stock is short.
+        bool placeBuilding(const std::string& building_id, const sf::Vector2i& worldPos);
+        // Complete a site immediately (used by tests and effects), applying its
+        // effects. Returns false when there is no site there.
+        bool completeBuilding(const sf::Vector2i& worldPos);
 
         // Population and vitals, for the HUD and tests. `population` is the live
         // entity count; births/deaths accumulate over the run.
         int population() const { return entityCount(); }
         int births() const { return m_births; }
         int deaths() const { return m_deaths; }
-        int maxPopulation() const { return m_config.survival.max_population; }
+        // Backwards-compatible name: the cap is now computed from the settlement's
+        // base capacity and its completed houses, not a flat config constant.
+        int maxPopulation() const { return populationCapacity(); }
         int lifespanHours() const { return m_config.survival.lifespan_hours; }
         int birthIntervalHours() const { return m_config.survival.birth_interval_hours; }
 

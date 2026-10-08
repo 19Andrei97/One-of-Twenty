@@ -573,6 +573,13 @@ bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_ele
 	return true;
 }
 
+void MapGenerator::applyBuildingColors(const std::vector<std::pair<Elements, sf::Color>>& colors)
+{
+        std::lock_guard<std::mutex> lock(t_mutex);
+        for (const auto& [element, color] : colors)
+                m_config.biome_colors[static_cast<std::size_t>(element)] = color;
+}
+
 /*
 *       Translate coordinates
 */

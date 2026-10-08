@@ -21,11 +21,12 @@ namespace Observability
 
 enum class EventKind
 {
-    Birth,       // a new entity was added
-    Death,       // an entity was removed (cause says why)
-    Gather,      // a gather completed and banked a good
-    Discovery,   // an entity first remembered a resource
-    Production,  // a farm/workshop produced this hour
+    Birth,        // a new entity was added
+    Death,        // an entity was removed (cause says why)
+    Gather,       // a gather completed and banked a good
+    Discovery,    // an entity first remembered a resource
+    Production,   // a farm/workshop produced this hour
+    Construction, // a building was started or finished
 
     Count
 };
@@ -38,10 +39,11 @@ inline constexpr std::size_t kEventKindCount = static_cast<std::size_t>(EventKin
     {
         case EventKind::Birth:      return "birth";
         case EventKind::Death:      return "death";
-        case EventKind::Gather:     return "gather";
-        case EventKind::Discovery:  return "discovery";
-        case EventKind::Production: return "production";
-        default:                    return "?";
+        case EventKind::Gather:       return "gather";
+        case EventKind::Discovery:    return "discovery";
+        case EventKind::Production:   return "production";
+        case EventKind::Construction: return "construction";
+        default:                      return "?";
     }
 }
 

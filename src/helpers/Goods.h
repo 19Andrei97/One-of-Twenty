@@ -162,7 +162,7 @@ struct Recipe
     int  input_amount{ 0 };
     Good output_good{ Good::Planks };
     int  output_amount{ 1 };
-    const char* label{ "recipe" };
+    std::string label{ "recipe" };
 };
 
 // Apply a recipe to a stock. Returns false (and changes nothing) when the inputs

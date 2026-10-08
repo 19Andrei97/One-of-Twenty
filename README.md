@@ -242,6 +242,15 @@ Retired from the roadmap; kept here as a record.
   food and workshops run recipes; and buildings are placed with `setTileColor`
   so they render and persist. A stats panel shows the stockpile, buildings and
   gather count.
+- [x] **Buildings catalog and construction.** `helpers/Buildings.h` is a pure,
+  data-driven catalog (`config/buildings.json`) of what a building costs, looks
+  like, produces and how it changes movement, so adding one is a JSON entry plus
+  an `Elements` value. `EntityManager` plans sites (spending the catalog cost and
+  writing the tile) and builders complete them over `build_hours`; a finished
+  house raises the population cap above the config's `max_population`, and the
+  city center is an anchor building. The catalog's `walk_cost` layers over
+  `MoveCost` (a road is faster), and `R` reloads the catalog alongside the entity
+  config.
 - [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes
   entities over the `MoveCost` map, so they go around water and prefer cheap
   ground; movement follows the route (`CPath`) and falls back to a straight line

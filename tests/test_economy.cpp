@@ -1,3 +1,4 @@
+#include "Buildings.h"
 #include "Economy.h"
 #include "EntityManager.h"
 #include "GameClock.h"
@@ -25,6 +26,15 @@ std::string entityConfigPath()
     return std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/entity_data.json";
 #else
     return "config/entity_data.json";
+#endif
+}
+
+std::string buildingsConfigPath()
+{
+#ifdef ONE_OF_TWENTY_SOURCE_DIR
+    return std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/buildings.json";
+#else
+    return "config/buildings.json";
 #endif
 }
 
@@ -82,6 +92,21 @@ std::string writeTempEntityConfig(const std::string& name, const std::string& ec
             "sleep":  { "threshold": 0.20, "bias": 1.0 },
             "work":   { "threshold": 0.50, "bias": 1.0 }
         }
+    })";
+    return path.string();
+}
+
+// A temp buildings catalog, so a test can place buildings without gathering the
+// cost first. The `buildings` array is spliced in verbatim.
+std::string writeTempBuildings(const std::string& name, const std::string& buildingsJson)
+{
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / ("economy_buildings_" + name + ".json");
+    std::ofstream out(path);
+    out << R"({
+        "settlement": { "max_concurrent_sites": 4, "build_radius_tiles": 24,
+                        "road_cadence_hours": 24 },
+        "buildings": )" << buildingsJson << R"(
     })";
     return path.string();
 }
@@ -169,33 +194,40 @@ TEST_CASE("a recipe consumes inputs and produces outputs, or fails cleanly")
 
 TEST_CASE("a farm grows food with no input")
 {
+    const Buildings::Catalog catalog = Buildings::loadCatalog(buildingsConfigPath());
+    const Buildings::Def* farm = catalog.byId("farm");
+    REQUIRE(farm != nullptr);
+
     Goods::Stock stock;
-    REQUIRE(Economy::produceOnce(stock, Economy::Building::Farm));
+    REQUIRE(Buildings::produceOnce(stock, *farm));
     CHECK(stock.count(Goods::Good::Food) == 1);
     CHECK(stock.count(Goods::Good::Wood) == 0);
 }
 
 TEST_CASE("a workshop prefers valuable inputs and falls back")
 {
+    const Buildings::Catalog catalog = Buildings::loadCatalog(buildingsConfigPath());
+    const Buildings::Def* workshop = catalog.byId("workshop");
+    REQUIRE(workshop != nullptr);
+
     Goods::Stock stock;
     stock.add(Goods::Good::Iron, 1);
     stock.add(Goods::Good::Wood, 2);
 
     // Iron is the more valuable input, so it is spent first (iron -> tools).
-    REQUIRE(Economy::produceOnce(stock, Economy::Building::Workshop));
+    REQUIRE(Buildings::produceOnce(stock, *workshop));
     CHECK(stock.count(Goods::Good::Tools) == 1);
     CHECK(stock.count(Goods::Good::Iron) == 0);
     CHECK(stock.count(Goods::Good::Wood) == 2);
     CHECK(stock.count(Goods::Good::Planks) == 0);
 
     // With no iron, wood -> planks.
-    REQUIRE(Economy::produceOnce(stock, Economy::Building::Workshop));
+    REQUIRE(Buildings::produceOnce(stock, *workshop));
     CHECK(stock.count(Goods::Good::Planks) == 1);
     CHECK(stock.count(Goods::Good::Wood) == 0);
 
-    // Empty and unknown buildings make nothing.
-    CHECK_FALSE(Economy::produceOnce(stock, Economy::Building::Workshop));
-    CHECK_FALSE(Economy::produceOnce(stock, Economy::Building::None));
+    // A workshop with nothing to work makes nothing.
+    CHECK_FALSE(Buildings::produceOnce(stock, *workshop));
 }
 
 TEST_CASE("job assignment fills the largest staffing gap")
@@ -231,7 +263,7 @@ TEST_CASE("job preference orders each role's favourite resources")
     CHECK(Goods::jobPreference(Jobs::Job::Idle, Elements::forest) == -1);
 }
 
-TEST_CASE("building is gated on the wood in the stores")
+TEST_CASE("building is gated on the cost in the stores")
 {
     sf::Font font;
     int frames = 0;
@@ -241,7 +273,7 @@ TEST_CASE("building is gated on the wood in the stores")
     auto clock = std::make_shared<GameClock>(60.f);
 
     float delta = 1.f / 60.f;
-    EntityManager entities(font, map, clock, delta, entityConfigPath());
+    EntityManager entities(font, map, clock, delta, entityConfigPath(), buildingsConfigPath());
     CHECK(entities.buildingCount() == 0);
 
     const int tileSize = map->getTileSize();
@@ -252,15 +284,20 @@ TEST_CASE("building is gated on the wood in the stores")
         return;
     }
 
-    // The shipped config charges wood, and a fresh settlement has none stored.
-    CHECK_FALSE(entities.placeBuilding(Economy::Building::Farm, site));
+    // The shipped house costs wood, and a fresh settlement has none stored.
+    CHECK_FALSE(entities.placeBuilding("house", site));
     CHECK(entities.buildingCount() == 0);
 }
 
-TEST_CASE("a farm built with stock produces food each hour")
+TEST_CASE("a completed farm produces food each hour")
 {
-    const std::string file = writeTempEntityConfig("farm",
+    const std::string entity_file = writeTempEntityConfig("farm",
         R"({ "farm_food_per_hour": 2, "farm_wood_cost": 0, "workshop_wood_cost": 0 })");
+    const std::string file = writeTempBuildings("farm", R"([
+        { "id": "farm", "name": "Farm", "element": "farm", "color": [230,200,70],
+          "build_hours": 1,
+          "recipes": [ { "input_amount": 0, "output": "food", "output_amount": 2, "label": "farm" } ] }
+    ])");
 
     sf::Font font;
     int frames = 0;
@@ -271,20 +308,23 @@ TEST_CASE("a farm built with stock produces food each hour")
     clock->setTime(8, 0);
 
     float delta = 1.f / 60.f;
-    EntityManager entities(font, map, clock, delta, file);
+    EntityManager entities(font, map, clock, delta, entity_file, file);
 
     const int tileSize = map->getTileSize();
     const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping farm production test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
         std::filesystem::remove(file);
         return;
     }
 
-    // A zero wood cost lets the test place a farm without first gathering wood.
-    REQUIRE(entities.placeBuilding(Economy::Building::Farm, site));
+    // A cost-free def lets the test place a farm without first gathering wood,
+    // then complete it so it produces.
+    REQUIRE(entities.placeBuilding("farm", site));
     CHECK(entities.buildingCount() == 1);
+    REQUIRE(entities.completeBuilding(site));
 
     const int foodBefore = entities.good(Goods::Good::Food);
     for (int hour = 0; hour < 5; ++hour)
@@ -299,13 +339,18 @@ TEST_CASE("a farm built with stock produces food each hour")
     CHECK(entities.good(Goods::Good::Food) >= foodBefore + 10);
     CHECK(entities.foodProduced() == 10);
 
+    std::filesystem::remove(entity_file);
     std::filesystem::remove(file);
 }
 
 TEST_CASE("a placed building cannot share a tile with another")
 {
-    const std::string file = writeTempEntityConfig("unique_tile",
+    const std::string entity_file = writeTempEntityConfig("unique_tile",
         R"({ "farm_wood_cost": 0, "workshop_wood_cost": 0 })");
+    const std::string file = writeTempBuildings("unique_tile", R"([
+        { "id": "farm", "name": "Farm", "element": "farm", "cost": {} },
+        { "id": "workshop", "name": "Workshop", "element": "workshop", "cost": {} }
+    ])");
 
     sf::Font font;
     int frames = 0;
@@ -315,22 +360,87 @@ TEST_CASE("a placed building cannot share a tile with another")
     auto clock = std::make_shared<GameClock>(60.f);
 
     float delta = 1.f / 60.f;
-    EntityManager entities(font, map, clock, delta, file);
+    EntityManager entities(font, map, clock, delta, entity_file, file);
 
     const int tileSize = map->getTileSize();
     const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping building-tile test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
         std::filesystem::remove(file);
         return;
     }
 
-    REQUIRE(entities.placeBuilding(Economy::Building::Farm, site));
+    REQUIRE(entities.placeBuilding("farm", site));
     CHECK(entities.buildingCount() == 1);
-    CHECK_FALSE(entities.placeBuilding(Economy::Building::Workshop, site)); // occupied
+    CHECK_FALSE(entities.placeBuilding("workshop", site)); // occupied
     CHECK(entities.buildingCount() == 1);
 
+    std::filesystem::remove(entity_file);
+    std::filesystem::remove(file);
+}
+
+TEST_CASE("placing an unknown building id fails without spending")
+{
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath(), buildingsConfigPath());
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping unknown-building test: no chunk could be loaded");
+        return;
+    }
+
+    CHECK_FALSE(entities.placeBuilding("no_such_building", site));
+    CHECK(entities.buildingCount() == 0);
+}
+
+TEST_CASE("a completed house raises the population capacity")
+{
+    const std::string entity_file = writeTempEntityConfig("capacity", R"({})");
+    const std::string file = writeTempBuildings("capacity", R"([
+        { "id": "house", "name": "House", "element": "house", "cost": {}, "population_capacity": 6 }
+    ])");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entity_file, file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping capacity test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+
+    const int base = entities.populationCapacity(); // the config base, no houses yet
+    CHECK(base > 0);
+
+    REQUIRE(entities.placeBuilding("house", site));
+    CHECK(entities.populationCapacity() == base); // an incomplete site adds nothing
+    REQUIRE(entities.completeBuilding(site));
+    CHECK(entities.populationCapacity() == base + 6); // +6 for the finished house
+
+    std::filesystem::remove(entity_file);
     std::filesystem::remove(file);
 }
 

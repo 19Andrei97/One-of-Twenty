@@ -226,6 +226,7 @@ struct Urgencies
         case ActionTypes::Drinking:  return Need::Thirst;
         case ActionTypes::Sleeping:  return Need::Sleep;
         case ActionTypes::Gathering: return Need::Work;
+        case ActionTypes::Building:  return Need::Work;
         default:                     return Need::None; // Moving / Idle
     }
 }

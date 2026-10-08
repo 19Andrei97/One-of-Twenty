@@ -1,0 +1,70 @@
+{
+    "settlement": {
+        "max_concurrent_sites": 4,
+        "build_radius_tiles": 24,
+        "road_cadence_hours": 24
+    },
+
+    "buildings": [
+        {
+            "id": "city_center",
+            "name": "City Center",
+            "element": "city_center",
+            "color": [ 200, 170, 60 ],
+            "cost": {},
+            "build_hours": 8,
+            "is_anchor": true,
+            "priority": 0,
+            "max_count": 1
+        },
+        {
+            "id": "house",
+            "name": "House",
+            "element": "house",
+            "color": [ 190, 120, 90 ],
+            "cost": { "wood": 15 },
+            "build_hours": 6,
+            "population_capacity": 4,
+            "priority": 1,
+            "max_count": 0
+        },
+        {
+            "id": "farm",
+            "name": "Farm",
+            "element": "farm",
+            "color": [ 230, 200, 70 ],
+            "cost": { "wood": 5 },
+            "build_hours": 4,
+            "priority": 2,
+            "max_count": 0,
+            "recipes": [
+                { "input_amount": 0, "output": "food", "output_amount": 1, "label": "farm" }
+            ]
+        },
+        {
+            "id": "workshop",
+            "name": "Workshop",
+            "element": "workshop",
+            "color": [ 150, 100, 70 ],
+            "cost": { "wood": 5 },
+            "build_hours": 4,
+            "priority": 2,
+            "max_count": 0,
+            "recipes": [
+                { "input": "iron", "input_amount": 1, "output": "tools", "output_amount": 1, "label": "iron->tools" },
+                { "input": "wood", "input_amount": 2, "output": "planks", "output_amount": 1, "label": "wood->planks" }
+            ]
+        },
+        {
+            "id": "road",
+            "name": "Road",
+            "element": "road",
+            "color": [ 120, 120, 120 ],
+            "cost": { "stone": 1 },
+            "build_hours": 1,
+            "walk_cost": 1.5,
+            "priority": 5,
+            "max_count": 0
+        }
+    ]
+}

@@ -46,11 +46,20 @@ namespace Resources
         }
     }
 
-    // A placed building. Buildings run production recipes rather than being
-    // gathered, so they are classified apart from the workable deposits.
+    // A placed building. Buildings run production recipes or apply an effect
+    // rather than being gathered, so they are classified apart from the workable
+    // deposits.
     inline constexpr bool isBuilding(const Elements element) noexcept
     {
-        return element == Elements::farm || element == Elements::workshop;
+        return element == Elements::farm || element == Elements::workshop
+            || element == Elements::house || element == Elements::city_center
+            || element == Elements::road;
+    }
+
+    // A road: a walkable building whose whole purpose is to speed movement.
+    inline constexpr bool isRoad(const Elements element) noexcept
+    {
+        return element == Elements::road;
     }
 
     // Consumable: what eating and drinking withdraw from the settlement stores.
@@ -86,6 +95,9 @@ namespace Resources
             case Elements::silver:          return "silver";
             case Elements::farm:            return "farm";
             case Elements::workshop:        return "workshop";
+            case Elements::house:           return "house";
+            case Elements::city_center:     return "city_center";
+            case Elements::road:            return "road";
             case Elements::test:            return "test";
             default:                        return "unknown";
         }
