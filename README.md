@@ -128,7 +128,8 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `M` | Re-randomize the map seed |
 | `G` (hold) | Debug wireframe view |
 | `1` | Spawn a generic human entity |
-| Left click | Inspect a tile and show its info box |
+| Mouse hover | Inspect the tile under the cursor and show its info box |
+| Left click | Paint the tile under the cursor (map edit debug) |
 | HUD sliders | Tune continent / warp / mineral noise |
 
 ## Running in a browser (remote display)
