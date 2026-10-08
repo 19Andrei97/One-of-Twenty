@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.20)
 project(OneOfTwenty LANGUAGES CXX)
 
+# CMake 4 removed compatibility with cmake_minimum_required(VERSION <3.5).
+# SFML 3.0.0 bundles FreeType 2.13.2, whose CMakeLists still declares 3.0, so
+# configuring fails while fetching SFML on systems without a pre-installed
+# FreeType (notably Windows). This shim is read by CMake >= 4 only; older
+# versions ignore it. Drop it once SFML is bumped to a release that bundles a
+# newer FreeType (SFML 3.1.0 pins 2.14.3).
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
