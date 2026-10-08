@@ -66,4 +66,28 @@ namespace Resources
     {
         return isConsumable(element) || isGatherable(element);
     }
+
+    // Short, stable label for an element, for the event log and HUD. Not a
+    // display name: keep it greppable and independent of any locale.
+    [[nodiscard]] inline const char* name(const Elements element) noexcept
+    {
+        switch (element)
+        {
+            case Elements::very_deep_ocean: return "very_deep_ocean";
+            case Elements::deep_ocean:      return "deep_ocean";
+            case Elements::ocean:           return "ocean";
+            case Elements::sand:            return "sand";
+            case Elements::hill:            return "stone";
+            case Elements::forest:          return "forest";
+            case Elements::mountain:        return "mountain";
+            case Elements::snow:            return "snow";
+            case Elements::clay:            return "clay";
+            case Elements::iron:            return "iron";
+            case Elements::silver:          return "silver";
+            case Elements::farm:            return "farm";
+            case Elements::workshop:        return "workshop";
+            case Elements::test:            return "test";
+            default:                        return "unknown";
+        }
+    }
 }

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 
 // Weighted decision-making for entities.
 //
@@ -204,6 +205,47 @@ struct Urgencies
         return Need::Work;
 
     return (idleFrames >= cfg.idle_tolerance) ? Need::Wander : Need::None;
+}
+
+// The need an action is currently working to satisfy. `Moving` is unknown (it is
+// shared by every errand, from a drink trip to exploration), so it maps to
+// `None`: a plain move carries no committed need.
+[[nodiscard]] constexpr Need servedNeed(const ActionTypes action) noexcept
+{
+    switch (action)
+    {
+        case ActionTypes::Eating:    return Need::Hunger;
+        case ActionTypes::Drinking:  return Need::Thirst;
+        case ActionTypes::Sleeping:  return Need::Sleep;
+        case ActionTypes::Gathering: return Need::Work;
+        default:                     return Need::None; // Moving / Idle
+    }
+}
+
+// Whether a busy entity should abandon what it is doing for a more critical
+// need. Returns the need to switch to, or `nullopt` to keep the current plan.
+//
+// The rule is "survive first": if a survival need is at or above its threshold
+// and is not the one the current action already serves, the entity should drop
+// its plan and see to that need. This is what lets a long gather trip be
+// interrupted before a need drains health, and it never thrashes on the need it
+// is already serving (an entity mid-meal keeps eating). The caller must still
+// avoid re-planning a need whose action is already queued.
+[[nodiscard]] inline std::optional<Need> interruptFor(const CBasicNeeds& needs,
+                                                      const CPersonality& personality,
+                                                      const Config& cfg,
+                                                      const ActionTypes current) noexcept
+{
+    const Urgencies u = computeUrgencies(needs, personality, cfg);
+    const Need strongest = strongestNeed(u, cfg);
+    if (strongest == Need::None)
+        return std::nullopt;             // nothing urgent enough to preempt
+
+    // Never abandon a need for the very need being satisfied.
+    if (strongest == servedNeed(current))
+        return std::nullopt;
+
+    return strongest;
 }
 
 } // namespace EntityDecision

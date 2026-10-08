@@ -57,9 +57,16 @@ The engine core and the survival loop are in place:
   recipes, food spoils daily, and eating draws on the store. Buildings are placed
   with `setTileColor` so they render and persist, and a stats panel shows the
   stockpile, buildings and gather count.
+- **Observability and tuning.** A bounded event log records a run's story
+  (births, deaths with cause, gathers, discoveries) stamped with the in-game
+  minute; a `RunHistory` samples the population and stores once per in-game day
+  and summarizes them (`helpers/EventLog.h`, `helpers/RunSummary.h`). A busy
+  entity now interrupts a non-survival plan when a need turns critical, and the
+  entity config can be reloaded at runtime (`R`) so tuning needs no rebuild.
 - Unit tests (doctest) across coordinates, `SharedContainer`, `GameClock`,
   config, map lifetime/determinism, decisions, move cost, HUD, scenes,
-  survival/population and the economy/jobs.
+  survival/population, the economy/jobs and observability (event log, run
+  history, interruption, runtime reload).
 - CI on Linux + Windows plus an ASan/UBSan job (`.github/workflows/build.yml`)
   and a real-game smoke test (`.github/workflows/game-smoke.yml`).
 
@@ -151,16 +158,21 @@ and an entity committed to a non-survival action does not re-prioritize when a
 need turns critical, so the starting settlement can lose members before it
 settles. Make behaviour measurable before adding more systems.
 
-- [ ] Add a lightweight event log (births, deaths, gathers, discoveries) with
-      cause and in-game timestamp, queryable in tests.
-- [ ] Record a run's population/stockpile over time and expose a headless
-      summary, so a balance change can be compared against a baseline.
-- [ ] Support reloading `entity_data.json` at runtime so tuning does not need a
-      rebuild.
-- [ ] Let a busy entity interrupt its current action when a survival need turns
-      critical, so a long trip does not kill it.
-- [ ] Unit-test that a given config produces the expected steady-state
-      population band over a fixed number of simulated days.
+- [x] Add a lightweight event log (births, deaths, gathers, discoveries) with
+      cause and in-game timestamp, queryable in tests
+      (`helpers/EventLog.h`; a bounded ring, with `countOf`/`since`/`recent`).
+- [x] Record a run's population/stockpile over time and expose a headless
+      summary, so a balance change can be compared against a baseline
+      (`helpers/RunSummary.h`; sampled once per in-game day, with a
+      `RunSummary::format()` digest).
+- [x] Support reloading `entity_data.json` at runtime so tuning does not need a
+      rebuild (`EntityManager::reloadConfig`, bound to `R`).
+- [x] Let a busy entity interrupt its current action when a survival need turns
+      critical, so a long trip does not kill it
+      (`EntityDecision::interruptFor`, transactional so it never thrashes).
+- [x] Unit-test that a given config produces the expected steady-state
+      population band over a fixed number of simulated days
+      (`tests/test_observability.cpp`).
 
 **Done when:** a balance change can be justified by numbers rather than by
 watching the window, and a fresh settlement survives its first day.

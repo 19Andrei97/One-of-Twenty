@@ -11,6 +11,7 @@ add_executable(unit_tests
     test_entity_pathing.cpp
     test_move_cost.cpp
     test_economy.cpp
+    test_observability.cpp
     test_pathfinding.cpp
     test_hud.cpp
     test_scene.cpp

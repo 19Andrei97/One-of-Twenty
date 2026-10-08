@@ -64,6 +64,19 @@ A run that is killed by `timeout` (exit 124) is a success; check
   a drink target in the sea is approached from the nearest land tile.
   `Scene_Play::sCollision` calls `EntityManager::resolveCollisions`, which keeps
   entities on land and separates overlapping ones.
+- Observability lives in two pure, SFML/EnTT-free headers: `helpers/EventLog.h`
+  (a bounded ring of timestamped events with cause, queried with `countOf`/
+  `since`/`recent`) and `helpers/RunSummary.h` (`RunHistory` samples the
+  population/stock per in-game day and summarizes them). EntityManager records
+  into both; keep new gameplay events flowing through `EventLog::record`.
+- A busy entity interrupts a non-survival plan when a need turns critical
+  (`EntityDecision::interruptFor`, used in the decision loop). The replan is
+  transactional — the old plan is restored unless the urgent action actually
+  starts — so a need with no remembered target cannot thrash the entity. Keep
+  survival plans (Eat/Drink/Sleep) non-interruptible by other survival needs.
+- `EntityManager::reloadConfig` re-reads the entity JSON in place; the `R` key in
+  `Scene_Play` binds it. Add new tuning as a member of `EntityConfig` so reload
+  picks it up for free.
 - Ores use one noise field each (`m_noise_clay`/`iron`/`silver`, seeded apart)
   rather than a shared mineral field; `getResourceValue()` samples a field.
 - The chunk map `c_chunks` is shared with worker threads; guard access with
