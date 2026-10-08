@@ -10,6 +10,35 @@ two in sync when a milestone changes status.
 - `[ ]` planned — not started
 - `[~]` in progress — partially implemented or unverified
 
+## What the game is
+
+One Of Twenty is a political life-sim on top of a living-world simulation.
+
+- You control **one person** in a **democracy of twenty** — you are one of the
+  twenty who govern, while the civilization beneath you grows far larger. You
+  hold political power, and you gain or lose it through the decisions you take,
+  the events that befall the settlement, and the geopolitical conditions around
+  it.
+- Decisions have a **small impact at the start**: you begin with little
+  political power and only the few allies your faction gives you. Influence is
+  earned, not given.
+- Underneath, a **civilization simulation never stops**. Your settlement grows;
+  other civilizations grow alongside it; the world changes and adapts on its
+  own, whether or not you act.
+
+**Current focus: the civilization simulation.** The political layer is the
+destination, but it is only worth building once the civilization it operates on
+behaves believably — the economy, the wider world, and the different social
+stations people hold. So the schedule below builds the simulation first and
+brings the political game in once the society is alive.
+
+**Scale is a design constraint, not an afterthought.** The population grows
+without bound, so nothing may cost O(pawns²). Relationships *between* individual
+pawns are therefore out of scope: what matters is a pawn's **social station and
+importance** — a per-pawn attribute that scales, and that the political layer
+later draws on. Detail follows importance: notables are simulated as
+individuals, the masses are aggregated.
+
 ## Current baseline
 
 The engine core and the survival loop are in place:
@@ -78,40 +107,232 @@ The engine core and the survival loop are in place:
 
 ---
 
-## Deferred — Civilization
+## Milestones
 
-The long-term goal, parked until the simulation loop below is solid. Revisit
-once the settlement economy exists.
+Ordered by dependency. The schedule builds the civilization simulation one layer
+at a time; the political game (Milestone 8 onward) sits on top of it. Milestones
+1 (settlement economy) and 2 (observability and tuning) are complete and folded
+into the baseline.
 
-- [ ] Add a city center (`Entity`).
-- [ ] Add AI for civilization politics via llama (`Entity`).
+### Milestone 1 — Settlement economy and jobs
 
-**Done when:** a city center anchors settlement behavior and politics can run
-against an LLM backend behind an interface that is mockable in tests.
+Turn "gather the nearest resource" into production with roles and buildings.
+**Complete.**
 
----
+- [x] Give entity types behavior: `Human_Farmer`, `Human_Lumberjack` (and the
+      animal types) are bound to jobs through the `entity_types` block in
+      `entity_data.json`, with sensible defaults (human -> Builder, animal ->
+      Idle) so unlisted or older configs still load.
+- [x] Add recipes / production chains that convert raw stock (wood, stone, clay,
+      iron, silver) into goods, so different resources matter (`helpers/Goods.h`,
+      `helpers/Economy.h`).
+- [x] Make food a real resource: foraging, farms and spoilage, so hunger is
+      supplied by production rather than a tile fallback.
+- [~] Add a stockpile HUD panel showing counts and rates over time — the panel
+      shows per-good counts, buildings and gathers; rates over time are still to
+      come.
+- [x] Add placeable buildings on tiles, reusing `setTileColor` and the chunk
+      mesh rebuild so structures render and persist in the world.
+- [x] Unit-test the economy: a recipe consumes inputs and produces outputs, and
+      job assignment responds to shortages.
 
-## Parked — Persistence and save/load
+**Done when:** a settlement produces a surplus from specialized jobs, visible in
+the HUD and verified by tests.
 
-Set aside for now: the simulation still changes too quickly for a save format to
-be worth freezing. Pick this up once the economy and jobs below have settled.
+### Milestone 2 — Observability and tuning
 
-- [ ] Serialize world state: seed, clock, entities, stockpile, and edited tiles.
-- [ ] Load it back and reconstruct an equivalent simulation.
-- [ ] Keep edits as a log over the seed so a save stays small and deterministic.
-- [ ] Add a version field and reject incompatible saves with a clear error.
-- [ ] Unit-test round-trip: save, load, and compare state and determinism.
+**Complete.** The simulation is hard to balance by eye, so behaviour is now
+measurable before more systems land.
 
-**Done when:** a saved game reloads to the same population, stockpile and map.
+- [x] Add a lightweight event log (births, deaths, gathers, discoveries) with
+      cause and in-game timestamp, queryable in tests
+      (`helpers/EventLog.h`; a bounded ring, with `countOf`/`since`/`recent`).
+- [x] Record a run's population/stockpile over time and expose a headless
+      summary, so a balance change can be compared against a baseline
+      (`helpers/RunSummary.h`).
+- [x] Support reloading `entity_data.json` at runtime so tuning needs no rebuild
+      (`EntityManager::reloadConfig`, bound to `R`).
+- [x] Let a busy entity interrupt its current action when a survival need turns
+      critical, so a long trip does not kill it
+      (`EntityDecision::interruptFor`, transactional so it never thrashes).
+- [x] Unit-test that a given config produces the expected steady-state
+      population band over a fixed number of simulated days
+      (`tests/test_observability.cpp`).
+
+**Done when:** a balance change can be justified by numbers rather than by
+watching the window, and a fresh settlement survives its first day.
+
+### Milestone 3 — Social station and importance
+
+*This is the active milestone.* People are not units: they differ in **social
+station and importance**, an attribute the political layer will draw on. This is
+deliberately *not* a relationship system — pairwise ties are O(pawns²) and the
+population grows without bound. A pawn's station is a single per-pawn value, so
+it stays cheap at any scale. Detail follows importance: a notable is simulated as
+an individual, the masses are aggregated.
+
+- [ ] Add a per-pawn `social station` / `importance` value, independent of raw
+      wealth, that can rise and fall over a life.
+- [ ] Drive station from what already exists: role, wealth, age, and personal
+      achievements (discoveries, work done) — no new per-pair state.
+- [ ] Let station bias behavior in cheap, local ways (who leads a task, who
+      speaks for the group), not through pairwise checks.
+- [ ] Use station to decide **simulation detail**: keep notables fully simulated
+      and aggregate the crowd, so the pawn count can grow without cost blowing
+      up.
+- [ ] Make `CPersonality` diverge and stay stable, so two people with the same
+      needs are still different characters.
+- [ ] Seed a starting station spread from `entity_data.json` and surface it in
+      the HUD.
+- [ ] Unit-test that station changes with wealth/achievement and that a run with
+      many pawns stays linear in cost.
+
+**Done when:** pawns have a social station that visibly differentiates them and
+scales to a large population without per-pair work.
+
+### Milestone 4 — Threats and defense
+
+Survival has no antagonist yet. Pressure gives the settlement a reason to grow,
+store and build — and later gives politics something to argue about.
+
+- [ ] Spawn hostile wildlife (the unused animal entity types) that hunts or raids
+      the settlement.
+- [ ] Add combat: entities can fight, flee or be wounded.
+- [ ] Add walls/defenses as placeable tiles, reusing the building path from
+      Milestone 1.
+- [ ] Make threats scale with time or population so the early game stays calm.
+- [ ] Unit-test a raid: attackers damage defenders, and a wall blocks a path.
+
+**Done when:** an unattended settlement can be harmed, and a defended one can
+repel the attack.
+
+### Milestone 5 — The wider world
+
+The game is not one settlement. Add the neighbours and the conditions the
+politics will react to: a world of several civilizations growing, trading and
+competing.
+
+- [ ] Support several settlements/civilizations, each with its own stockpile,
+      jobs and knowledge, seeded apart on the map.
+- [ ] Add an abstract off-map civilization model (population, wealth, relations)
+      so neighbours grow even where the player is not looking, without simulating
+      every pawn.
+- [ ] Add inter-civilization contact: trade, migration, rivalry, and shifting
+      relations.
+- [ ] Add world/geopolitical conditions (resources, distance, pressure) that
+      evolve over time.
+- [ ] Unit-test that two civilizations interact: a trade transfers stock, a
+      rivalry worsens relations.
+
+**Done when:** more than one civilization exists and their relations change over
+a run.
+
+### Milestone 6 — City center and institutional growth
+
+Power needs a seat. Add the institution that later becomes the arena of
+democratic politics.
+
+- [ ] Add a city center as a placeable structure and a settlement anchor.
+- [ ] Give a city center a sphere of effect (storage, defense, administration)
+      and let a settlement grow into it.
+- [ ] Let entities invest work or goods in the commons, building a shared
+      settlement identity.
+- [ ] Unit-test that a city center changes settlement behavior (e.g. storage
+      capacity or a defense bonus).
+
+**Done when:** a city center anchors settlement behavior and the settlement can
+invest in itself.
+
+### Milestone 7 — Performance and scale
+
+The population grows without bound, so the simulation must stay cheap as it
+grows — ideally linear in pawns, never per-pair.
+
+- [ ] Index tile resource queries (e.g. per-chunk resource lists) instead of
+      rescanning the vision square for every entity.
+- [ ] Add a spatial index for entity lookups (neighbour queries, collision).
+- [ ] Push the knowledge/vision scan off the per-tile path where it still costs,
+      and budget it across frames.
+- [ ] Aggregate the crowd: simulate notables as individuals and the masses in
+      bulk, so pawn count can grow far past what full per-pawn updates allow.
+- [ ] Add a headless benchmark (civilizations x entities x ticks) to CI so
+      regressions show up.
+- [ ] Set and test a target: e.g. 500 entities at 60 fps on the CI machine.
+
+**Done when:** the benchmark target is met and guarded by a test.
+
+### Milestone 8 — Social capital and influence (the political simulation)
+
+The heart of the design: power inside the governing twenty. One person, one
+vote, and influence that must be earned. Politics is driven by the **social
+station** of Milestone 3, not by pairwise ties, so it stays cheap as the
+civilization grows. This milestone is playable *without* the player — the
+simulation generates the political game.
+
+- [ ] Add a **power**/**influence** resource on entities, distinct from wealth
+      and from social station.
+- [ ] Add **factions**: groups with shared interests, built from station, role
+      and the wider-world conditions rather than per-pair relationships.
+- [ ] Make power **earned and lost**: decisions, favours, alliances and events
+      shift an entity's influence, starting from a small base and a few faction
+      allies.
+- [ ] Add an in-simulation **decision/vote process** (a council or assembly of
+      the twenty) so the governing group can actually decide something.
+- [ ] Let entities **act politically**: campaign, trade favours, form coalitions,
+      oppose rivals.
+- [ ] Seed starting political power and faction allies from `entity_data.json`.
+- [ ] Unit-test the loop: a decision moves influence, and a faction's votes
+      change an outcome.
+
+**Done when:** an unattended simulation produces a believable power struggle
+among the governing twenty, with influence shifting from decisions and factions.
+
+### Milestone 9 — Events and the player's agency
+
+Now hand the player the reins: one person among the twenty, with leverage that
+starts small.
+
+- [ ] Add a **player-controlled entity** in the same simulation (its decisions
+      come from input, not AI).
+- [ ] Add **decisions the player can take**, with small early effects scaled by
+      political power and allies.
+- [ ] Add an **event system** (local, settlement, and later geopolitical) that
+      calls for decisions and moves the world.
+- [ ] Give the player a **political UI**: standing, allies, factions, and the
+      pending decision or vote.
+- [ ] Add an **opinion/reaction model**: the other nineteen respond to what the
+      player does.
+- [ ] Unit-test a decision: the player's choice changes influence and a
+      faction's stance.
+
+**Done when:** the player can make a decision that visibly moves influence and
+eventually the settlement, starting from a place of little power.
+
+### Milestone 10 — Presentation and UX
+
+Make the simulation legible and the politics readable, once both are worth
+watching.
+
+- [ ] Drive a day/night tint and lighting from `GameClock`.
+- [ ] Replace the debug circles with sprites/animations and add a camera that
+      can follow an entity.
+- [ ] Add a minimap of the known world and a stats overlay (population,
+      stockpile, clock, standing).
+- [ ] Turn `Scene_Menu` into a real front end: new game (seed/options), load,
+      settings, quit; add a pause overlay.
+- [ ] Optional: SFML audio for ambience and events.
+
+**Done when:** the game communicates its own state without debug overlays, and
+the menu can start and configure a run.
 
 ---
 
 ## On the side — Survival depth
 
-Implemented and kept out of the active sequence for now: the survival loop runs
-(entities age and die, needs turn lethal once an entity is already struggling,
-the settlement reproduces). The follow-ups below stay parked until the economy
-and observability milestones land, because tuning them needs measurement.
+The survival loop runs (entities age and die, needs turn lethal once an entity is
+already struggling, the settlement reproduces). The follow-ups below stay parked
+until the society and economy milestones land, because tuning them needs the
+world to be stable first.
 
 - [x] Add health as a slow resource separate from the needs, damaged by
       starvation/dehydration and restored by eating and resting.
@@ -127,123 +348,39 @@ health alongside the needs.
 
 ---
 
-## Milestones
+## Parked — Persistence and save/load
 
-Ordered by dependency: each milestone makes the next one possible. Pathfinding
-and collision is complete and folded into the baseline above.
+Set aside for now: the simulation still changes too quickly for a save format to
+be worth freezing. Pick this up once the society and the wider-world milestones
+have settled — the political game needs a save far more than the survival loop
+does.
 
-### Milestone 1 — Settlement economy and jobs
+- [ ] Serialize world state: seed, clock, entities, social station, stockpile,
+      influence, factions, and edited tiles.
+- [ ] Load it back and reconstruct an equivalent simulation.
+- [ ] Keep edits as a log over the seed so a save stays small and deterministic.
+- [ ] Add a version field and reject incompatible saves with a clear error.
+- [ ] Unit-test round-trip: save, load, and compare state and determinism.
 
-Turn "gather the nearest resource" into production with roles and buildings.
+**Done when:** a saved game reloads to the same population, power structure and
+map.
 
-- [x] Give entity types behavior: `Human_Farmer`, `Human_Lumberjack` (and the
-      animal types) are bound to jobs through the `entity_types` block in
-      `entity_data.json`, with sensible defaults (human -> Builder, animal ->
-      Idle) so unlisted or older configs still load.
-- [x] Add recipes / production chains that convert raw stock (wood, stone, clay,
-      iron, silver) into goods, so different resources matter (`helpers/Goods.h`,
-      `helpers/Economy.h`).
-- [x] Make food a real resource: foraging, farms and spoilage, so hunger is
-      supplied by production rather than the current tile fallback.
-- [~] Add a stockpile HUD panel showing counts and rates over time — the panel
-      shows per-good counts, buildings and gathers; rates over time are still to
-      come.
-- [x] Add placeable buildings on tiles, reusing `setTileColor` and the chunk
-      mesh rebuild so structures render and persist in the world.
-- [x] Unit-test the economy: a recipe consumes inputs and produces outputs, and
-      job assignment responds to shortages.
+---
 
-**Done when:** a settlement produces a surplus from specialized jobs, visible in
-the HUD and verified by tests.
+## Deferred — AI politics via LLM
 
-### Milestone 2 — Observability and tuning
+A later layer, not a foundation. Once factions, events and influence exist as
+data, an LLM can drive the *words* of politics — speeches, negotiations,
+justifications — behind an interface that is mockable in tests, so the
+simulation stays deterministic and cheap.
 
-The simulation is hard to balance by eye, and the first day already shows it: a
-vision-radius trip costs several in-game hours at the default `timeScale` of 120,
-and an entity committed to a non-survival action does not re-prioritize when a
-need turns critical, so the starting settlement can lose members before it
-settles. Make behaviour measurable before adding more systems.
+- [ ] Define a politics interface (propose, argue, justify) with a scripted
+      default implementation.
+- [ ] Add an LLM backend (llama) behind that interface, with clear fallbacks.
+- [ ] Unit-test against the mock, so CI never needs a model.
 
-- [x] Add a lightweight event log (births, deaths, gathers, discoveries) with
-      cause and in-game timestamp, queryable in tests
-      (`helpers/EventLog.h`; a bounded ring, with `countOf`/`since`/`recent`).
-- [x] Record a run's population/stockpile over time and expose a headless
-      summary, so a balance change can be compared against a baseline
-      (`helpers/RunSummary.h`; sampled once per in-game day, with a
-      `RunSummary::format()` digest).
-- [x] Support reloading `entity_data.json` at runtime so tuning does not need a
-      rebuild (`EntityManager::reloadConfig`, bound to `R`).
-- [x] Let a busy entity interrupt its current action when a survival need turns
-      critical, so a long trip does not kill it
-      (`EntityDecision::interruptFor`, transactional so it never thrashes).
-- [x] Unit-test that a given config produces the expected steady-state
-      population band over a fixed number of simulated days
-      (`tests/test_observability.cpp`).
-
-**Done when:** a balance change can be justified by numbers rather than by
-watching the window, and a fresh settlement survives its first day.
-
-### Milestone 3 — Threats and defense
-
-Survival has no antagonist yet. Add pressure so the settlement has a reason to
-grow, store and build.
-
-- [ ] Spawn hostile wildlife (the unused animal entity types) that hunts or raids
-      the settlement.
-- [ ] Add combat: entities can fight, flee or be wounded.
-- [ ] Add walls/defenses as placeable tiles, reusing the building path from
-      Milestone 1.
-- [ ] Make threats scale with time or population so the early game stays calm.
-- [ ] Unit-test a raid: attackers damage defenders, and a wall blocks a path.
-
-**Done when:** an unattended settlement can be harmed, and a defended one can
-repel the attack.
-
-### Milestone 4 — Social bonds and society
-
-The premise is "one of twenty": people, not units. Give the population
-relationships that shape behavior.
-
-- [ ] Track kinship and relationships (parent/child, partners, friends) formed
-      by proximity and shared work.
-- [ ] Let relationships bias decisions: help, share food, follow, or avoid.
-- [ ] Add roles and leadership so a settlement can organize, not just survive.
-- [ ] Drive reproduction and child-rearing from relationships rather than a
-      settlement-wide comfort check.
-- [ ] Unit-test that a relationship changes a decision and that a child inherits
-      a parent link.
-
-**Done when:** individuals have relationships that visibly change what they do.
-
-### Milestone 5 — Performance and scale
-
-Prepare for hundreds of entities (more people, wildlife and buildings) without
-frame drops. Memory refresh is already per-tile rather than per-frame; the rest
-of the scan is still repeated.
-
-- [ ] Index tile resource queries (e.g. per-chunk resource lists) instead of
-      rescanning the vision square for every entity.
-- [ ] Add a spatial index for entity lookups (neighbour queries, collision).
-- [ ] Add a headless benchmark (entities x ticks) to CI so regressions show up.
-- [ ] Set and test a target: e.g. 500 entities at 60 fps on the CI machine.
-
-**Done when:** the benchmark target is met and guarded by a test.
-
-### Milestone 6 — Presentation and UX
-
-Make the simulation legible and pleasant to watch, once the simulation is worth
-watching.
-
-- [ ] Drive a day/night tint and lighting from `GameClock`.
-- [ ] Replace the debug circles with sprites/animations and add a camera that
-      can follow an entity.
-- [ ] Add a minimap and a stats overlay (population, stockpile, clock).
-- [ ] Turn `Scene_Menu` into a real front end: new game (seed/options), load,
-      settings, quit; add a pause overlay.
-- [ ] Optional: SFML audio for ambience and events.
-
-**Done when:** the game communicates its own state without debug overlays, and
-the menu can start and configure a run.
+**Done when:** politics can run against either a mock or an LLM backend without
+changing the simulation.
 
 ---
 

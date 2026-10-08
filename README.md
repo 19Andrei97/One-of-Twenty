@@ -169,21 +169,41 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 
 ## TODO
 
+One Of Twenty is a political life-sim: you play **one of the twenty who govern**,
+gaining and losing political power through your decisions, events and
+geopolitical conditions, starting with little power and only your faction's few
+allies — while a **civilization simulation never stops** around you and grows far
+larger than the governing twenty. The current focus is that civilization
+simulation; the political layer is built once it behaves.
+
+Because the population grows without bound, nothing may cost O(pawns²): pawns
+have a **social station and importance** (a per-pawn value), not pairwise
+relationships, and detail follows importance (notables are simulated as
+individuals, the masses in bulk).
+
 See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core, the
 survival loop and pathfinding are folded into the baseline; milestones 1
 (settlement economy and jobs) and 2 (observability and tuning) are complete and
-the active work starts at milestone 3.
+the active work starts at milestone 3 (social station and importance).
 
 ### Next milestones
 - [x] Settlement economy and jobs (entity-type roles, recipes/production, food as
   a resource, stockpile HUD, placeable buildings).
 - [x] Observability and tuning (event log, run summaries, runtime config reload,
   interrupt a busy entity when a need turns critical).
+- [ ] Social station and importance (a per-pawn station, divergent personalities,
+  detail-by-importance) — the active milestone, and the basis for politics.
 - [ ] Threats and defense (wildlife, combat, walls) — gives survival a reason.
-- [ ] Social bonds and society (kinship, relationships, roles, leadership) —
-  the "one of twenty" premise.
+- [ ] The wider world (several civilizations, an abstract neighbor model, trade
+  and rivalry, evolving geopolitical conditions).
+- [ ] City center and institutional growth (a settlement anchor, a sphere of
+  effect, investing in the commons).
 - [ ] Performance and scale (indexed resource queries, spatial entity index,
-  incremental memory, headless benchmark in CI).
+  budgeted vision scan, headless benchmark in CI).
+- [ ] Social capital and influence — the political simulation (power, factions,
+  earned/lost influence, an in-simulation vote among the governing twenty).
+- [ ] Events and the player's agency (a player-controlled entity, decisions that
+  scale with power and allies, an event system, a political UI, opinion model).
 - [ ] Presentation and UX (day/night lighting, sprites and camera follow,
   minimap and stats overlay, real menu, audio).
 
@@ -195,12 +215,13 @@ the active work starts at milestone 3.
   interrupts) is listed in [ROADMAP.md](ROADMAP.md).
 
 ### Parked
-- [ ] Persistence and save/load (serialize seed/clock/entities/stockpile/edits,
-  versioned saves, round-trip tests). Deferred until the economy settles.
+- [ ] Persistence and save/load (serialize seed/clock/entities/social station/
+  stockpile/influence/factions/edits, versioned saves, round-trip tests).
+  Deferred until the station and wider-world milestones settle.
 
 ### Deferred
-- [ ] Add a city center.
-- [ ] Add AI through llama for civilization politics.
+- [ ] AI politics via an LLM (speeches, negotiation, justification behind a
+  mockable interface), once factions, events and influence exist as data.
 
 ### Completed
 
