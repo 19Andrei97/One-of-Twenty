@@ -304,9 +304,13 @@ Retired from the roadmap; kept here as a record.
   only when an entity enters a new tile, which cuts the per-frame vision scan from
   every entity every frame to roughly once per tile traversed.
 - [x] **Map depth.** Tile-space coordinates end to end; `tile_types` is
-  authoritative and edits rebuild the chunk mesh; island/river/height-range
+  authoritative and edits rebuild the chunk mesh; island/river/lake/height-range
   options; one noise field per resource; `getElementAtWorld` for post-edit
   queries; split sampling into `GenerateTerrain` + `MapConfig` + `Chunk.h`.
+  Terrain reads as a natural map: a ridged-detail highland pass, rivers that
+  follow the smooth zero crossing of a low-frequency field (long and meandering,
+  not straight parallel bands), discrete lake basins, and a deliberately dark,
+  desaturated palette so it no longer looks psychedelic.
 - [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; the
   settlement's shared map knowledge (`helpers/Knowledge.h`) finds the nearest
   water/food and replaces the old per-entity memory, so what one entity sees is

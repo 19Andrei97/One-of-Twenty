@@ -118,6 +118,13 @@ public:
 	void setContMult(float mult)    { m_config.cont_multiplier = mult; }
 	void setMineralMult(float mult) { m_config.mineral_multiplier = mult; }
 
+	// Lake/river shaping. Both re-read the live config on the next sample, so
+	// a change only needs a chunk reset (m_reset) to take effect.
+	void setLakeLevel(float level)  { m_config.lake_level = level; }
+	void setLakeFreq(float freq)    { m_config.lake_freq = freq; }
+	void setRiverFreq(float freq)   { m_config.river_freq = freq; }
+	void setRiverThreshold(float threshold) { m_config.river_threshold = threshold; }
+
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
 	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 

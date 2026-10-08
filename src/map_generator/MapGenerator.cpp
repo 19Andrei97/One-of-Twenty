@@ -385,14 +385,16 @@ sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radiu
 	sf::Vector2i random{ 0, 0 };
 
 	// Bounded retry: a region that is entirely water would otherwise spin
-	// forever, since only non-water tiles have a non-zero red channel.
+	// forever. Classify by element (isOcean), not by colour: the palette is
+	// free to give shallow water a non-zero red channel, so colour is no
+	// longer a water test.
 	constexpr int max_attempts = 64;
 	for (int attempt = 0; attempt < max_attempts; ++attempt)
 	{
 		random.x = Random::get<int, int, int>(pos.x - radius, pos.x + radius);
 		random.y = Random::get<int, int, int>(pos.y - radius, pos.y + radius);
 
-		if (getBiomeColor(random).r != 0)
+		if (!Resources::isOcean(m_terrain.elementAtTile(worldToTile(random))))
 			return random;
 	}
 

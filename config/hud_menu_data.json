@@ -113,6 +113,44 @@
     "function": "mineral_multiplier"
   },
 
+  "lake_level":
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position":
+    {
+        "x": 20,
+        "y": 220
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.6,
+    "label": "Lake Level",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+    "level": 0,
+    "function": "lake_level"
+  },
+
+  "river_threshold":
+  {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position":
+    {
+        "x": 20,
+        "y": 250
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.12,
+    "label": "River Width",
+    "bar_color": [0, 0, 0],
+    "handle_color": [255, 255, 255],
+    "level": 0,
+    "function": "river_threshold"
+  },
+
   "time_slower":
   {
     "type": "button",
@@ -120,7 +158,7 @@
     "height": 30,
     "position":
     {
-        "x": 1004,
+        "x": 1010,
         "y": 110
     },
     "label": "<<",
@@ -139,7 +177,7 @@
     "height": 30,
     "position":
     {
-        "x": 1068,
+        "x": 1074,
         "y": 110
     },
     "label": "Pause",
@@ -158,7 +196,7 @@
     "height": 30,
     "position":
     {
-        "x": 1192,
+        "x": 1198,
         "y": 110
     },
     "label": ">>",

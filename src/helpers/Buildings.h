@@ -81,6 +81,8 @@ struct Settlement
     if (name == "clay")            return Elements::clay;
     if (name == "iron")            return Elements::iron;
     if (name == "silver")          return Elements::silver;
+    if (name == "lake")            return Elements::lake;
+    if (name == "river")           return Elements::river;
     if (name == "farm")            return Elements::farm;
     if (name == "workshop")        return Elements::workshop;
     if (name == "house")           return Elements::house;

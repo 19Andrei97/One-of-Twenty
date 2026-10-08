@@ -46,9 +46,9 @@ The engine core and the survival loop are in place:
 - Window, game loop, scenes (`Scene_Play`, `Scene_Menu`), camera, and an
   EnTT-based ECS (`src/game`, `src/camera`, `src/entity_manager`).
 - Chunked procedural map streamed on a `BS::thread_pool`, with noise
-  continents/warp/minerals, islands, rivers and per-resource fields; sampling
-  lives in a stateless `GenerateTerrain` over a `MapConfig` value type
-  (`src/map_generator`).
+  continents/warp/minerals, ridged highland detail, islands, meandering rivers,
+  lake basins and per-resource fields; sampling lives in a stateless
+  `GenerateTerrain` over a `MapConfig` value type (`src/map_generator`).
 - Tile-space coordinates end to end (`helpers/CoordMath.h`); `tile_types` is the
   authoritative per-tile map, so edits made through `setTileColor` agree with
   what is drawn and what entities query.
