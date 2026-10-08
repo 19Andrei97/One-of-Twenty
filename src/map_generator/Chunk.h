@@ -33,6 +33,11 @@ enum class Elements
 	iron,
 	silver,
 
+	// Placed buildings. These are written into tile_types by the economy when a
+	// structure is built, so they render and persist like any other edit.
+	farm,
+	workshop,
+
 	test,
 
 	count	// number of elements; not a real element

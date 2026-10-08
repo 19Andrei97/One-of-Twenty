@@ -167,11 +167,12 @@ paths), `map_data.json` (tile size, noise parameters, biomes, thresholds), and
 ## TODO
 
 See [ROADMAP.md](ROADMAP.md) for the ordered milestones. The engine core, the
-survival loop and pathfinding are folded into the baseline; the new work starts
-at milestone 1 of the roadmap.
+survival loop and pathfinding are folded into the baseline; milestone 1
+(settlement economy and jobs) is complete and the active work starts at
+milestone 2.
 
 ### Next milestones
-- [ ] Settlement economy and jobs (entity-type roles, recipes/production, food as
+- [x] Settlement economy and jobs (entity-type roles, recipes/production, food as
   a resource, stockpile HUD, placeable buildings).
 - [ ] Threats and defense (wildlife, combat, walls) — gives survival a reason.
 - [ ] Social bonds and society (kinship, relationships, roles, leadership) —
@@ -202,6 +203,14 @@ at milestone 1 of the roadmap.
 
 Retired from the roadmap; kept here as a record.
 
+- [x] **Settlement economy and jobs.** Entity types are bound to jobs
+  (`helpers/Jobs.h`, `config/entity_data.json` `entity_types` block, with
+  defaults for older configs). Gathers bank into a per-good stockpile
+  (`helpers/Goods.h`) that eating and daily spoilage draw on; the shortage rule
+  reassigns idle entities to understaffed jobs (`helpers/Economy.h`); farms grow
+  food and workshops run recipes; and buildings are placed with `setTileColor`
+  so they render and persist. A stats panel shows the stockpile, buildings and
+  gather count.
 - [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes
   entities over the `MoveCost` map, so they go around water and prefer cheap
   ground; movement follows the route (`CPath`) and falls back to a straight line

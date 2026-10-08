@@ -46,6 +46,13 @@ namespace Resources
         }
     }
 
+    // A placed building. Buildings run production recipes rather than being
+    // gathered, so they are classified apart from the workable deposits.
+    inline constexpr bool isBuilding(const Elements element) noexcept
+    {
+        return element == Elements::farm || element == Elements::workshop;
+    }
+
     // Consumable: what eating and drinking withdraw from the settlement stores.
     // Water is drunk straight from the tile; food is eaten from the stockpile.
     inline constexpr bool isConsumable(const Elements element) noexcept

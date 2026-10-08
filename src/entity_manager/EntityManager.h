@@ -6,8 +6,10 @@
 #include "EntityDecision.h"
 #include "EntityVitals.h"
 
+#include <array>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class EntityManager
 {
@@ -25,10 +27,26 @@ class EntityManager
         // contented entity eventually wanders instead of standing still.
         std::unordered_map<entt::entity, int>   m_entity_idle;
 
-        // Resources gathered by the settlement, totalled by element, plus a count
-        // of completed gathers so progress is observable (HUD / tests).
-        std::unordered_map<Elements, int>       m_stockpile;
+        // Settlement stores, plus a count of completed gathers so progress is
+        // observable (HUD / tests). Goods are the economy's currency: raw gathers
+        // and crafted production both land here, and eating/spoilage draw from it.
+        Goods::Stock                            m_goods;
         int                                     m_gathers_completed{ 0 };
+        int                                     m_food_produced{ 0 };
+
+        // A placed building: the tile it occupies and the element written into the
+        // map for it. The list is what the hourly production pass iterates, so it
+        // does not have to rescan the terrain for structures.
+        struct BuildingSite
+        {
+                sf::Vector2i pos;       // world position (tile corner)
+                Elements     element;   // Elements::farm / Elements::workshop
+        };
+        std::vector<BuildingSite>               m_buildings;
+
+        // Last in-game day for which spoilage ran, so it fires exactly once per
+        // day even when a frame advances several hours.
+        std::int64_t                            m_last_spoilage_day{ -1 };
 
         // Population bookkeeping, exposed for the HUD and tests.
         int                                     m_births{ 0 };
@@ -58,6 +76,11 @@ class EntityManager
         // Private function
         void addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color);
 
+        // Starting role for a freshly spawned entity: the configured job for its
+        // type when given, otherwise a sensible default (humans build, animals
+        // idle). The shortage rule can reassign it afterwards.
+        Jobs::Job defaultJobFor(const EntityType& type) const;
+
         // A* route from one world position to another. Returns the world-space
         // waypoints (tile corners, excluding the tile the entity already stands
         // on), `nullopt` when already on the target tile, or an empty vector when
@@ -70,9 +93,20 @@ class EntityManager
         bool queueMoveTo(const sf::Vector2i& from, const sf::Vector2i& target,
                          CPath& path, CActionsQueue& queue);
 
-        // Nearest remembered gatherable tile, rarest material first. Empty when
-        // nothing workable has been remembered yet.
-        std::optional<WorkTarget> settleElements(const CMemory& memory) const;
+        // Nearest remembered gatherable tile this job can work, in the job's
+        // preference order. Empty when nothing workable has been remembered yet.
+        std::optional<WorkTarget> settleElements(const CMemory& memory, Jobs::Job job) const;
+
+        // Reassign idle entities to the most understaffed job, so the settlement
+        // responds to shortages. Called when an entity completes a job assignment
+        // cycle, not every frame.
+        void reassignJobs();
+
+        // Run the settlement's production once per in-game hour: farms grow food
+        // (once wood is available), workshops turn raw goods into crafted ones,
+        // and stored food spoils once per day.
+        void produceGoods();
+        void spoilFood();
 
         // Withdraw one unit of `element` from the settlement stores if any is
         // held, so eating/drinking can be gated on supply. Returns false when the
@@ -96,7 +130,8 @@ class EntityManager
                             float visionRadius,
                             const CMemory& memory,
                             CActionsQueue& queue,
-                            CPath& path);
+                            CPath& path,
+                            Jobs::Job job);
 
 public:
 
@@ -152,6 +187,22 @@ public:
         int stockpile(const Elements element) const;
         int totalStockpile() const;
         int gathersCompleted() const { return m_gathers_completed; }
+
+        // The economy's stores, for the HUD and tests.
+        int good(const Goods::Good which) const { return m_goods.count(which); }
+        const Goods::Stock& goods() const { return m_goods; }
+        int foodProduced() const { return m_food_produced; }
+        int buildingCount() const { return static_cast<int>(m_buildings.size()); }
+
+        // Current job staffing, indexed by Jobs::Job, for the HUD.
+        std::array<int, Jobs::kJobCount> jobCounts() const;
+        Jobs::Job firstJob() const;
+
+        // Build a structure on a tile: spend the wood cost and write the element
+        // into the map so it renders and can be worked. Returns false (placing
+        // nothing) when the spot is occupied by another building or the stock is
+        // short.
+        bool placeBuilding(Economy::Building building, const sf::Vector2i& worldPos);
 
         // Population and vitals, for the HUD and tests. `population` is the live
         // entity count; births/deaths accumulate over the run.

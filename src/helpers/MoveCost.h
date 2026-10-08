@@ -40,6 +40,10 @@ namespace MoveCost
             case Elements::iron:            return 0.4f;
             case Elements::silver:          return 0.4f;
 
+            // Built structures sit on cleared ground and are quick to cross.
+            case Elements::farm:            return kDefault;
+            case Elements::workshop:        return kDefault;
+
             case Elements::test:            return kDefault;
         }
         return kDefault;

@@ -67,8 +67,15 @@ void Scene_Play::refreshStats()
 		"Population: " + std::to_string(m_entity_manager->population()) + " / " + std::to_string(m_entity_manager->maxPopulation()),
 		"Births: " + std::to_string(m_entity_manager->births()),
 		"Deaths: " + std::to_string(m_entity_manager->deaths()),
-		"Stockpile: " + std::to_string(m_entity_manager->totalStockpile()),
-		"Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
+		"Food: " + std::to_string(m_entity_manager->good(Goods::Good::Food))
+			+ "   Wood: " + std::to_string(m_entity_manager->good(Goods::Good::Wood)),
+		"Stone: " + std::to_string(m_entity_manager->good(Goods::Good::Stone))
+			+ "   Clay: " + std::to_string(m_entity_manager->good(Goods::Good::Clay))
+			+ "   Iron: " + std::to_string(m_entity_manager->good(Goods::Good::Iron)),
+		"Planks: " + std::to_string(m_entity_manager->good(Goods::Good::Planks))
+			+ "   Tools: " + std::to_string(m_entity_manager->good(Goods::Good::Tools)),
+		"Buildings: " + std::to_string(m_entity_manager->buildingCount())
+			+ "   Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
 	});
 }
 

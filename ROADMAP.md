@@ -49,9 +49,17 @@ The engine core and the survival loop are in place:
   the walk to water and pausing freezes the settlement. The seeded population
   founds itself on a habitable coastal site with water and forage in reach, so a
   run produces a story instead of a static crowd.
+- **Settlement economy and jobs.** Entities have roles (`helpers/Jobs.h`) bound
+  to their type through the `entity_types` block, so farmers, lumberjacks,
+  miners and builders gather their preferred resource; gathers bank into a
+  per-good stockpile (`helpers/Goods.h`), the shortage rule reassigns idle
+  entities to understaffed jobs (`helpers/Economy.h`), farms and workshops run
+  recipes, food spoils daily, and eating draws on the store. Buildings are placed
+  with `setTileColor` so they render and persist, and a stats panel shows the
+  stockpile, buildings and gather count.
 - Unit tests (doctest) across coordinates, `SharedContainer`, `GameClock`,
-  config, map lifetime/determinism, decisions, move cost, HUD, scenes and
-  survival/population.
+  config, map lifetime/determinism, decisions, move cost, HUD, scenes,
+  survival/population and the economy/jobs.
 - CI on Linux + Windows plus an ASan/UBSan job (`.github/workflows/build.yml`)
   and a real-game smoke test (`.github/workflows/game-smoke.yml`).
 
@@ -115,16 +123,21 @@ and collision is complete and folded into the baseline above.
 
 Turn "gather the nearest resource" into production with roles and buildings.
 
-- [ ] Give entity types behavior: `Human_Farmer`, `Human_Lumberjack` (and the
-      animal types) are defined but unused; bind jobs to them.
-- [ ] Add recipes / production chains that convert raw stock (wood, stone, clay,
-      iron, silver) into goods, so different resources matter.
-- [ ] Make food a real resource: foraging, farms and spoilage, so hunger is
+- [x] Give entity types behavior: `Human_Farmer`, `Human_Lumberjack` (and the
+      animal types) are bound to jobs through the `entity_types` block in
+      `entity_data.json`, with sensible defaults (human -> Builder, animal ->
+      Idle) so unlisted or older configs still load.
+- [x] Add recipes / production chains that convert raw stock (wood, stone, clay,
+      iron, silver) into goods, so different resources matter (`helpers/Goods.h`,
+      `helpers/Economy.h`).
+- [x] Make food a real resource: foraging, farms and spoilage, so hunger is
       supplied by production rather than the current tile fallback.
-- [ ] Add a stockpile HUD panel showing counts and rates over time.
-- [ ] Add placeable buildings on tiles, reusing `setTileColor` and the chunk
+- [~] Add a stockpile HUD panel showing counts and rates over time — the panel
+      shows per-good counts, buildings and gathers; rates over time are still to
+      come.
+- [x] Add placeable buildings on tiles, reusing `setTileColor` and the chunk
       mesh rebuild so structures render and persist in the world.
-- [ ] Unit-test the economy: a recipe consumes inputs and produces outputs, and
+- [x] Unit-test the economy: a recipe consumes inputs and produces outputs, and
       job assignment responds to shortages.
 
 **Done when:** a settlement produces a surplus from specialized jobs, visible in

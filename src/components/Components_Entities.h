@@ -2,6 +2,8 @@
 
 #include "../map_generator/MapGenerator.h"
 #include "../helpers/Resources.h"
+#include "../helpers/Jobs.h"
+#include "../helpers/Economy.h"
 
 #include <SFML/Graphics.hpp>
 #include <algorithm>
@@ -29,8 +31,12 @@ enum class EntityType
     Human_Farmer,
     Human_Lumberjack,
     Animal_Dog,
-    Animal_Cat
+    Animal_Cat,
+
+    Count   // number of entity types; not a real type
 };
+
+inline constexpr std::size_t kEntityTypeCount = static_cast<std::size_t>(EntityType::Count);
 
 enum class ActionTypes 
 {
@@ -49,6 +55,17 @@ struct CType
     CType(const EntityType& t)
         : type(t)
     {}
+};
+
+// The settlement role an entity works. Set at spawn from the entity type's
+// configured job default, and reassigned by the shortage rule so the settlement
+// keeps the roles it needs staffed.
+struct CJob
+{
+    Jobs::Job job{ Jobs::Job::Idle };
+
+    CJob() = default;
+    explicit CJob(const Jobs::Job j) : job(j) {}
 };
 
 struct CPersonality 
@@ -286,6 +303,11 @@ struct CAction
     CAction(ActionTypes action) : action_name(action) {}
     virtual ~CAction() = default;
 };
+
+inline bool operator==(const CAction& action, const ActionTypes type) noexcept
+{
+    return action.action_name == type;
+}
 
 struct CMoving : public CAction
 {
