@@ -121,6 +121,12 @@ public:
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
 	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 
+	// Overwrite the palette entries for building elements with the colors the
+	// building catalog declares, so a structure renders with its JSON color.
+	// Terrain colors are untouched: only the pairs passed in change. Call once
+	// after the map and the entity manager exist.
+	void applyBuildingColors(const std::vector<std::pair<Elements, sf::Color>>& colors);
+
 	// DEBUG
 	void setDebugWireFrame(bool status) { d_wire_frame = status; }
 	void print()

@@ -59,6 +59,9 @@ void EntityManager::update()
                 ageEntities();
                 applyHealth();
                 killTheDying();
+                // The construction planner decides what to build and marks a site;
+                // production then runs over the buildings that are complete.
+                planConstruction();
                 produceGoods();
                 tryBirths();
         }
@@ -170,7 +173,9 @@ void EntityManager::update()
                         // Never step past the target: a frame that moves further than
                         // the remaining distance would overshoot and the entity would
                         // oscillate forever, never "arriving" to drink or eat.
-                        const float cost{ m_map->getTileCost(trs.pos) };
+                        // Catalog-aware cost, so a road speeds the step; terrain
+                        // falls back to MoveCost inside Buildings::walkCost.
+                        const float cost{ tileCostAt(trs.pos) };
                         const float step = std::min(budget * cost, distance);
                         if (step >= distance)
                         {
@@ -275,6 +280,33 @@ void EntityManager::update()
                         ++m_gathers_completed;
                         m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
                                         1, Goods::name(Goods::fromElement(yielded)));
+
+                        std::lock_guard<std::mutex> lock(m_mutex);
+                        queue.actions.pop_front();
+                }
+                else if (auto action = std::dynamic_pointer_cast<CBuild>(front); action
+                        && elapsed - action->timestamp_min > action->duration_min)
+                {
+                        // Advance the site by one hour's work. A completed site's
+                        // effects apply once (applyBuildEffect is idempotent on the
+                        // `complete` flag) and a construction-finished event is
+                        // recorded, so the run's story includes what was built.
+                        if (PlacedBuilding* site = findBuildingAt(action->tile))
+                        {
+                                if (!site->complete)
+                                {
+                                        const auto& def = m_catalog.all()[site->def_index];
+                                        site->work_remaining -= std::max(1, def.work_per_hour);
+                                        if (site->work_remaining <= 0)
+                                        {
+                                                applyBuildEffect(*site);
+                                                m_events.record(Observability::EventKind::Construction,
+                                                                m_game_clock->getTimestamp(), 1, def.name);
+                                                LOG_INFO("Built {} at ({},{}).", def.name,
+                                                         site->origin.x, site->origin.y);
+                                        }
+                                }
+                        }
 
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -385,12 +417,13 @@ void EntityManager::update()
                         info.text[3].setString("Health: " + std::to_string(health.value));
                         info.text[4].setString("Job: " + Jobs::name(job.job));
 
-                        static const std::array<std::pair<ActionTypes, const char*>, 5> kActions{ {
+                        static const std::array<std::pair<ActionTypes, const char*>, 6> kActions{ {
                                 { ActionTypes::Moving,    "Moving." },
                                 { ActionTypes::Eating,    "Eating." },
                                 { ActionTypes::Sleeping,  "Sleeping." },
                                 { ActionTypes::Drinking,  "Drinking." },
                                 { ActionTypes::Gathering, "Gathering." },
+                                { ActionTypes::Building,  "Building." },
                         } };
 
                         std::string status = "Idle.";
@@ -522,6 +555,22 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
 
                 case EntityDecision::Need::Work:
                 {
+                        // A builder heads to the nearest incomplete site and works
+                        // it. With nothing to build it falls through to gathering, so
+                        // early-game wood production is unaffected.
+                        if (job == Jobs::Job::Builder && !queueHasAction(queue, ActionTypes::Building))
+                        {
+                                if (auto site = nearestIncompleteSite(pos))
+                                {
+                                        if (queueMoveTo(pos, *site, path, queue))
+                                        {
+                                                queue.actions.push_back(std::make_shared<CBuild>(
+                                                        ActionTypes::Building, *site, m_game_clock->getTimestamp()));
+                                                return true;
+                                        }
+                                }
+                        }
+
                         if (queueHasAction(queue, ActionTypes::Gathering))
                                 return false;
 
@@ -604,7 +653,9 @@ std::optional<std::vector<sf::Vector2i>> EntityManager::findRoute(const sf::Vect
 
         const auto path = Pathfinding::findPath(
                 startTile, goalTile,
-                [&](const sf::Vector2i& tile) { return MoveCost::moveCost(elementAt(tile)); },
+                // Catalog-aware cost so a road is cheaper to route along; terrain
+                // falls back to MoveCost inside Buildings::walkCost.
+                [&](const sf::Vector2i& tile) { return Buildings::walkCost(elementAt(tile), m_catalog); },
                 [&](const sf::Vector2i& tile) { return !Resources::isOcean(elementAt(tile)); },
                 Pathfinding::kDefaultNodeCap);
         if (path.empty())
@@ -737,33 +788,28 @@ void EntityManager::resolveCollisions()
 
 void EntityManager::produceGoods()
 {
-        for (const auto& site : m_buildings)
+        // Every completed building with recipes runs once per hour. A farm grows
+        // food from pure labour; a workshop turns raw goods into crafted ones.
+        // The element switch is gone: behaviour comes from the catalog def, so a
+        // new producer is a JSON entry.
+        for (const auto& building : m_buildings)
         {
-                switch (site.element)
+                if (!building.complete)
+                        continue;
+                const auto& def = m_catalog.all()[building.def_index];
+                if (def.recipes.empty())
+                        continue;
+
+                // A recipe with no input yields per the configured output; anything
+                // else is capped by the shipped per-hour production tuning.
+                const int before = m_goods.count(def.recipes.front().output_good);
+                if (Buildings::produceOnce(m_goods, def))
                 {
-                case Elements::farm:
-                {
-                        // A farm grows food with no raw input, one unit per hour per
-                        // building. Food is what feeds the settlement, so this is the
-                        // base of the production chain.
-                        const int grown = std::max(0, m_config.economy.farm_food_per_hour);
-                        m_goods.add(Goods::Good::Food, grown);
-                        m_food_produced += grown;
-                        if (grown > 0)
-                                m_events.record(Observability::EventKind::Production, m_game_clock->getTimestamp(),
-                                                grown, Goods::name(Goods::Good::Food));
-                        break;
-                }
-                case Elements::workshop:
-                        // A workshop converts raw goods into crafted ones: the first
-                        // recipe whose inputs are available is applied. A workshop
-                        // with nothing to work simply idles this hour.
-                        if (Economy::produceOnce(m_goods, Economy::Building::Workshop))
-                                m_events.record(Observability::EventKind::Production, m_game_clock->getTimestamp(),
-                                                1, "workshop");
-                        break;
-                default:
-                        break;
+                        const int produced = m_goods.count(def.recipes.front().output_good) - before;
+                        if (def.recipes.front().output_good == Goods::Good::Food && produced > 0)
+                                m_food_produced += produced;
+                        m_events.record(Observability::EventKind::Production, m_game_clock->getTimestamp(),
+                                        produced, def.name);
                 }
         }
 }
@@ -773,33 +819,210 @@ void EntityManager::spoilFood()
         Goods::spoil(m_goods, m_config.economy.food_spoilage_percent_per_day);
 }
 
-bool EntityManager::placeBuilding(Economy::Building building, const sf::Vector2i& worldPos)
+std::optional<sf::Vector2i> EntityManager::nearestIncompleteSite(const sf::Vector2i& from) const
 {
-        if (building == Economy::Building::None || building == Economy::Building::Count)
-                return false;
+        std::optional<sf::Vector2i> best;
+        int bestDist = 0;
+        for (const auto& building : m_buildings)
+        {
+                if (building.complete)
+                        continue;
+                const int dist = squaredDistance(building.origin, from);
+                if (!best || dist < bestDist)
+                {
+                        best = building.origin;
+                        bestDist = dist;
+                }
+        }
+        return best;
+}
 
-        const Elements element = (building == Economy::Building::Farm) ? Elements::farm : Elements::workshop;
-        const Goods::Good cost_good = Goods::Good::Wood;
-        const int cost = (building == Economy::Building::Farm)
-                       ? m_config.economy.farm_wood_cost
-                       : m_config.economy.workshop_wood_cost;
+EntityManager::PlacedBuilding* EntityManager::findBuildingAt(const sf::Vector2i& worldPos)
+{
+        for (auto& building : m_buildings)
+                if (building.origin == worldPos)
+                        return &building;
+        return nullptr;
+}
+
+int EntityManager::countOf(const std::size_t def_index) const
+{
+        int total = 0;
+        for (const auto& building : m_buildings)
+                if (building.def_index == def_index)
+                        ++total;
+        return total;
+}
+
+int EntityManager::completedBuildingCount() const
+{
+        int total = 0;
+        for (const auto& building : m_buildings)
+                if (building.complete)
+                        ++total;
+        return total;
+}
+
+int EntityManager::countOfElement(const Elements element) const
+{
+        int total = 0;
+        for (const auto& building : m_buildings)
+                if (m_catalog.all()[building.def_index].element == element)
+                        ++total;
+        return total;
+}
+
+int EntityManager::populationCapacity() const
+{
+        // The base cap is the entity config's `survival.max_population` (so the
+        // existing tuning and its reload test still govern growth); every
+        // completed house adds its catalog bonus on top, which is how buildings
+        // raise the population capacity.
+        int capacity = m_config.survival.max_population;
+        for (const auto& building : m_buildings)
+                if (building.complete)
+                        capacity += m_catalog.all()[building.def_index].population_capacity;
+        return capacity;
+}
+
+bool EntityManager::hasCityCenter() const
+{
+        return m_anchor.has_value();
+}
+
+void EntityManager::applyBuildEffect(PlacedBuilding& building)
+{
+        if (building.complete)
+                return;
+
+        building.complete = true;
+        const auto& def = m_catalog.all()[building.def_index];
+        if (def.is_anchor)
+                m_anchor = building.origin;
+}
+
+std::optional<sf::Vector2i> EntityManager::findBuildSite() const
+{
+        // The anchor seeds the search; before it exists, the settlement spawns its
+        // first building near where the founders stand.
+        const sf::Vector2i center = m_anchor.value_or(findHabitableSpawn());
+        const int ts = m_map->getTileSize();
+        const sf::Vector2i centerTile = CoordMath::worldToTile(center, ts);
+        const int radius = std::max(1, m_settlement.build_radius_tiles);
+
+        for (int ring = 0; ring <= radius; ++ring)
+        {
+                for (int dx = -ring; dx <= ring; ++dx)
+                        for (int dy = -ring; dy <= ring; ++dy)
+                        {
+                                if (std::max(std::abs(dx), std::abs(dy)) != ring)
+                                        continue;
+                                const sf::Vector2i tile = centerTile + sf::Vector2i{ dx, dy };
+                                const sf::Vector2i world = CoordMath::tileToWorld(tile, ts);
+                                if (Resources::isOcean(m_map->getElementAtWorld(world)))
+                                        continue;
+                                bool occupied = false;
+                                for (const auto& building : m_buildings)
+                                        if (building.origin == world)
+                                        {
+                                                occupied = true;
+                                                break;
+                                        }
+                                if (occupied)
+                                        continue;
+                                return world;
+                        }
+        }
+        return std::nullopt;
+}
+
+void EntityManager::planConstruction()
+{
+        const std::int64_t hour = m_game_clock->getTimestamp() / GameTime::kMinutesPerHour;
+        if (hour == m_last_plan_hour)
+                return;
+        m_last_plan_hour = hour;
+
+        // Do not over-build: cap the number of sites under construction at once.
+        int pending = 0;
+        for (const auto& building : m_buildings)
+                if (!building.complete)
+                        ++pending;
+        if (pending >= m_settlement.max_concurrent_sites)
+                return;
+
+        // Pick the next building: the city center first (always buildable), then
+        // the lowest-priority def whose max_count is not reached and that the
+        // stock can afford. Ties go to catalog order, so the result is stable.
+        const Buildings::Def* chosen = nullptr;
+        if (!hasCityCenter() && countOf(m_catalog.indexOf(m_catalog.byId("city_center"))) == 0)
+                chosen = m_catalog.byId("city_center");
+
+        if (!chosen)
+        {
+                for (const auto& def : m_catalog.all())
+                {
+                        if (def.is_anchor)
+                                continue; // handled above
+                        const std::size_t index = m_catalog.indexOf(&def);
+                        if (def.max_count > 0 && countOf(index) >= def.max_count)
+                                continue;
+                        if (def.costs.empty() && def.recipes.empty())
+                                continue; // nothing to build toward (a pure anchor)
+                        if (!Buildings::affordable(m_goods, def))
+                                continue;
+                        if (!chosen || def.priority < chosen->priority)
+                                chosen = &def;
+                }
+        }
+
+        if (!chosen)
+                return;
+
+        const auto site = findBuildSite();
+        if (!site)
+                return;
+
+        if (!placeBuilding(chosen->id, *site))
+                return;
+
+        m_events.record(Observability::EventKind::Construction,
+                        m_game_clock->getTimestamp(), 1, chosen->name);
+}
+
+bool EntityManager::placeBuilding(const std::string& building_id, const sf::Vector2i& worldPos)
+{
+        const Buildings::Def* def = m_catalog.byId(building_id);
+        if (!def)
+                return false;
 
         // Do not stack a new structure on an existing one: the tile would just be
         // overwritten and the old site would keep producing from the list.
-        for (const auto& site : m_buildings)
-                if (site.pos == worldPos)
-                        return false;
-
-        if (!m_goods.has(cost_good, cost))
+        if (findBuildingAt(worldPos))
                 return false;
 
-        if (!m_map->setTileColor(worldPos, element))
+        if (!Buildings::affordable(m_goods, *def))
                 return false;
 
-        m_goods.take(cost_good, cost);
-        m_buildings.push_back(BuildingSite{ worldPos, element });
-        LOG_INFO("Built {} at ({},{}).", Economy::buildingName(building), worldPos.x, worldPos.y);
+        if (!m_map->setTileColor(worldPos, def->element))
+                return false;
+
+        Buildings::spend(m_goods, *def);
+        m_buildings.push_back(PlacedBuilding{
+                m_catalog.indexOf(def), worldPos,
+                std::max(1, def->build_hours) * std::max(1, def->work_per_hour), false });
+        LOG_INFO("Construction started: {} at ({},{}).", def->name, worldPos.x, worldPos.y);
         return true;
+}
+
+bool EntityManager::completeBuilding(const sf::Vector2i& worldPos)
+{
+        if (PlacedBuilding* site = findBuildingAt(worldPos))
+        {
+                applyBuildEffect(*site);
+                return true;
+        }
+        return false;
 }
 
 int EntityManager::stockpile(const Elements element) const
@@ -891,6 +1114,8 @@ void EntityManager::tryBirths()
         if (population == 0)
                 return;
 
+        const int capacity = populationCapacity();
+
         // Every entity carries its own reproduction timer, so growth scales with
         // the number of comfortable adults instead of one settlement-wide
         // cooldown. Collect the births first: creating entities mid-view would
@@ -906,7 +1131,7 @@ void EntityManager::tryBirths()
                         return;
                 }
 
-                if (population + static_cast<int>(spawns.size()) >= survival.max_population)
+                if (population + static_cast<int>(spawns.size()) >= capacity)
                         return;
 
                 if (EntityVitals::comfort(needs) < survival.birth_comfort)

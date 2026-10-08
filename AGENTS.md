@@ -94,9 +94,19 @@ A run that is killed by `timeout` (exit 124) is a success; check
   transactional — the old plan is restored unless the urgent action actually
   starts — so a need with no remembered target cannot thrash the entity. Keep
   survival plans (Eat/Drink/Sleep) non-interruptible by other survival needs.
-- `EntityManager::reloadConfig` re-reads the entity JSON in place; the `R` key in
-  `Scene_Play` binds it. Add new tuning as a member of `EntityConfig` so reload
-  picks it up for free.
+- `EntityManager::reloadConfig` re-reads the entity JSON *and* the building
+  catalog in place; the `R` key in `Scene_Play` binds it. Add new tuning as a
+  member of `EntityConfig` so reload picks it up for free.
+- Buildings live in `helpers/Buildings.h`, a pure data-driven catalog parsed from
+  `config/buildings.json` (`Def` cost/color/recipes/`walk_cost`, plus a
+  `Settlement` block). `EntityManager` places sites by spending the catalog cost
+  and writing the element into `tile_types`, then builders finish them over
+  `build_hours`. `populationCapacity()` is the entity config's
+  `survival.max_population` base plus each *completed* building's
+  `population_capacity` bonus, so houses raise the cap and an incomplete site
+  does not. `Buildings::walkCost(element, catalog)` layers the catalog override
+  over `MoveCost` for both movement and pathfinding. Keep catalog lookups by
+  `byId`/`byElement`, not by rebuilding maps.
 - Ores use one noise field each (`m_noise_clay`/`iron`/`silver`, seeded apart)
   rather than a shared mineral field; `getResourceValue()` samples a field.
 - The chunk map `c_chunks` is shared with worker threads; guard access with

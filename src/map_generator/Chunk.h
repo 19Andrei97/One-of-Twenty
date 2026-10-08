@@ -33,10 +33,15 @@ enum class Elements
 	iron,
 	silver,
 
-	// Placed buildings. These are written into tile_types by the economy when a
-	// structure is built, so they render and persist like any other edit.
+	// Placed buildings. These are written into tile_types by the construction
+	// system when a structure is built, so they render and persist like any other
+	// edit. Their behaviour (cost, color, effects) lives in
+	// config/buildings.json, not in a switch here.
 	farm,
 	workshop,
+	house,
+	city_center,
+	road,
 
 	test,
 

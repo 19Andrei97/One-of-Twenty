@@ -46,6 +46,7 @@ enum class ActionTypes
     Drinking,
     Sleeping,
     Gathering,
+    Building,
     Idle
 };
 
@@ -294,6 +295,20 @@ struct CGather : public CAction
 
     CGather(ActionTypes type, const sf::Vector2i& t, const Elements e, std::int64_t stamp)
         : CAction(type), tile(t), element(e), timestamp_min(stamp) {
+    }
+};
+
+// Work applied to a construction site over time: the builder stands on the site
+// for `duration_min` and each completed action advances the site by the def's
+// per-hour work. Mirrors CGather, but the "yield" is progress rather than goods.
+struct CBuild : public CAction
+{
+    sf::Vector2i tile{ 0, 0 };      // the site being worked
+    std::int64_t timestamp_min{ 0 };
+    int duration_min{ 60 };
+
+    CBuild(ActionTypes type, const sf::Vector2i& t, std::int64_t stamp)
+        : CAction(type), tile(t), timestamp_min(stamp) {
     }
 };
 

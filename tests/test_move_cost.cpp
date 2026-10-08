@@ -10,13 +10,18 @@
 TEST_CASE("every element has a positive, finite move cost")
 {
     // A cost of 0 multiplies an entity's speed to 0 and freezes it, so nothing
-    // in the enum may map to 0 (or to a negative / NaN multiplier).
+    // in the enum may map to 0 (or to a negative / NaN multiplier). A road is a
+    // deliberate speed-up (cost > 1) over bare ground.
     for (int i = 0; i <= static_cast<int>(Elements::test); ++i)
     {
-        const float cost = MoveCost::moveCost(static_cast<Elements>(i));
+        const auto element = static_cast<Elements>(i);
+        const float cost = MoveCost::moveCost(element);
         CHECK(cost > 0.f);
         CHECK(cost == cost);          // not NaN
-        CHECK(cost <= 1.0f);          // never a speed-up
+        if (element == Elements::road)
+            CHECK(cost > 1.0f);       // a road is faster than open ground
+        else
+            CHECK(cost <= 1.0f);      // nothing else is a speed-up
     }
 }
 

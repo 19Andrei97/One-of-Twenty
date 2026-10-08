@@ -232,7 +232,10 @@ a run.
 Power needs a seat. Add the institution that later becomes the arena of
 democratic politics.
 
-- [ ] Add a city center as a placeable structure and a settlement anchor.
+- [~] Add a city center as a placeable structure and a settlement anchor — it is
+      a catalog building (`is_anchor`, `max_count` 1) that sets `settlementAnchor`
+      and drives the HUD, but the planner does not yet build it automatically and
+      growth does not yet wait on it.
 - [ ] Give a city center a sphere of effect (storage, defense, administration)
       and let a settlement grow into it.
 - [ ] Let entities invest work or goods in the commons, building a shared

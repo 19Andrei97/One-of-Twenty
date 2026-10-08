@@ -36,7 +36,11 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");
-	m_entity_manager = std::make_unique<EntityManager>(font, m_map, m_game_clock, m_deltaTime, data["entity"]["file"]);
+	m_entity_manager = std::make_unique<EntityManager>(font, m_map, m_game_clock, m_deltaTime, data["entity"]["file"],
+	                                                   data.value("buildings", nlohmann::json::object()).value("file", "config/buildings.json"));
+	// Color building tiles with the catalog's colors, so a structure renders as the
+	// JSON declares rather than a palette entry in map_data.json.
+	m_map->applyBuildingColors(m_entity_manager->buildings().colors());
 	m_entity_manager->seedPopulation();
 }
 
@@ -74,8 +78,12 @@ void Scene_Play::refreshStats()
 			+ "   Iron: " + std::to_string(m_entity_manager->good(Goods::Good::Iron)),
 		"Planks: " + std::to_string(m_entity_manager->good(Goods::Good::Planks))
 			+ "   Tools: " + std::to_string(m_entity_manager->good(Goods::Good::Tools)),
-		"Buildings: " + std::to_string(m_entity_manager->buildingCount())
-			+ "   Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
+		"Buildings: " + std::to_string(m_entity_manager->completedBuildingCount())
+			+ "/" + std::to_string(m_entity_manager->buildingCount()) + " built"
+			+ "   Houses: " + std::to_string(m_entity_manager->countOfElement(Elements::house))
+			+ "   Roads: " + std::to_string(m_entity_manager->countOfElement(Elements::road))
+			+ "   " + (m_entity_manager->hasCityCenter() ? "City Center up" : "No city center"),
+		"Gathers: " + std::to_string(m_entity_manager->gathersCompleted()),
 		"Explored: " + std::to_string(m_entity_manager->knowledge().exploredCells())
 			+ " cells   Known: " + std::to_string(m_entity_manager->knowledge().knownLocations()),
 		lastEventLine(),

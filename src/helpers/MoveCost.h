@@ -43,6 +43,13 @@ namespace MoveCost
             // Built structures sit on cleared ground and are quick to cross.
             case Elements::farm:            return kDefault;
             case Elements::workshop:        return kDefault;
+            case Elements::house:           return kDefault;
+            case Elements::city_center:     return kDefault;
+
+            // A road is quicker than plain ground. The catalog can override this
+            // per building via Buildings::walkCost; this is the terrain fallback
+            // when no catalog is consulted.
+            case Elements::road:            return 1.5f;
 
             case Elements::test:            return kDefault;
         }
