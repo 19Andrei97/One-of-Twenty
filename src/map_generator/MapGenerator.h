@@ -111,19 +111,26 @@ public:
 	void setSeed(int seed = Random::get(1, 1000000)) { m_seed = seed; }
 	void setNoises();
 
-	void setContFreq(float freq)    { m_config.cont_freq = freq; }
-	void setWarpFreq(float freq)    { m_config.warp_freq = freq; }
-	void setMineralFreq(float freq) { m_config.mineral_freq = freq; }
+	// Terrain tuning, named the way the HUD presents it. Each setter writes the
+	// live config, which the sampler reads on the next sample; a change only
+	// needs a chunk reset (m_reset) to take effect.
+	void setLandAmount(float amount)         { m_config.land_amount = amount; }
+	void setContinentSize(float size)        { m_config.continent_size = size; }
+	void setCoastRoughness(float roughness)  { m_config.coast_roughness = roughness; }
 
-	void setContMult(float mult)    { m_config.cont_multiplier = mult; }
-	void setMineralMult(float mult) { m_config.mineral_multiplier = mult; }
+	void setMountainHeight(float height)     { m_config.mountain_height = height; }
+	void setMountainScale(float scale)       { m_config.mountain_scale = scale; }
 
-	// Lake/river shaping. Both re-read the live config on the next sample, so
-	// a change only needs a chunk reset (m_reset) to take effect.
-	void setLakeLevel(float level)  { m_config.lake_level = level; }
-	void setLakeFreq(float freq)    { m_config.lake_freq = freq; }
-	void setRiverFreq(float freq)   { m_config.river_freq = freq; }
-	void setRiverThreshold(float threshold) { m_config.river_threshold = threshold; }
+	void setTemperature(float value)         { m_config.temperature = value; }
+	void setRainfall(float value)            { m_config.rainfall = value; }
+	void setSnowLine(float value)            { m_config.snow_line = value; }
+
+	void setRiverDensity(float density)      { m_config.river_density = density; }
+	void setRiverSize(float size)            { m_config.river_size = size; }
+	void setLakeLevel(float level)           { m_config.lake_level = level; }
+	void setLakeSize(float size)             { m_config.lake_size = size; }
+
+	void setOreRichness(float richness)      { m_config.ore_richness = richness; }
 
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
 	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
@@ -139,11 +146,12 @@ public:
 	void print()
 	{
 		LOG_INFO("Seed: {}.", m_seed);
-		LOG_INFO("Mineral Frequency: {}.", m_config.mineral_freq);
-		LOG_INFO("Continent Frequency: {}.", m_config.cont_freq);
-		LOG_INFO("Warp Frequency: {}.", m_config.warp_freq);
-		LOG_INFO("Mineral Multiplier: {}.", m_config.mineral_multiplier);
-		LOG_INFO("Continent Multiplier: {}.", m_config.cont_multiplier);
+		LOG_INFO("Land amount: {}.", m_config.land_amount);
+		LOG_INFO("Continent size: {}.", m_config.continent_size);
+		LOG_INFO("Mountain height: {}.", m_config.mountain_height);
+		LOG_INFO("Temperature: {}.", m_config.temperature);
+		LOG_INFO("Rainfall: {}.", m_config.rainfall);
+		LOG_INFO("River density: {}.", m_config.river_density);
 	}
 
 	// GETTERS

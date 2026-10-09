@@ -3,7 +3,9 @@
 #include <SFML/Graphics.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -182,6 +184,9 @@ class CSlider
     sf::RectangleShape        m_bar;
     sf::CircleShape           m_handle;
     sf::Text m_text;
+    // One-line explanation drawn under the bar, so a player can tell what the
+    // slider actually does without reading the config. Empty hides it.
+    sf::Text m_description;
     sf::Vector2f              m_offset;
 
     float m_minValue;
@@ -201,13 +206,21 @@ public:
         const sf::Font& font,
         const std::string& text_p = "Default",
         const sf::Color& barColor = sf::Color::Black,
-        const sf::Color& handleColor = sf::Color::White
+        const sf::Color& handleColor = sf::Color::White,
+        const std::string& description_p = "",
+        float initialValue = std::numeric_limits<float>::quiet_NaN()
     )
-        : m_offset(pos_v), m_minValue(minVal), m_maxValue(maxVal), m_value(maxVal / 2), m_text(font)
+        : m_offset(pos_v), m_minValue(minVal), m_maxValue(maxVal),
+          m_value(std::isnan(initialValue) ? (minVal + maxVal) / 2.f : initialValue),
+          m_text(font), m_description(font)
     {
         m_text.setString(text_p);
         m_text.setCharacterSize(16u);
         m_text.setFillColor(sf::Color::Black);
+
+        m_description.setString(description_p);
+        m_description.setCharacterSize(12u);
+        m_description.setFillColor(sf::Color(80, 80, 80));
 
         m_bar.setSize({ width, height });
         m_bar.setFillColor(barColor);
@@ -230,7 +243,9 @@ public:
     {
         const sf::Vector2f local = point - viewOrigin;
         const float r = m_handle.getRadius();
-        const sf::FloatRect hitBox({ m_offset.x - r, m_offset.y - r }, { m_bar.getSize().x + 2 * r, m_bar.getSize().y + 2 * r });
+        sf::FloatRect hitBox({ m_offset.x - r, m_offset.y - r }, { m_bar.getSize().x + 2 * r, m_bar.getSize().y + 2 * r });
+        // Include the description line so hovering/clicking it still grabs the slider.
+        hitBox.size.y += 16.f;
         return hitBox.contains(local);
     }
 
@@ -262,9 +277,13 @@ public:
         const float y = m_bar.getPosition().y + m_bar.getSize().y / 2.f;
         m_handle.setPosition({ x, y });
 
+        m_description.setPosition({ screenPos.x, screenPos.y + 14.f });
+
         target.draw(m_bar);
         target.draw(m_handle);
         target.draw(m_text);
+        if (!m_description.getString().isEmpty())
+            target.draw(m_description);
     }
 };
 

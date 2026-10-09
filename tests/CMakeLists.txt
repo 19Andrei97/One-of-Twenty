@@ -6,6 +6,7 @@ add_executable(unit_tests
     test_config.cpp
     test_logger.cpp
     test_map_generator.cpp
+    test_terrain.cpp
     test_entity_decision.cpp
     test_entity_vitals.cpp
     test_entity_pathing.cpp
