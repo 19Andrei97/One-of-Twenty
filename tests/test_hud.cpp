@@ -324,6 +324,79 @@ TEST_CASE("Hud exposes the time-management controls and can relabel them")
 }
 
 
+TEST_CASE("Terrain sliders expose a readable value and can be driven by code")
+{
+    sf::Font font;
+    Hud hud(font, nullptr, hudSourcePath(), 1280.f, 720.f);
+    hud.init();
+
+    // A [0,1] slider reads as a percentage of its range; a small-unit slider
+    // keeps decimals. This is what makes "Land Amount: 35%" clear at a glance.
+    const auto findSlider = [&](const std::string& name) -> const CSlider* {
+        for (const auto& s : hud.getSliders())
+            if (s.functionName == name && s.widget)
+                return s.widget.get();
+        return nullptr;
+    };
+
+    const CSlider* land = findSlider("land_amount");
+    REQUIRE(land != nullptr);
+    CHECK(land->formatValue() == "35%");
+
+    const CSlider* continent = findSlider("continent_size");
+    REQUIRE(continent != nullptr);
+    CHECK(continent->formatValue() == "0.0015");
+
+    // Setting a value from code moves the handle (so a preset is reflected).
+    CHECK(hud.setSliderValue("land_amount", 0.8f));
+    CHECK(findSlider("land_amount")->getValue() == doctest::Approx(0.8f));
+    CHECK(findSlider("land_amount")->formatValue() == "80%");
+    // Out-of-range requests are clamped, never wrapped.
+    CHECK(hud.setSliderValue("land_amount", 2.0f));
+    CHECK(findSlider("land_amount")->getValue() == doctest::Approx(1.0f));
+
+    // An unknown control name is reported rather than silently ignored.
+    CHECK_FALSE(hud.setSliderValue("does_not_exist", 0.5f));
+}
+
+TEST_CASE("Terrain preset buttons drive every terrain slider at once")
+{
+    sf::Font font;
+    Hud hud(font, nullptr, hudSourcePath(), 1280.f, 720.f);
+    hud.init();
+
+    const auto sliderValue = [&](const std::string& name) -> float {
+        for (const auto& s : hud.getSliders())
+            if (s.functionName == name && s.widget)
+                return s.widget->getValue();
+        return -1.f;
+    };
+
+    // Every preset is present and bound.
+    CHECK(hud.hasButtonCallback("preset_earth"));
+    CHECK(hud.hasButtonCallback("preset_archipelago"));
+    CHECK(hud.hasButtonCallback("preset_pangaea"));
+
+    const auto activate = [&](const std::string& name) {
+        for (auto& b : hud.getButtons())
+            if (b.functionName == name && b.widget)
+                b.widget->activate();
+    };
+
+    // Start from a value that is not any preset's, then apply Pangaea and check a
+    // few of its defining values landed on the sliders.
+    hud.setSliderValue("continent_size", 0.002f);
+    activate("preset_pangaea");
+    CHECK(sliderValue("continent_size") == doctest::Approx(0.0007f));
+    CHECK(sliderValue("land_amount") == doctest::Approx(0.46f));
+    CHECK(sliderValue("mountain_height") == doctest::Approx(0.60f));
+
+    // Archipelago is a different, waterier world: many small islands.
+    activate("preset_archipelago");
+    CHECK(sliderValue("continent_size") == doctest::Approx(0.0035f));
+    CHECK(sliderValue("land_amount") == doctest::Approx(0.32f));
+}
+
 TEST_CASE("Hud readout panels are pinned to distinct corners and do not overlap")
 {
     sf::Font font;

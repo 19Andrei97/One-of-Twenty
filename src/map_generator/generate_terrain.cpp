@@ -311,9 +311,10 @@ Elements GenerateTerrain::classifyLand(float elevation, float temperature, float
         // Bare rock above the forest line.
         if (elevation >= threshold(Elements::forest))
         {
-                // Snow caps the cold peaks; the `snow_line` slider moves the height
-                // at which the cap starts.
-                if (elevation >= m_config.snow_line && temperature < 0.35f)
+                // Snow caps a high peak, and also any highland that is cold enough
+                // (the poles), so polar ranges read white while tropical peaks stay
+                // rock. `snow_line` still moves the height at which a warm peak caps.
+                if (elevation >= m_config.snow_line || temperature < 0.25f)
                         return Elements::snow;
                 return Elements::mountain;
         }

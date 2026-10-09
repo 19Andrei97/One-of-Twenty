@@ -130,7 +130,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `1` | Spawn a generic human entity |
 | Mouse hover | Inspect the tile under the cursor and show its info box |
 | Left click | Paint the tile under the cursor (map edit debug) |
-| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, rivers, lakes and ore (each slider has a one-line description) |
+| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, rivers, lakes and ore (each slider has a one-line description); preset buttons (Earth, Pangaea, Archipelago) apply a whole world in one click |
 
 ## Running in a browser (remote display)
 

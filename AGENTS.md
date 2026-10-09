@@ -142,9 +142,15 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - `land_amount` is the sea level and dominates the land fraction; the shipped
   config uses `0.35` for a roughly 60/40 ocean/land split. `height_range.min`/
   `max` remap the continent field before thresholds (default `[0,1]` =
-  identity); raising `min` above ~0.1 removes the flat sandy lowlands, but a
-  value at or below ~0.05 can strand the seeded settlement far from drinkable
-  water (the entity-pathing run test dies out).
+  identity); raising `min` above ~0.1 removes the flat sandy lowlands. The
+  shipped config uses `min = 0.0` for wide lowlands, so the world origin is
+  often a tiny coastal islet with almost no forage. `EntityManager::findHabitableSpawn`
+  therefore founds the settlement at the nearest land tile that has a
+  *gatherable* (forest for wood, hill for stone) within an entity's vision, and
+  falls back to the nearest land tile when none qualifies. Wood gates the first
+  farm, which is the only food source, so a settlement founded away from any
+  gatherable would starve before it could build. Water is no longer a need, so
+  the spawn no longer weighs it.
 - Rivers are the zero crossing of a *single low-frequency Perlin* field
   (`river_size` ~0.0035, `river_density` ~0.012 as the half-width). One octave
   keeps the zero contour a long, smooth, meandering channel; a ridged/multi-

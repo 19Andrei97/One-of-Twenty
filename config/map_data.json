@@ -4,13 +4,13 @@
     "chunk_margin": 2,
     "seed": 1,
     "land_amount": 0.35,
-    "continent_size": 0.0006,
+    "continent_size": 0.0015,
     "coast_roughness": 0.6,
     "mountain_height": 0.45,
-    "mountain_scale": 0.014,
+    "mountain_scale": 0.012,
     "temperature": 0.5,
     "rainfall": 0.5,
-    "snow_line": 0.86,
+    "snow_line": 0.9,
     "river_density": 0.012,
     "river_size": 0.0035,
     "lake_level": 0.3,
@@ -23,7 +23,7 @@
         "falloff": 0.4
     },
     "height_range": {
-        "min": 0.15,
+        "min": 0.0,
         "max": 1.0
     },
     "elements": {
