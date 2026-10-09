@@ -46,11 +46,19 @@ TEST_CASE("Hud registers default callbacks and checks existence")
     CHECK(hud.hasButtonCallback("random"));
     CHECK(hud.hasButtonCallback("cycle_hud"));
 
-    CHECK(hud.hasSliderCallback("continent_frequency"));
-    CHECK(hud.hasSliderCallback("cont_multiplier"));
-    CHECK(hud.hasSliderCallback("warp_frequency"));
-    CHECK(hud.hasSliderCallback("mineral_frequency"));
-    CHECK(hud.hasSliderCallback("mineral_multiplier"));
+    CHECK(hud.hasSliderCallback("land_amount"));
+    CHECK(hud.hasSliderCallback("continent_size"));
+    CHECK(hud.hasSliderCallback("coast_roughness"));
+    CHECK(hud.hasSliderCallback("mountain_height"));
+    CHECK(hud.hasSliderCallback("mountain_scale"));
+    CHECK(hud.hasSliderCallback("temperature"));
+    CHECK(hud.hasSliderCallback("rainfall"));
+    CHECK(hud.hasSliderCallback("snow_line"));
+    CHECK(hud.hasSliderCallback("river_density"));
+    CHECK(hud.hasSliderCallback("river_size"));
+    CHECK(hud.hasSliderCallback("lake_level"));
+    CHECK(hud.hasSliderCallback("lake_size"));
+    CHECK(hud.hasSliderCallback("ore_richness"));
 
     CHECK_FALSE(hud.hasButtonCallback("non_existent_btn"));
     CHECK_FALSE(hud.hasSliderCallback("non_existent_sld"));
@@ -269,8 +277,14 @@ TEST_CASE("Main hud_menu_data.json loads successfully with named functions")
     CHECK(hud.getButtonCount() > 0);
     CHECK(hud.getSliderCount() > 0);
     CHECK(hud.getVisibleButtonCount() == hud.getButtonCount());
-    CHECK(hud.getVisibleSliderCount() == hud.getSliderCount());
     CHECK(hud.getVisibleInputCount() == hud.getInputCount());
+
+    // The terrain sliders are tabbed across levels, so only the current tab's
+    // sliders show. Raising the level to the maximum (Layered mode) reveals the
+    // whole set, which is what proves every slider is reachable.
+    CHECK(hud.getVisibleSliderCount() < hud.getSliderCount());
+    hud.setLevel(hud.getMaxLevel());
+    CHECK(hud.getVisibleSliderCount() == hud.getSliderCount());
 
     // Check that button_random has functionName "random" or valid name
     const auto& buttons = hud.getButtons();

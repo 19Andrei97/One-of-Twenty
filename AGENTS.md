@@ -125,25 +125,53 @@ A run that is killed by `timeout` (exit 124) is a success; check
   size in tiles. Convert to pixels only when emitting vertices, via
   `tileToWorld` / `worldToTile` (`helpers/CoordMath.h`). Noise is sampled in
   tile space so terrain does not depend on `tile_size`.
-- `generateChunk(tiles_per_side, tile_position)` takes the tile position
-  directly; islands, rivers and lakes are opt-in via `island.*` / `river.*` /
-  `lake.*` in `config/map_data.json`. `height_range.min`/`max` remap the
-  continent field before thresholds (default `[0,1]` = identity).
+- Terrain is a *layered* pipeline, sampled in `GenerateTerrain::sampleAt`:
+  domain warp -> continent fBm -> ridged mountain belts -> height remap ->
+  island falloff -> elevation bands -> lakes -> rivers -> climate biomes. Keep
+  the stages in that order; each later stage assumes the earlier ones.
+  `MapConfig` now carries the tuning as flat, player-named fields
+  (`land_amount`, `continent_size`, `coast_roughness`, `mountain_height`,
+  `mountain_scale`, `temperature`, `rainfall`, `snow_line`, `river_density`,
+  `river_size`, `lake_level`, `lake_size`, `ore_richness`), each parsed from a
+  top-level key in `config/map_data.json` and each backed by one HUD slider.
+- The ridged-detail fractal in FastNoiseLite already returns `[-1,1]`; only its
+  positive half may be added as uplift (clamp at 0). Remapping it (`*2-1`) or
+  adding the negative half drives whole regions below sea level and drowns the
+  map - the failure looks like a world that is ~99% ocean with a speck of land.
+- `land_amount` is the sea level and dominates the land fraction; the shipped
+  config uses `0.35` for a roughly 60/40 ocean/land split. `height_range.min`/
+  `max` remap the continent field before thresholds (default `[0,1]` =
+  identity); raising `min` above ~0.1 removes the flat sandy lowlands, but a
+  value at or below ~0.05 can strand the seeded settlement far from drinkable
+  water (the entity-pathing run test dies out).
 - Rivers are the zero crossing of a *single low-frequency Perlin* field
-  (`river.freq` ~0.0035, `river.threshold` ~0.012). One octave keeps the zero
-  contour a long, smooth, meandering channel; a ridged/multi-octave field
-  shatters the same coverage into thousands of disconnected specks (measured:
-  ~2k components vs ~140). Do not re-add octaves to the river field.
-- Lakes flood a low basin (elevation between `lake.level` and the `hill`
+  (`river_size` ~0.0035, `river_density` ~0.012 as the half-width). One octave
+  keeps the zero contour a long, smooth, meandering channel; a ridged/multi-
+  octave field shatters the same coverage into thousands of disconnected specks
+  (measured: ~2k components vs ~140). Do not re-add octaves to the river field.
+- Lakes flood a low basin (elevation between `lake_level` and the `hill`
   threshold) where the lake field peaks, and are checked *before* the beach so a
-  basin reads as water, not sand. A low `lake.freq` (~0.004) with a high
-  `lake.threshold` (~0.62) gives a few larger, natural basins rather than many
-  small ones.
+  basin reads as water, not sand. A low lake frequency with a high `lake_size`
+  (~0.62) gives a few larger, natural basins rather than many small ones.
+- Climate is separate from elevation: `temperature` falls off with latitude
+  (`|tile.y|`, reaching the pole band by ~6000 tiles) and `moisture` is its own
+  field, both shifted by their sliders. `classifyLand` only re-classifies *land*
+  (forest vs hill by a moisture/temperature "lushness"), and snow needs both a
+  high `snow_line` crossing and cold temperature, so the poles read as bare rock
+  and only the cold peaks turn white.
+- Ore is one noise field per resource (clay/iron/silver seeded apart) sampled at
+  the warped coordinate. Each has a fixed base cutoff tuned to a few percent of
+  its land band (`hill`/`forest`/`mountain`); `ore_richness` shifts all three
+  together, so a single slider is the whole ore control. Do not route ore
+  cutoffs through the `heights` array - that array is elevation bands only.
 - The map palette (`elements` in `config/map_data.json`) is deliberately dark
   and desaturated (muted ocean/forest/sand, only snow is bright) so the map does
-  not read as psychedelic. `height_range.min` above ~0.1 also removes the wide
-  flat sandy lowlands; values at or below ~0.05 strand the seeded settlement far
-  from drinkable water (the entity-pathing run test dies out).
+  not read as psychedelic.
+- Terrain HUD sliders are *tabbed across levels* in `config/hud_menu_data.json`
+  (Land+Mountains on level 0, Climate on 1, Water+Ore on 2); `H`/`Tab` cycles
+  levels. Each slider has a `description` drawn under it and an explicit `value`
+  so the handle starts at the config's actual setting. `CSlider` takes the
+  description and initial value as its last constructor arguments.
 - A chunk's `tile_types` is the authoritative per-tile map: `elementAtTile`
   only seeds it at generation, and `buildChunkVertices` derives the drawn mesh
   from it. Edit tiles through `setTileColor` (which rebuilds the mesh) rather

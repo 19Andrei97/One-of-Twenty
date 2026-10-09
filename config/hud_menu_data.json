@@ -1,207 +1,433 @@
 {
-  "button_random":
-  {
+  "button_random": {
     "type": "button",
     "width": 150,
     "height": 30,
-    "position":
-    {
-        "x": 20,
-        "y": 15
+    "position": {
+      "x": 20,
+      "y": 15
     },
     "label": "Random Seed",
-    "color_fill": [255, 255, 255],
-    "outline": [0, 0, 0],
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
     "thickness": 2,
     "text_size": 16,
     "level": 0,
     "function": "random"
   },
-
-  "continent_frequency":
-  {
+  "land_amount": {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 70
-    },
-    "minimum_value": 0,
-    "maximum_value": 0.06,
-    "label": "Continent Frequency",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
-    "level": 0,
-    "function": "continent_frequency"
-  },
-
-  "cont_multiplier":
-  {
-    "type": "slider",
-    "width": 300,
-    "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 100
-    },
-    "minimum_value": 0,
-    "maximum_value": 0.1,
-    "label": "Continent Multiplier",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
-    "level": 0,
-    "function": "cont_multiplier"
-  },
-
-   "warp_frequency":
-  {
-    "type": "slider",
-    "width": 300,
-    "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 130
-    },
-    "minimum_value": 0,
-    "maximum_value": 0.01,
-    "label": "Warp Frequency",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
-    "level": 0,
-    "function": "warp_frequency"
-  },
-
-  "mineral_frequency":
-  {
-    "type": "slider",
-    "width": 300,
-    "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 160
+    "position": {
+      "x": 20,
+      "y": 70
     },
     "minimum_value": 0,
     "maximum_value": 1,
-    "label": "Mineral Frequency",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
+    "value": 0.35,
+    "label": "Land Amount",
+    "description": "Sea level: more land or a watery world",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
     "level": 0,
-    "function": "mineral_frequency"
+    "function": "land_amount"
   },
-
-  "mineral_multiplier":
-  {
+  "continent_size": {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 190
+    "position": {
+      "x": 20,
+      "y": 108
+    },
+    "minimum_value": 0.0002,
+    "maximum_value": 0.004,
+    "value": 0.0006,
+    "label": "Continent Size",
+    "description": "Small: few huge continents, large: many islands",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 0,
+    "function": "continent_size"
+  },
+  "coast_roughness": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 146
     },
     "minimum_value": 0,
-    "maximum_value": 0.05,
-    "label": "Mineral Multiplier",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
+    "maximum_value": 1,
+    "value": 0.6,
+    "label": "Coast Roughness",
+    "description": "Smooth bays or ragged, fjord-like coasts",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
     "level": 0,
-    "function": "mineral_multiplier"
+    "function": "coast_roughness"
   },
-
-  "lake_level":
-  {
+  "mountain_height": {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 220
+    "position": {
+      "x": 20,
+      "y": 184
+    },
+    "minimum_value": 0,
+    "maximum_value": 1,
+    "value": 0.45,
+    "label": "Mountain Height",
+    "description": "How tall the peaks grow above the land",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 0,
+    "function": "mountain_height"
+  },
+  "mountain_scale": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 222
+    },
+    "minimum_value": 0.004,
+    "maximum_value": 0.04,
+    "value": 0.014,
+    "label": "Mountain Range Width",
+    "description": "Thin long ranges or broad highlands",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 0,
+    "function": "mountain_scale"
+  },
+  "temperature": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 70
+    },
+    "minimum_value": 0,
+    "maximum_value": 1,
+    "value": 0.5,
+    "label": "Temperature",
+    "description": "Frozen world to hot world",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 1,
+    "function": "temperature"
+  },
+  "rainfall": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 108
+    },
+    "minimum_value": 0,
+    "maximum_value": 1,
+    "value": 0.5,
+    "label": "Rainfall",
+    "description": "Dry deserts to lush forest",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 1,
+    "function": "rainfall"
+  },
+  "snow_line": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 146
+    },
+    "minimum_value": 0.5,
+    "maximum_value": 1,
+    "value": 0.86,
+    "label": "Snow Line",
+    "description": "Lower means snow reaches down the mountains",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 1,
+    "function": "snow_line"
+  },
+  "river_density": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 70
+    },
+    "minimum_value": 0,
+    "maximum_value": 0.08,
+    "value": 0.012,
+    "label": "River Density",
+    "description": "How many rivers are carved into the land",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 2,
+    "function": "river_density"
+  },
+  "river_size": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 108
+    },
+    "minimum_value": 0.001,
+    "maximum_value": 0.01,
+    "value": 0.0035,
+    "label": "River Size",
+    "description": "Long sweeping rivers or short winding ones",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 2,
+    "function": "river_size"
+  },
+  "lake_level": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 146
     },
     "minimum_value": 0,
     "maximum_value": 0.6,
+    "value": 0.3,
     "label": "Lake Level",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
-    "level": 0,
+    "description": "Higher floods more low basins",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 2,
     "function": "lake_level"
   },
-
-  "river_threshold":
-  {
+  "lake_size": {
     "type": "slider",
     "width": 300,
     "height": 10,
-    "position":
-    {
-        "x": 20,
-        "y": 250
+    "position": {
+      "x": 20,
+      "y": 184
     },
     "minimum_value": 0,
-    "maximum_value": 0.12,
-    "label": "River Width",
-    "bar_color": [0, 0, 0],
-    "handle_color": [255, 255, 255],
-    "level": 0,
-    "function": "river_threshold"
+    "maximum_value": 1,
+    "value": 0.62,
+    "label": "Lake Size",
+    "description": "Small scattered ponds or large lakes",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 2,
+    "function": "lake_size"
   },
-
-  "time_slower":
-  {
+  "ore_richness": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 222
+    },
+    "minimum_value": 0,
+    "maximum_value": 1,
+    "value": 0.55,
+    "label": "Ore Richness",
+    "description": "Scarce deposits or plentiful ore",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 2,
+    "function": "ore_richness"
+  },
+  "time_slower": {
     "type": "button",
     "width": 60,
     "height": 30,
-    "position":
-    {
-        "x": 1010,
-        "y": 110
+    "position": {
+      "x": 1010,
+      "y": 110
     },
     "label": "<<",
-    "color_fill": [255, 255, 255],
-    "outline": [0, 0, 0],
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
     "thickness": 2,
     "text_size": 16,
     "level": 0,
     "function": "time_slower"
   },
-
-  "time_pause":
-  {
+  "time_pause": {
     "type": "button",
     "width": 120,
     "height": 30,
-    "position":
-    {
-        "x": 1074,
-        "y": 110
+    "position": {
+      "x": 1074,
+      "y": 110
     },
     "label": "Pause",
-    "color_fill": [255, 255, 255],
-    "outline": [0, 0, 0],
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
     "thickness": 2,
     "text_size": 16,
     "level": 0,
     "function": "time_pause"
   },
-
-  "time_faster":
-  {
+  "time_faster": {
     "type": "button",
     "width": 72,
     "height": 30,
-    "position":
-    {
-        "x": 1198,
-        "y": 110
+    "position": {
+      "x": 1198,
+      "y": 110
     },
     "label": ">>",
-    "color_fill": [255, 255, 255],
-    "outline": [0, 0, 0],
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
     "thickness": 2,
     "text_size": 16,
     "level": 0,

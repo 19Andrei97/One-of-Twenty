@@ -52,34 +52,65 @@ void Hud::registerDefaultCallbacks()
                 cycleLevel();
         });
 
-        // Sliders
-        registerSliderCallback("continent_frequency", [this, onMapChanged](float val) {
+        // Terrain sliders. Each one maps a player-facing name to a single config
+        // value; changing one marks the map for a reset.
+        registerSliderCallback("land_amount", [this, onMapChanged](float val) {
                 if (m_map)
-                        m_map->setContFreq(val);
+                        m_map->setLandAmount(val);
                 onMapChanged();
         });
 
-        registerSliderCallback("cont_multiplier", [this, onMapChanged](float val) {
+        registerSliderCallback("continent_size", [this, onMapChanged](float val) {
                 if (m_map)
-                        m_map->setContMult(val);
+                        m_map->setContinentSize(val);
                 onMapChanged();
         });
 
-        registerSliderCallback("warp_frequency", [this, onMapChanged](float val) {
+        registerSliderCallback("coast_roughness", [this, onMapChanged](float val) {
                 if (m_map)
-                        m_map->setWarpFreq(val);
+                        m_map->setCoastRoughness(val);
                 onMapChanged();
         });
 
-        registerSliderCallback("mineral_frequency", [this, onMapChanged](float val) {
+        registerSliderCallback("mountain_height", [this, onMapChanged](float val) {
                 if (m_map)
-                        m_map->setMineralFreq(val);
+                        m_map->setMountainHeight(val);
                 onMapChanged();
         });
 
-        registerSliderCallback("mineral_multiplier", [this, onMapChanged](float val) {
+        registerSliderCallback("mountain_scale", [this, onMapChanged](float val) {
                 if (m_map)
-                        m_map->setMineralMult(val);
+                        m_map->setMountainScale(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("temperature", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setTemperature(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("rainfall", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setRainfall(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("snow_line", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setSnowLine(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("river_density", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setRiverDensity(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("river_size", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setRiverSize(val);
                 onMapChanged();
         });
 
@@ -89,9 +120,15 @@ void Hud::registerDefaultCallbacks()
                 onMapChanged();
         });
 
-        registerSliderCallback("river_threshold", [this, onMapChanged](float val) {
+        registerSliderCallback("lake_size", [this, onMapChanged](float val) {
                 if (m_map)
-                        m_map->setRiverThreshold(val);
+                        m_map->setLakeSize(val);
+                onMapChanged();
+        });
+
+        registerSliderCallback("ore_richness", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setOreRichness(val);
                 onMapChanged();
         });
 }
@@ -145,16 +182,24 @@ void Hud::init()
 		}
 		else if (value["type"] == "slider")
 		{
+			const float minValue = static_cast<float>(value["minimum_value"]);
+			const float maxValue = static_cast<float>(value["maximum_value"]);
+			// An explicit `value` starts the handle at the config's actual setting
+			// instead of the middle of the range, so the UI matches the generated map.
+			const float initial = value.value("value", (minValue + maxValue) / 2.f);
+
 			auto sld = std::make_unique<CSlider>(
 				static_cast<float>(value["width"]),
 				static_cast<float>(value["height"]),
 				sf::Vector2f{ static_cast<float>(value["position"]["x"]), static_cast<float>(value["position"]["y"]) },
-				static_cast<float>(value["minimum_value"]),
-				static_cast<float>(value["maximum_value"]),
+				minValue,
+				maxValue,
 				m_font,
 				value["label"],
 				sf::Color(value["bar_color"][0], value["bar_color"][1], value["bar_color"][2]),
-				sf::Color(value["handle_color"][0], value["handle_color"][1], value["handle_color"][2])
+				sf::Color(value["handle_color"][0], value["handle_color"][1], value["handle_color"][2]),
+				value.value("description", std::string{}),
+				initial
 			);
 
 			if (!funcName.empty())

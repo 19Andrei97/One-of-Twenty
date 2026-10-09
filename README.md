@@ -130,7 +130,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `1` | Spawn a generic human entity |
 | Mouse hover | Inspect the tile under the cursor and show its info box |
 | Left click | Paint the tile under the cursor (map edit debug) |
-| HUD sliders | Tune continent / warp / mineral noise |
+| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, rivers, lakes and ore (each slider has a one-line description) |
 
 ## Running in a browser (remote display)
 
@@ -307,10 +307,16 @@ Retired from the roadmap; kept here as a record.
   authoritative and edits rebuild the chunk mesh; island/river/lake/height-range
   options; one noise field per resource; `getElementAtWorld` for post-edit
   queries; split sampling into `GenerateTerrain` + `MapConfig` + `Chunk.h`.
-  Terrain reads as a natural map: a ridged-detail highland pass, rivers that
-  follow the smooth zero crossing of a low-frequency field (long and meandering,
-  not straight parallel bands), discrete lake basins, and a deliberately dark,
-  desaturated palette so it no longer looks psychedelic.
+  Terrain reads as an Earth-like map from a layered pipeline (domain warp ->
+  continent -> ridged mountain belts -> climate biomes): latitude-driven
+  temperature and a moisture field pick forest/hill/desert bands, ridged belts
+  raise snow-capped ranges, rivers follow the smooth zero crossing of a
+  low-frequency field (long and meandering, not straight parallel bands), and
+  discrete lake basins sit in the low ground. Every knob is a single, described
+  HUD slider (land amount, continent size, coast roughness, mountain height and
+  width, temperature, rainfall, snow line, river density and size, lake level and
+  size, ore richness) backed by a `MapConfig` field, and a deliberately dark,
+  desaturated palette keeps it from looking psychedelic.
 - [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; the
   settlement's shared map knowledge (`helpers/Knowledge.h`) finds the nearest
   water/food and replaces the old per-entity memory, so what one entity sees is
