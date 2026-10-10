@@ -94,6 +94,13 @@ struct EntityConfig
         // Food each farm / workshop produces per in-game hour.
         int farm_food_per_hour{ 1 };
         int workshop_output_per_hour{ 1 };
+
+        // Days of food the settlement likes to keep in store. While the stock
+        // covers every mouth for this many days the planner raises no new farm,
+        // even if the standing farms' claimed reach falls short of the head count,
+        // so a comfortable store suppresses redundant building. 0 disables the
+        // gate (the plain head-count test is used).
+        int food_reserve_days{ 3 };
     };
 
     Economy economy{};
@@ -173,6 +180,7 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         e.workshop_wood_cost            = economy.value("workshop_wood_cost", e.workshop_wood_cost);
         e.farm_food_per_hour            = economy.value("farm_food_per_hour", e.farm_food_per_hour);
         e.workshop_output_per_hour      = economy.value("workshop_output_per_hour", e.workshop_output_per_hour);
+        e.food_reserve_days             = economy.value("food_reserve_days", e.food_reserve_days);
 
         if (economy.contains("jobs"))
         {

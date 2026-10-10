@@ -56,6 +56,11 @@ struct Def
     int           max_count{ 0 };        // 0 = unlimited
     std::vector<Goods::Recipe> recipes;  // production once complete
 
+    // A workshop-like producer (turns an input into an output once complete). A
+    // farm also carries a recipe, but as labour that feeds people; distinguishing
+    // the two keeps "is a producer" a property of the def, not of the element.
+    [[nodiscard]] bool hasRecipes() const noexcept { return !recipes.empty(); }
+
     // The people one of these shelters when built (0 = not housing). A house's
     // actual size is drawn once, at construction, from `people_per_building`
     // [population_capacity, population_capacity_max]; a single value leaves both
@@ -144,7 +149,12 @@ struct Settlement
 // houses on this, so a settlement never spends wood on beds nobody needs.
 [[nodiscard]] inline int housesWanted(const int heads, const int capacity, const int per_house) noexcept
 {
-    if (per_house <= 0 || heads <= capacity)
+    // Housing is wanted as soon as the beds are full (not only once the people
+    // already outnumber them): births stop at capacity, so waiting for `heads >
+    // capacity` would deadlock growth - the settlement could never raise the house
+    // that would let it grow. Building at `heads == capacity` keeps one house of
+    // head-room ahead of the people.
+    if (per_house <= 0 || heads < capacity)
         return 0;
     const int shortfall = heads - capacity;
     return (shortfall + per_house - 1) / per_house + 1;
@@ -157,6 +167,21 @@ struct Settlement
 // in-progress site never suppresses the next farm and starves the settlement.
 [[nodiscard]] inline bool needsFoodProducer(const int toFeed, const int projectedFeeds) noexcept
 {
+    return projectedFeeds < toFeed;
+}
+
+// The same test, additionally accounting for what is already stored: a store
+// that covers every mouth for `reserve_days` makes another producer redundant, so
+// it is skipped even while the standing producers fall short of the head count.
+// `dailyPerPerson` is the food one person eats a day; a non-positive either lets
+// the reserve gate stand open (the plain head-count test is used).
+[[nodiscard]] inline bool needsFoodProducer(const int toFeed, const int projectedFeeds,
+                                            const int stockedFood, const int dailyPerPerson,
+                                            const int reserveDays) noexcept
+{
+    if (reserveDays > 0 && dailyPerPerson > 0
+            && stockedFood >= toFeed * dailyPerPerson * reserveDays)
+        return false;
     return projectedFeeds < toFeed;
 }
 

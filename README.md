@@ -344,11 +344,23 @@ Retired from the roadmap; kept here as a record.
   when its site is started (`EntityManager::rollBuildValue`), from a JSON range: a
   house houses `people_per_building` (shipped `[20, 40]`) and a farm feeds
   `feeds_population` (shipped `[40, 80]`), so each building lands somewhere in its
-  band and keeps that size for life. The planner raises housing only while the
-  population outruns the capacity it has (plus a one-house buffer) and raises farms
-  only while the *completed* farms do not yet feed the people present — never more
-  than one farm under construction — so a settlement never spends wood on beds or
-  farms nobody needs. The jitter stays modest (a fraction of `build_radius_tiles`)
+  band and keeps that size for life. A farm *yields* that reach: it grows its
+  rolled number of food per in-game day (credited a 24th per hour), so one farm
+  really does feed the people it claims, instead of a flat hourly rate that starved
+  anything past ~20 people. Only housing (a def with
+  `population_capacity`) raises the population cap — a farm's rolled value is its
+  food reach, not beds — so a growing settlement is not pushed to build more farms
+  by the very capacity its farms seem to add. Housing is wanted once the beds are
+  full (not only after the people outnumber them), because births stop at capacity:
+  waiting for a shortfall would deadlock growth. The planner raises housing while
+  the population has no free bed (plus a one-house buffer) and raises
+  farms only while the *completed* farms do not yet feed the people present *and*
+  the store is not already comfortable (`economy.food_reserve_days`, shipped `3`
+  days of food per head) — never more than one farm under construction — so a
+  settlement never spends wood on beds or farms nobody needs. Workshops, whose
+  output nothing consumes yet, are capped by `max_count` so they cannot spam the
+  village. The jitter stays
+  modest (a fraction of `build_radius_tiles`)
   so a site never wanders beyond a builder's reach before the settlement can feed
   itself.
 - [x] **Work happens on the tile.** A gather/build action is queued before the

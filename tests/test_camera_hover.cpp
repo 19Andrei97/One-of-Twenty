@@ -63,8 +63,8 @@ TEST_CASE("the hover readout resolves the entity under the pointer")
     EntityManager entities(font, map, clock, delta, configPath("entity_data.json"));
 
     const sf::Vector2i spawn = entities.findHabitableSpawn();
-    // `near`/`far` are macros in the Windows SDK headers (they expand to nothing),
-    // so the identifiers must not be those exact words or MSVC fails to compile.
+    // `near`/`far` are legacy macros in windows.h (SFML pulls it in), which would
+    // mangle these declarations on MSVC, so use MSVC-safe names.
     const entt::entity near_entity = entities.addEntity(EntityType::Human_Generic, spawn);
     const entt::entity far_entity = entities.addEntity(EntityType::Human_Generic, spawn + sf::Vector2i{ 200, 200 });
 

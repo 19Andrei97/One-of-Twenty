@@ -52,7 +52,7 @@
             "cost": { "wood": 5 },
             "build_hours": 4,
             "priority": 2,
-            "max_count": 0,
+            "max_count": 4,
             "recipes": [
                 { "input": "iron", "input_amount": 1, "output": "tools", "output_amount": 1, "label": "iron->tools" },
                 { "input": "wood", "input_amount": 2, "output": "planks", "output_amount": 1, "label": "wood->planks" }
