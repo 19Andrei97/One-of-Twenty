@@ -95,8 +95,12 @@ The engine core and the survival loop are in place:
   per day. Buildings are placed
   with `setTileColor` so they render and persist: sites only stand on dry land
   with a settlement-wide gap, the site search scatters around the anchor rather
-  than following a fixed ring, and housing is only raised while the population
-  outruns the capacity it already has. A stats panel shows the
+  than following a fixed ring, a building's size (house capacity, farm reach) is
+  rolled once at construction from a JSON range, housing is only raised while the
+  population outruns the capacity it already has, and farms only while the
+  completed farms do not yet feed the people present. Work (gather/build) is
+  applied on the target tile: the timer starts on arrival and a completion is
+  withheld while the entity is off the tile. A stats panel shows the
   stockpile, buildings and gather count.
 - **Observability and tuning.** A bounded event log records a run's story
   (births, deaths with cause, gathers, discoveries) stamped with the in-game

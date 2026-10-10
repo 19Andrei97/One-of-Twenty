@@ -191,6 +191,47 @@ TEST_CASE("a gather does not complete before the entity reaches its tile")
     CHECK(entities.offTileWork() == 0);
 }
 
+TEST_CASE("a gather is withheld while the entity is knocked off its tile")
+{
+    // A hand-built queue whose timer is already up (started at a time far in the
+    // past) but whose entity is teleported a whole tile away: the work must not be
+    // banked off the tile. It completes only once the entity steps back on it.
+    sf::Font font;
+    int frames = 0;
+    auto map = makeMap(frames);
+    auto clock = std::make_shared<GameClock>(12.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath());
+
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    TestSupport::primeChunks(*map, frames, spawn, 512);
+    const entt::entity entity = entities.addEntity(EntityType::Human_Generic, spawn);
+
+    const int ts = map->getTileSize();
+    auto* queue = entities.actionsOf(entity);
+    REQUIRE(queue != nullptr);
+    // A gather whose timer expired long ago (a negative start time): nothing but
+    // the tile check can withhold it.
+    auto gather = std::make_shared<CGather>(ActionTypes::Gathering, spawn, Elements::forest,
+                                            clock->getTimestamp() - 10 * GameTime::kMinutesPerHour);
+    gather->started = true;
+    queue->actions.push_back(gather);
+
+    // Push the entity a full tile away from the target.
+    entities.registry().get<CTransform>(entity).pos = spawn + sf::Vector2i{ 2 * ts, 0 };
+    entities.update();
+    CHECK(entities.gathersCompleted() == 0);
+    CHECK(entities.offTileWork() == 0);
+
+    // Back on the tile, the overdue gather is banked.
+    entities.registry().get<CTransform>(entity).pos = spawn;
+    entities.update();
+    CHECK(entities.gathersCompleted() == 1);
+    CHECK(entities.offTileWork() == 0);
+}
+
 TEST_CASE("the settlement sleeps: fatigue is reset during a run")
 {
     // Directly verifies the sleep action: over a few days some entity's fatigue

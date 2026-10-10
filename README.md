@@ -301,18 +301,24 @@ Retired from the roadmap; kept here as a record.
   fills the nearest ring around the anchor: it seeds from a random point near the
   anchor and scans outward, so successive buildings land in different directions
   and at different standoff distances, and the settlement reads as an organic
-  village rather than a computer-drawn spiral. Houses are large (a JSON
-  `population_capacity`, shipped at 30) and the planner only raises one while the
-  population outruns the capacity it already has (plus a two-bed buffer), so a
-  settlement stops spending wood on beds nobody needs. The jitter stays modest
-  (a fraction of `build_radius_tiles`) so a site never wanders beyond a builder's
-  reach before the settlement can feed itself.
+  village rather than a computer-drawn spiral. A building's size is rolled *once*,
+  when its site is started (`EntityManager::rollBuildValue`), from a JSON range: a
+  house houses `people_per_building` (shipped `[20, 40]`) and a farm feeds
+  `feeds_population` (shipped `[40, 80]`), so each building lands somewhere in its
+  band and keeps that size for life. The planner raises housing only while the
+  population outruns the capacity it has (plus a one-house buffer) and raises farms
+  only while the *completed* farms do not yet feed the people present — never more
+  than one farm under construction — so a settlement never spends wood on beds or
+  farms nobody needs. The jitter stays modest (a fraction of `build_radius_tiles`)
+  so a site never wanders beyond a builder's reach before the settlement can feed
+  itself.
 - [x] **Work happens on the tile.** A gather/build action is queued before the
   walk, so its work timer now starts only once the entity is standing on the
   target tile (`CGather`/`CBuild::started`, latched in the finish pass when the
-  move is popped on arrival) rather than when the plan was made. Collision
-  separation keeps a working entity anchored to its tile, so the yield or the
-  finished building can no longer appear while the entity is still walking.
+  move is popped on arrival) rather than when the plan was made. A completion is
+  additionally *withheld* while the entity is off the tile: if it drifts away
+  (blocked, pushed, or re-routed) the yield or the finished building is not banked
+  from a distance, and the work resumes once the entity is back on the tile.
   `EntityManager::offTileWork()` counts any completion more than a tile from its
   target (always zero in a healthy run) and guards the regression in tests.
 - [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes

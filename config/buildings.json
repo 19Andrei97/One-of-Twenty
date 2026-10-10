@@ -15,6 +15,7 @@
             "cost": {},
             "build_hours": 8,
             "is_anchor": true,
+            "population_capacity": 30,
             "priority": 0,
             "max_count": 1
         },
@@ -25,7 +26,7 @@
             "color": [ 190, 120, 90 ],
             "cost": { "wood": 15 },
             "build_hours": 6,
-            "population_capacity": 30,
+            "people_per_building": [ 20, 40 ],
             "priority": 1,
             "max_count": 0
         },
@@ -38,6 +39,7 @@
             "build_hours": 4,
             "priority": 2,
             "max_count": 0,
+            "feeds_population": [ 40, 80 ],
             "recipes": [
                 { "input_amount": 0, "output": "food", "output_amount": 1, "label": "farm" }
             ]

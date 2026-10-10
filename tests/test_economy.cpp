@@ -542,13 +542,14 @@ TEST_CASE("the build-site search scatters instead of following a fixed ring")
 TEST_CASE("the planner raises housing only when the settlement needs it")
 {
     // A house with a zero-cost entry (so it is always affordable and the only gate
-    // left is need) and a city center. The entity config's base cap is 40, so a
-    // small settlement wants no houses at all.
+    // left is need) and a city center that houses 30 on top of the config base.
+    // The entity config's base cap is 40, so a small settlement wants no houses at
+    // all until it outgrows the base plus the anchor.
     const std::string file = writeTempBuildings("demand", R"([
         { "id": "city_center", "name": "City Center", "element": "city_center",
-          "cost": {}, "build_hours": 1, "is_anchor": true, "priority": 0, "max_count": 1 },
+          "cost": {}, "build_hours": 1, "is_anchor": true, "population_capacity": 30, "priority": 0, "max_count": 1 },
         { "id": "house", "name": "House", "element": "house",
-          "cost": { "wood": 0 }, "build_hours": 1, "population_capacity": 30, "priority": 1 }
+          "cost": { "wood": 0 }, "build_hours": 1, "people_per_building": [ 20, 40 ], "priority": 1 }
     ])");
     const std::string entity_file = writeTempEntityConfig("demand", R"({})");
 
@@ -586,9 +587,10 @@ TEST_CASE("the planner raises housing only when the settlement needs it")
     }
     CHECK(entities.countOfElement(Elements::house) == 0);
 
-    // Fill the settlement past the config's base cap (40); now a house is wanted.
+    // Fill the settlement past the base cap plus the anchor's 30 (so 70); now a
+    // house is wanted.
     const sf::Vector2i spawn = entities.findHabitableSpawn();
-    for (int i = 0; i < 41; ++i)
+    for (int i = 0; i < 71; ++i)
         entities.addEntity(EntityType::Human_Generic, spawn);
     CHECK(entities.population() > entities.populationCapacity());
 
@@ -599,6 +601,63 @@ TEST_CASE("the planner raises housing only when the settlement needs it")
         entities.update();
     }
     CHECK(entities.countOfElement(Elements::house) >= 1);
+
+    std::filesystem::remove(entity_file);
+    std::filesystem::remove(file);
+}
+
+TEST_CASE("the planner raises farms only up to the food the settlement needs")
+{
+    // A zero-cost farm (always affordable) and a city center that houses 30 on top
+    // of the config base. One farm feeds a 40-80 band, so a small settlement (a
+    // handful of founders) is fully covered by a single farm and the planner must
+    // not raise a second one.
+    const std::string file = writeTempBuildings("farm_demand", R"([
+        { "id": "city_center", "name": "City Center", "element": "city_center",
+          "cost": {}, "build_hours": 1, "is_anchor": true, "population_capacity": 30, "priority": 0, "max_count": 1 },
+        { "id": "farm", "name": "Farm", "element": "farm",
+          "cost": { "wood": 0 }, "build_hours": 1, "priority": 2,
+          "feeds_population": [ 40, 80 ],
+          "recipes": [ { "input_amount": 0, "output": "food", "output_amount": 1, "label": "farm" } ] }
+    ])");
+    const std::string entity_file = writeTempEntityConfig("farm_demand", R"({})");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entity_file, file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping farm demand test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+
+    REQUIRE(entities.placeBuilding("city_center", site));
+    REQUIRE(entities.completeBuilding(site));
+    // A handful of people: small enough that one farm's band covers them all.
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    for (int i = 0; i < 8; ++i)
+        entities.addEntity(EntityType::Human_Generic, spawn);
+
+    // One farm covers the settlement, so further ticks add none.
+    for (int hour = 0; hour < 12; ++hour)
+    {
+        for (int step = 0; step < 60; ++step)
+            clock->update(delta);
+        entities.update();
+    }
+    CHECK(entities.countOfElement(Elements::farm) == 1);
 
     std::filesystem::remove(entity_file);
     std::filesystem::remove(file);
@@ -628,11 +687,14 @@ TEST_CASE("placing an unknown building id fails without spending")
     CHECK(entities.buildingCount() == 0);
 }
 
-TEST_CASE("a completed house raises the population capacity")
+TEST_CASE("housing decides the population capacity")
 {
     const std::string entity_file = writeTempEntityConfig("capacity", R"({})");
     const std::string file = writeTempBuildings("capacity", R"([
-        { "id": "house", "name": "House", "element": "house", "cost": {}, "population_capacity": 6 }
+        { "id": "city_center", "name": "City Center", "element": "city_center",
+          "cost": {}, "build_hours": 1, "is_anchor": true, "population_capacity": 30, "max_count": 1 },
+        { "id": "house", "name": "House", "element": "house", "cost": {},
+          "people_per_building": [ 20, 40 ] }
     ])");
 
     sf::Font font;
@@ -655,13 +717,29 @@ TEST_CASE("a completed house raises the population capacity")
         return;
     }
 
-    const int base = entities.populationCapacity(); // the config base, no houses yet
+    const int base = entities.populationCapacity(); // the config base, no housing yet
     CHECK(base > 0);
 
-    REQUIRE(entities.placeBuilding("house", site));
+    REQUIRE(entities.placeBuilding("city_center", site));
     CHECK(entities.populationCapacity() == base); // an incomplete site adds nothing
     REQUIRE(entities.completeBuilding(site));
-    CHECK(entities.populationCapacity() == base + 6); // +6 for the finished house
+    CHECK(entities.populationCapacity() == base + 30); // the anchor adds its 30
+
+    // A house adds its rolled capacity, in the configured [20,40] band, and only
+    // once it is complete.
+    const sf::Vector2i site2{ site.x + tileSize * 3, site.y };
+    if (!ensureChunkLoaded(*map, frames, site2))
+    {
+        MESSAGE("Skipping capacity test: second chunk could not be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+    REQUIRE(entities.placeBuilding("house", site2));
+    CHECK(entities.populationCapacity() == base + 30); // incomplete: unchanged
+    REQUIRE(entities.completeBuilding(site2));
+    CHECK(entities.populationCapacity() >= base + 50); // + at least 20
+    CHECK(entities.populationCapacity() <= base + 70); // + at most 40
 
     std::filesystem::remove(entity_file);
     std::filesystem::remove(file);

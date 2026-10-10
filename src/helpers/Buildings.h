@@ -51,11 +51,25 @@ struct Def
     int           build_hours{ 0 };      // construction time once a builder works it
     int           work_per_hour{ 1 };    // work applied per in-game hour of building
     float         walk_cost{ 0.f };      // >0 overrides MoveCost for this element
-    int           population_capacity{ 0 };// added to the cap once complete
     bool          is_anchor{ false };    // the city center: the settlement anchor
     int           priority{ 100 };       // lower builds first
     int           max_count{ 0 };        // 0 = unlimited
     std::vector<Goods::Recipe> recipes;  // production once complete
+
+    // The people one of these shelters when built (0 = not housing). A house's
+    // actual size is drawn once, at construction, from `people_per_building`
+    // [population_capacity, population_capacity_max]; a single value leaves both
+    // ends equal.
+    int population_capacity{ 0 };
+    int population_capacity_max{ 0 };
+
+    // A food producer feeds a settlement of up to this many people when built.
+    // The number is drawn once, at construction, from `feeds_population`
+    // [feeds_population, feeds_population_max] (0 = not food), so each farm lands
+    // somewhere in a 40-80 band and the planner builds exactly as many farms as
+    // the settlement needs.
+    int feeds_population{ 0 };
+    int feeds_population_max{ 0 };
 
     // The terrain this building may stand on. Empty means "any buildable land"
     // (the resolver's default, minus the elements the settlement never builds
@@ -125,7 +139,7 @@ struct Settlement
 }
 
 // How many more houses the settlement wants: enough to house the people the
-// current capacity does not cover, plus a two-bed buffer, and zero once the
+// current capacity does not cover, plus a one-house buffer, and zero once the
 // housing already covers the population. The construction planner stops raising
 // houses on this, so a settlement never spends wood on beds nobody needs.
 [[nodiscard]] inline int housesWanted(const int heads, const int capacity, const int per_house) noexcept
@@ -133,7 +147,17 @@ struct Settlement
     if (per_house <= 0 || heads <= capacity)
         return 0;
     const int shortfall = heads - capacity;
-    return (shortfall + 2 + per_house - 1) / per_house;
+    return (shortfall + per_house - 1) / per_house + 1;
+}
+
+// Whether the settlement still needs another food producer: the reach of the
+// producers it already has, `projectedFeeds`, falls short of the people it must
+// feed, `toFeed`. The construction planner counts only *completed* producers
+// here (and allows at most one under construction), so an unreachable or
+// in-progress site never suppresses the next farm and starves the settlement.
+[[nodiscard]] inline bool needsFoodProducer(const int toFeed, const int projectedFeeds) noexcept
+{
+    return projectedFeeds < toFeed;
 }
 
 // Parse a good name (lower-case) into a `Goods::Good`. Throws on an unknown name.
@@ -239,6 +263,21 @@ private:
         def.is_anchor          = entry.value("is_anchor", def.is_anchor);
         def.priority           = entry.value("priority", def.priority);
         def.max_count          = entry.value("max_count", def.max_count);
+
+        // A range turns a fixed size into a per-building random draw: a house's
+        // capacity and a farm's reach are rolled once, when the site is started.
+        if (entry.contains("people_per_building"))
+        {
+            const auto& r = entry.at("people_per_building");
+            def.population_capacity = r.at(0).get<int>();
+            def.population_capacity_max = r.at(1).get<int>();
+        }
+        if (entry.contains("feeds_population"))
+        {
+            const auto& r = entry.at("feeds_population");
+            def.feeds_population = r.at(0).get<int>();
+            def.feeds_population_max = r.at(1).get<int>();
+        }
 
         if (entry.contains("recipes"))
             for (const auto& r : entry.at("recipes"))

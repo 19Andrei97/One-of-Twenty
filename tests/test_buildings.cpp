@@ -202,21 +202,33 @@ TEST_CASE("defaultBuildable rejects sand and water but allows dry land")
     CHECK(Buildings::defaultBuildable(Elements::clay));
 }
 
-TEST_CASE("housesWanted stops building housing the settlement already has")
+TEST_CASE("housesWanted raises a house once the housing is full")
 {
     // No shortfall: no houses wanted, however many people.
     CHECK(Buildings::housesWanted(0, 120, 30) == 0);
     CHECK(Buildings::housesWanted(120, 120, 30) == 0);
     CHECK(Buildings::housesWanted(50, 120, 30) == 0);
 
-    // A shortfall wants enough houses to cover it plus the two-bed buffer.
-    CHECK(Buildings::housesWanted(121, 120, 30) == 1); // 1 short, the buffer fits one
-    CHECK(Buildings::housesWanted(139, 120, 30) == 1); // 19 short, buffer still one
-    CHECK(Buildings::housesWanted(149, 120, 30) == 2); // 29 short, buffer needs two
-    CHECK(Buildings::housesWanted(420, 120, 30) == 11); // 300 short, buffer spreads
+    // A shortfall wants enough houses to cover it plus one to spare (the house is
+    // full, so another goes up).
+    CHECK(Buildings::housesWanted(121, 120, 30) == 2); // 1 short, one more house
+    CHECK(Buildings::housesWanted(149, 120, 30) == 2); // 29 short, still one more
+    CHECK(Buildings::housesWanted(150, 120, 30) == 2); // 30 short, one covers it
+    CHECK(Buildings::housesWanted(420, 120, 30) == 11); // 300 short
 
     // A non-positive per-house size never demands houses (guards a bad config).
     CHECK(Buildings::housesWanted(200, 0, 0) == 0);
+}
+
+TEST_CASE("needsFoodProducer sizes the food to the housing")
+{
+    // Fully covered: no more producers, whether the reach is exact or spare.
+    CHECK_FALSE(Buildings::needsFoodProducer(360, 400));
+    CHECK_FALSE(Buildings::needsFoodProducer(60, 60));
+
+    // Short of the people the settlement could house: one more producer is wanted.
+    CHECK(Buildings::needsFoodProducer(360, 340));
+    CHECK(Buildings::needsFoodProducer(60, 0));
 }
 
 TEST_CASE("a def's allowed_terrain narrows where it may stand")
@@ -267,16 +279,27 @@ TEST_CASE("the shipped catalog loads and anchors the city center")
     REQUIRE(!catalog.all().empty());
 
     const Buildings::Def* city_center = catalog.byId("city_center");
+    // The city center is the founding anchor: it houses the first villagers, so a
+    // settlement has a cap before any house is up.
     REQUIRE(city_center != nullptr);
     CHECK(city_center->is_anchor);
     CHECK(city_center->max_count == 1);
+    CHECK(city_center->population_capacity >= 20);
 
-    // A house houses a village-sized crowd, not a single family, so the planner
-    // does not paper the map with houses.
+    // A house houses a village-sized crowd drawn from a range, not a single
+    // family, so the planner does not paper the map with houses.
     const Buildings::Def* house = catalog.byId("house");
     REQUIRE(house != nullptr);
-    CHECK(house->population_capacity == 30);
+    CHECK(house->population_capacity == 20);
+    CHECK(house->population_capacity_max == 40);
     CHECK(house->allowsTerrain(Elements::hill));
+
+    // A farm feeds a 40-80 person band; the planner only builds as many as the
+    // housed population needs.
+    const Buildings::Def* farm = catalog.byId("farm");
+    REQUIRE(farm != nullptr);
+    CHECK(farm->feeds_population == 40);
+    CHECK(farm->feeds_population_max == 80);
 
     // The settlement gap is set, so the planner keeps a village-like spacing.
     const Buildings::Settlement settlement = Buildings::loadSettlement(shippedCatalogPath());

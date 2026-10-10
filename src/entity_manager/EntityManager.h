@@ -95,6 +95,9 @@ class EntityManager
                 sf::Vector2i origin;            // world position (tile corner)
                 int          work_remaining{ 0 };
                 bool         complete{ false };
+                // The size rolled when the site was started: people housed for a
+                // house, people fed for a food producer. Zero for anything else.
+                int          rolled_value{ 0 };
         };
         std::vector<PlacedBuilding>             m_buildings;
 
@@ -225,6 +228,10 @@ class EntityManager
 
         // How many placed buildings use a given def index (for max_count checks).
         int countOf(std::size_t def_index) const;
+
+        // Roll a building's size once, at construction: a food producer's reach,
+        // or a house's capacity, from the def's range; a fixed value stays itself.
+        static int rollBuildValue(const Buildings::Def& def);
 
         // Population dynamics, run once per in-game hour. `ageEntities` advances
         // lifespan, `applyHealth` drains/restores health from a food shortfall, and
@@ -388,8 +395,9 @@ public:
         int countOfElement(Elements element) const;
 
         // The population cap: the entity config's `survival.max_population` base
-        // plus each completed building's `population_capacity` bonus (houses), so
-        // a built settlement can outgrow its founding cap.
+        // plus the size each completed building rolled when it was started (the
+        // city center's people, houses' people), so a built settlement outgrows
+        // its founding cap.
         int populationCapacity() const;
         // The site the planner would pick for `building_id` right now, or nullopt
         // when the def is unknown or no tile in the radius is free. Exposed so a

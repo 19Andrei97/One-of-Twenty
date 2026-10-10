@@ -276,12 +276,18 @@ void EntityManager::update()
                         if (elapsed - action->timestamp_min <= action->duration_min)
                                 return;
 
+                        // The work must be done on the tile: if the entity has
+                        // drifted off it (blocked, pushed, or re-routed part way),
+                        // hold the completion until it is back on the tile instead of
+                        // banking the yield from a distance. offTileWork() counts any
+                        // completion further than one tile away, so it stays zero.
+                        if (offTile(action->tile))
+                                return;
+
                         // The gather produced a unit: carry it, then deposit it into
                         // the settlement stores as the good its tile yields, and
                         // tally the completed trip. A forest tile is a finite pile of
                         // wood: deplete it and, once exhausted, clear it to a hill.
-                        if (offTile(action->tile))
-                                ++m_off_tile_work;
                         inventory.gather();
                         const Elements yielded = action->element;
                         m_goods.add(Goods::fromElement(yielded), inventory.deposit());
@@ -314,8 +320,12 @@ void EntityManager::update()
                         if (elapsed - action->timestamp_min <= action->duration_min)
                                 return;
 
+                        // As with a gather, hold the work until the builder is back
+                        // on the site: a completion while off the tile would apply
+                        // the build effect somewhere other than where it was raised.
                         if (offTile(action->tile))
-                                ++m_off_tile_work;
+                                return;
+
                         // Advance the site by one hour's work. A completed site's
                         // effects apply once (applyBuildEffect is idempotent on the
                         // `complete` flag) and a construction-finished event is
@@ -843,13 +853,32 @@ int EntityManager::populationCapacity() const
 {
         // The base cap is the entity config's `survival.max_population` (so the
         // existing tuning and its reload test still govern growth); every
-        // completed house adds its catalog bonus on top, which is how buildings
-        // raise the population capacity.
+        // completed building adds the size it rolled when it was built (a house's
+        // people, the anchor's, ...), which is how buildings raise the capacity.
         int capacity = m_config.survival.max_population;
         for (const auto& building : m_buildings)
                 if (building.complete)
-                        capacity += m_catalog.all()[building.def_index].population_capacity;
+                        capacity += building.rolled_value;
         return capacity;
+}
+
+int EntityManager::rollBuildValue(const Buildings::Def& def)
+{
+        // Roll the size once, when the site starts, so it sticks for the building's
+        // whole life (a reload cannot re-roll it). A food producer's reach wins
+        // when it has one, otherwise a house's capacity; both accept a range (a
+        // `_max`) or a single value. Anything else rolls to zero.
+        const auto roll = [](const int lo, const int hi)
+        {
+                if (hi <= lo)
+                        return lo;
+                return Random::get(lo, hi);
+        };
+        if (def.feeds_population > 0)
+                return roll(def.feeds_population, def.feeds_population_max);
+        if (def.population_capacity > 0)
+                return roll(def.population_capacity, def.population_capacity_max);
+        return 0;
 }
 
 bool EntityManager::hasCityCenter() const
@@ -973,8 +1002,11 @@ void EntityManager::planConstruction()
                 return;
 
         // The people the settlement could house right now (its base cap plus every
-        // completed house), and the heads it must house. The gap decides whether
-        // another house is worth its wood.
+        // completed building) and the heads it must house. The gap decides whether
+        // another house is worth its wood. Food is sized to the people actually
+        // present, since they are the ones that eat: one farm's rolled reach
+        // already covers a small, growing settlement, and more are added only as
+        // the population outgrows what the built farms claim to feed.
         const int capacity = populationCapacity();
         const int heads = entityCount();
 
@@ -984,6 +1016,30 @@ void EntityManager::planConstruction()
 
         if (!chosen)
         {
+                // Count the placed housing (started or done) so several housing
+                // defs share one budget; sum the reach of every *completed* food
+                // producer, and note whether one is already under construction.
+                // Counting completed reach means the planner raises another farm
+                // only while the ones actually standing do not feed the people; the
+                // at-most-one-pending rule keeps it from stacking a queue of farms
+                // that would all be redundant once the first completes.
+                int placedHousing = 0;
+                int completedFeeds = 0;
+                int pendingProducers = 0;
+                for (const auto& building : m_buildings)
+                {
+                        const auto& def = m_catalog.all()[building.def_index];
+                        if (def.population_capacity > 0)
+                                ++placedHousing;
+                        if (def.feeds_population > 0)
+                        {
+                                if (building.complete)
+                                        completedFeeds += building.rolled_value;
+                                else
+                                        ++pendingProducers;
+                        }
+                }
+
                 for (const auto& def : m_catalog.all())
                 {
                         if (def.is_anchor)
@@ -993,13 +1049,26 @@ void EntityManager::planConstruction()
                                 continue;
                         if (def.costs.empty() && def.recipes.empty())
                                 continue; // nothing to build toward (a pure anchor)
+                        // Finish the anchor before raising houses: until it is up the
+                        // people have no bed, so a house would claim the wood the
+                        // settlement needs for the shelter (and its first food).
+                        if (!hasCityCenter() && def.population_capacity > 0)
+                                continue;
                         // Do not keep raising houses the settlement does not need: a
                         // def is housing when it adds population capacity, and the
                         // planner stops once the beds cover the people (plus a small
                         // buffer). A new housing def is recognized by its own
                         // `population_capacity`, so this stays data-only.
                         if (def.population_capacity > 0
-                                && countOf(index) >= Buildings::housesWanted(heads, capacity, def.population_capacity))
+                                && placedHousing >= Buildings::housesWanted(heads, capacity, def.population_capacity))
+                                continue;
+                        // Likewise for food: raise a farm while the completed
+                        // producers do not yet feed the people present, but never
+                        // have more than one under construction at a time, so a
+                        // small settlement keeps a single farm while it grows.
+                        if (def.feeds_population > 0
+                                && (pendingProducers >= 1
+                                        || !Buildings::needsFoodProducer(heads, completedFeeds)))
                                 continue;
                         if (!Buildings::affordable(m_goods, def))
                                 continue;
@@ -1048,7 +1117,8 @@ bool EntityManager::placeBuilding(const std::string& building_id, const sf::Vect
         Buildings::spend(m_goods, *def);
         m_buildings.push_back(PlacedBuilding{
                 m_catalog.indexOf(def), worldPos,
-                std::max(1, def->build_hours) * std::max(1, def->work_per_hour), false });
+                std::max(1, def->build_hours) * std::max(1, def->work_per_hour), false,
+                rollBuildValue(*def) });
         LOG_INFO("Construction started: {} at ({},{}).", def->name, worldPos.x, worldPos.y);
         return true;
 }
