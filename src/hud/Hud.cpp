@@ -33,6 +33,39 @@ void Hud::registerDefaultCallbacks()
                 onMapChanged();
         });
 
+        // Terrain presets. Each one drives every terrain slider at once so a player
+        // gets a recognisable world in one click, then tweaks individual sliders.
+        // setSliderValue fires each slider's own callback, which writes the live
+        // config and marks the map for a reset, so no reset is issued here.
+        const auto applyPreset = [this](const std::vector<std::pair<std::string, float>>& values) {
+                for (const auto& [name, value] : values)
+                        setSliderValue(name, value);
+        };
+        registerButtonCallback("preset_earth", [applyPreset]() {
+                applyPreset({
+                        { "land_amount", 0.35f }, { "continent_size", 0.0015f }, { "coast_roughness", 0.60f },
+                        { "mountain_height", 0.45f }, { "mountain_scale", 0.012f },
+                        { "temperature", 0.50f }, { "rainfall", 0.50f }, { "snow_line", 0.90f },
+                        { "lake_level", 0.30f }, { "lake_size", 0.62f }, { "ore_richness", 0.55f },
+                });
+        });
+        registerButtonCallback("preset_archipelago", [applyPreset]() {
+                applyPreset({
+                        { "land_amount", 0.32f }, { "continent_size", 0.0035f }, { "coast_roughness", 0.75f },
+                        { "mountain_height", 0.35f }, { "mountain_scale", 0.020f },
+                        { "temperature", 0.58f }, { "rainfall", 0.62f }, { "snow_line", 0.95f },
+                        { "lake_level", 0.32f }, { "lake_size", 0.62f }, { "ore_richness", 0.50f },
+                });
+        });
+        registerButtonCallback("preset_pangaea", [applyPreset]() {
+                applyPreset({
+                        { "land_amount", 0.46f }, { "continent_size", 0.0007f }, { "coast_roughness", 0.45f },
+                        { "mountain_height", 0.60f }, { "mountain_scale", 0.008f },
+                        { "temperature", 0.48f }, { "rainfall", 0.38f }, { "snow_line", 0.85f },
+                        { "lake_level", 0.28f }, { "lake_size", 0.58f }, { "ore_richness", 0.60f },
+                });
+        });
+
         // Time management. These act on the clock when one is attached; the scene
         // overrides time_pause to keep its own pause state in step.
         registerButtonCallback("time_slower", [this]() {
@@ -99,18 +132,6 @@ void Hud::registerDefaultCallbacks()
         registerSliderCallback("snow_line", [this, onMapChanged](float val) {
                 if (m_map)
                         m_map->setSnowLine(val);
-                onMapChanged();
-        });
-
-        registerSliderCallback("river_density", [this, onMapChanged](float val) {
-                if (m_map)
-                        m_map->setRiverDensity(val);
-                onMapChanged();
-        });
-
-        registerSliderCallback("river_size", [this, onMapChanged](float val) {
-                if (m_map)
-                        m_map->setRiverSize(val);
                 onMapChanged();
         });
 
@@ -441,6 +462,20 @@ void Hud::setButtonLabel(const std::string& functionName, const std::string& lab
 		if (b.functionName == functionName && b.widget)
 			b.widget->setLabel(label);
 	}
+}
+
+bool Hud::setSliderValue(const std::string& functionName, float value)
+{
+	bool found = false;
+	for (auto& s : sliders)
+	{
+		if (s.functionName == functionName && s.widget)
+		{
+			s.widget->setValue(value);
+			found = true;
+		}
+	}
+	return found;
 }
 
 // INPUTS

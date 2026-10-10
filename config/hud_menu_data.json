@@ -23,6 +23,78 @@
     "level": 0,
     "function": "random"
   },
+  "preset_earth": {
+    "type": "button",
+    "width": 150,
+    "height": 30,
+    "position": {
+      "x": 180,
+      "y": 15
+    },
+    "label": "Preset: Earth",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 14,
+    "level": 0,
+    "function": "preset_earth"
+  },
+  "preset_archipelago": {
+    "type": "button",
+    "width": 172,
+    "height": 30,
+    "position": {
+      "x": 340,
+      "y": 15
+    },
+    "label": "Preset: Archipelago",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 14,
+    "level": 0,
+    "function": "preset_archipelago"
+  },
+  "preset_pangaea": {
+    "type": "button",
+    "width": 150,
+    "height": 30,
+    "position": {
+      "x": 520,
+      "y": 15
+    },
+    "label": "Preset: Pangaea",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 14,
+    "level": 0,
+    "function": "preset_pangaea"
+  },
   "land_amount": {
     "type": "slider",
     "width": 300,
@@ -35,7 +107,7 @@
     "maximum_value": 1,
     "value": 0.35,
     "label": "Land Amount",
-    "description": "Sea level: more land or a watery world",
+    "description": "Higher adds land, lower raises the sea level",
     "bar_color": [
       0,
       0,
@@ -59,9 +131,9 @@
     },
     "minimum_value": 0.0002,
     "maximum_value": 0.004,
-    "value": 0.0006,
+    "value": 0.0015,
     "label": "Continent Size",
-    "description": "Small: few huge continents, large: many islands",
+    "description": "Small: a few huge continents, large: many islands",
     "bar_color": [
       0,
       0,
@@ -137,7 +209,7 @@
     },
     "minimum_value": 0.004,
     "maximum_value": 0.04,
-    "value": 0.014,
+    "value": 0.012,
     "label": "Mountain Range Width",
     "description": "Thin long ranges or broad highlands",
     "bar_color": [
@@ -215,7 +287,7 @@
     },
     "minimum_value": 0.5,
     "maximum_value": 1,
-    "value": 0.86,
+    "value": 0.9,
     "label": "Snow Line",
     "description": "Lower means snow reaches down the mountains",
     "bar_color": [
@@ -231,65 +303,13 @@
     "level": 1,
     "function": "snow_line"
   },
-  "river_density": {
-    "type": "slider",
-    "width": 300,
-    "height": 10,
-    "position": {
-      "x": 20,
-      "y": 70
-    },
-    "minimum_value": 0,
-    "maximum_value": 0.08,
-    "value": 0.012,
-    "label": "River Density",
-    "description": "How many rivers are carved into the land",
-    "bar_color": [
-      0,
-      0,
-      0
-    ],
-    "handle_color": [
-      255,
-      255,
-      255
-    ],
-    "level": 2,
-    "function": "river_density"
-  },
-  "river_size": {
-    "type": "slider",
-    "width": 300,
-    "height": 10,
-    "position": {
-      "x": 20,
-      "y": 108
-    },
-    "minimum_value": 0.001,
-    "maximum_value": 0.01,
-    "value": 0.0035,
-    "label": "River Size",
-    "description": "Long sweeping rivers or short winding ones",
-    "bar_color": [
-      0,
-      0,
-      0
-    ],
-    "handle_color": [
-      255,
-      255,
-      255
-    ],
-    "level": 2,
-    "function": "river_size"
-  },
   "lake_level": {
     "type": "slider",
     "width": 300,
     "height": 10,
     "position": {
       "x": 20,
-      "y": 146
+      "y": 70
     },
     "minimum_value": 0,
     "maximum_value": 0.6,
@@ -315,7 +335,7 @@
     "height": 10,
     "position": {
       "x": 20,
-      "y": 184
+      "y": 108
     },
     "minimum_value": 0,
     "maximum_value": 1,
@@ -341,7 +361,7 @@
     "height": 10,
     "position": {
       "x": 20,
-      "y": 222
+      "y": 146
     },
     "minimum_value": 0,
     "maximum_value": 1,

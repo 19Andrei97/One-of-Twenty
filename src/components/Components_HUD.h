@@ -184,6 +184,9 @@ class CSlider
     sf::RectangleShape        m_bar;
     sf::CircleShape           m_handle;
     sf::Text m_text;
+    // Live numeric readout (e.g. "62%") drawn at the right end of the bar so the
+    // exact value is visible while dragging, not just the handle position.
+    sf::Text m_valueText;
     // One-line explanation drawn under the bar, so a player can tell what the
     // slider actually does without reading the config. Empty hides it.
     sf::Text m_description;
@@ -193,6 +196,10 @@ class CSlider
     float m_maxValue;
     float m_value;
     bool  m_active = false;
+    // Optional suffix appended to the live value readout ("%", "", " units").
+    // Empty picks a sensible default: a percentage for a [0,1]-ish range, a plain
+    // number otherwise. Set through setValueSuffix when a slider has real units.
+    std::string m_valueSuffix;
 
     std::function<void(float)> m_onChange;
 
@@ -212,11 +219,14 @@ public:
     )
         : m_offset(pos_v), m_minValue(minVal), m_maxValue(maxVal),
           m_value(std::isnan(initialValue) ? (minVal + maxVal) / 2.f : initialValue),
-          m_text(font), m_description(font)
+          m_text(font), m_valueText(font), m_description(font)
     {
         m_text.setString(text_p);
         m_text.setCharacterSize(16u);
         m_text.setFillColor(sf::Color::Black);
+
+        m_valueText.setCharacterSize(14u);
+        m_valueText.setFillColor(sf::Color(60, 60, 60));
 
         m_description.setString(description_p);
         m_description.setCharacterSize(12u);
@@ -234,8 +244,39 @@ public:
 
     void setOnChange(std::function<void(float)> callback) { m_onChange = std::move(callback); }
 
+    // Suffix appended to the live value readout. Leave empty to let formatValue
+    // choose: a percent when the range spans roughly [0,1], a plain number else.
+    void setValueSuffix(const std::string& suffix) { m_valueSuffix = suffix; }
+
+    // The value the readout shows: a percentage for a unit-interval range so a
+    // player reads "62%" instead of "0.62", a compact decimal otherwise.
+    std::string formatValue() const
+    {
+        char buffer[32];
+        // A true [0,1] control (a fraction the player thinks of as a level) reads
+        // as a percentage; anything with real units stays a decimal.
+        const bool unitRange = m_minValue <= 0.001f && m_maxValue >= 0.999f && m_maxValue <= 1.001f;
+        if (unitRange)
+            std::snprintf(buffer, sizeof(buffer), "%.0f%%", static_cast<double>(m_value * 100.f));
+        else if (m_maxValue <= 0.05f)
+            std::snprintf(buffer, sizeof(buffer), "%.4f", static_cast<double>(m_value));
+        else if (m_maxValue <= 2.f)
+            std::snprintf(buffer, sizeof(buffer), "%.2f", static_cast<double>(m_value));
+        else
+            std::snprintf(buffer, sizeof(buffer), "%.0f", static_cast<double>(m_value));
+        return std::string(buffer) + m_valueSuffix;
+    }
+
     float getValue() const { return m_value; }
     bool  isActive() const { return m_active; }
+
+    // Drive the slider from outside (a preset button): move the handle and fire
+    // the change callback as if the player had dragged it.
+    void setValue(float value)
+    {
+        m_value = std::clamp(value, m_minValue, m_maxValue);
+        if (m_onChange) m_onChange(m_value);
+    }
 
     void endDrag() { m_active = false; }
 
@@ -279,9 +320,17 @@ public:
 
         m_description.setPosition({ screenPos.x, screenPos.y + 14.f });
 
+        // Value readout at the right end of the bar, vertically centred on it, so
+        // the exact number is visible without covering the label on the left.
+        m_valueText.setString(formatValue());
+        const sf::FloatRect vBounds = m_valueText.getLocalBounds();
+        m_valueText.setPosition({ screenPos.x + m_bar.getSize().x - vBounds.size.x - vBounds.position.x,
+                                  screenPos.y + (m_bar.getSize().y - vBounds.size.y) / 2.f - vBounds.position.y });
+
         target.draw(m_bar);
         target.draw(m_handle);
         target.draw(m_text);
+        target.draw(m_valueText);
         if (!m_description.getString().isEmpty())
             target.draw(m_description);
     }

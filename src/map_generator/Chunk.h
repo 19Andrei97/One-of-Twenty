@@ -34,10 +34,9 @@ enum class Elements
 	silver,
 
 	// Inland fresh water. `lake` is a basin carved below the water table;
-	// `river` is a channel cut by a flow field. Both are drinkable, unlike
-	// the deep sea, and both leave the ocean coast unchanged.
+	// it is drinkable, unlike the deep sea, and leaves the ocean coast
+	// unchanged.
 	lake,
-	river,
 
 	// Placed buildings. These are written into tile_types by the construction
 	// system when a structure is built, so they render and persist like any other

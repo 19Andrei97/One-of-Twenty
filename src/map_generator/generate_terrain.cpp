@@ -64,14 +64,6 @@ GenerateTerrain::GenerateTerrain(const MapConfig& config)
         m_noise_silver.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
         m_noise_silver.SetFractalType(FastNoiseLite::FractalType_FBm);
 
-        // River: a single low-frequency Perlin field, carved where it crosses zero.
-        // One octave keeps the zero contour a long, smooth curve; adding octaves
-        // shatters it into disconnected specks (measured: ~2k components instead of
-        // ~140 for the same coverage). The shared domain warp bends the contour so
-        // the channels meander instead of tracking the noise grid.
-        m_noise_river.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-        m_noise_river.SetFractalType(FastNoiseLite::FractalType_None);
-
         m_noise_lake.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
         m_noise_lake.SetFractalType(FastNoiseLite::FractalType_FBm);
 
@@ -85,8 +77,8 @@ GenerateTerrain::GenerateTerrain(const MapConfig& config)
 
 /*
 *       Re-seed every field from the terrain seed and apply the config
-*       frequencies. Each ore, the lake and the river are offset so their deposits
-*       and channels never line up with the continent noise.
+*       frequencies. Each ore and the lake are offset so their deposits and
+*       channels never line up with the continent noise.
 */
 void GenerateTerrain::setSeed(int seed)
 {
@@ -126,9 +118,6 @@ void GenerateTerrain::setSeed(int seed)
 
         m_noise_silver.SetSeed(seed + 4);
         m_noise_silver.SetFrequency(0.02f);
-
-        m_noise_river.SetSeed(seed + 1);
-        m_noise_river.SetFrequency(m_config.river_size);
 
         m_noise_lake.SetSeed(seed + 6);
         m_noise_lake.SetFrequency(0.004f);
@@ -251,19 +240,6 @@ Elements GenerateTerrain::elementAtTile(const sf::Vector2i& tile) const
 
         if (below(Elements::sand)) return Elements::sand;
 
-        // --- RIVER ---
-        // A river follows a level set of the low-frequency field: wherever it crosses
-        // zero. Carved only on ground that is not already a lake or the shore, and
-        // stopped short of the peaks so channels stay in the valleys. `river_density`
-        // is the half-width of the channel.
-        if (m_config.river_enabled
-                && elevation < m_config.thresholds[static_cast<std::size_t>(Elements::snow)])
-        {
-                const float riverField = std::abs(m_noise_river.GetNoise(sample.warped.x, sample.warped.y));
-                if (riverField < m_config.river_density)
-                        return Elements::river;
-        }
-
         // --- CONTINENT ---
         // Land biomes come from elevation + climate, so the map has rainforest,
         // temperate forest, dry grassland and desert instead of one uniform
@@ -311,9 +287,10 @@ Elements GenerateTerrain::classifyLand(float elevation, float temperature, float
         // Bare rock above the forest line.
         if (elevation >= threshold(Elements::forest))
         {
-                // Snow caps the cold peaks; the `snow_line` slider moves the height
-                // at which the cap starts.
-                if (elevation >= m_config.snow_line && temperature < 0.35f)
+                // Snow caps a high peak, and also any highland that is cold enough
+                // (the poles), so polar ranges read white while tropical peaks stay
+                // rock. `snow_line` still moves the height at which a warm peak caps.
+                if (elevation >= m_config.snow_line || temperature < 0.25f)
                         return Elements::snow;
                 return Elements::mountain;
         }

@@ -128,12 +128,12 @@ A run that is killed by `timeout` (exit 124) is a success; check
   tile space so terrain does not depend on `tile_size`.
 - Terrain is a *layered* pipeline, sampled in `GenerateTerrain::sampleAt`:
   domain warp -> continent fBm -> ridged mountain belts -> height remap ->
-  island falloff -> elevation bands -> lakes -> rivers -> climate biomes. Keep
+  island falloff -> elevation bands -> lakes -> climate biomes. Keep
   the stages in that order; each later stage assumes the earlier ones.
   `MapConfig` now carries the tuning as flat, player-named fields
   (`land_amount`, `continent_size`, `coast_roughness`, `mountain_height`,
-  `mountain_scale`, `temperature`, `rainfall`, `snow_line`, `river_density`,
-  `river_size`, `lake_level`, `lake_size`, `ore_richness`), each parsed from a
+  `mountain_scale`, `temperature`, `rainfall`, `snow_line`,
+  `lake_level`, `lake_size`, `ore_richness`), each parsed from a
   top-level key in `config/map_data.json` and each backed by one HUD slider.
 - The ridged-detail fractal in FastNoiseLite already returns `[-1,1]`; only its
   positive half may be added as uplift (clamp at 0). Remapping it (`*2-1`) or
@@ -142,14 +142,19 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - `land_amount` is the sea level and dominates the land fraction; the shipped
   config uses `0.35` for a roughly 60/40 ocean/land split. `height_range.min`/
   `max` remap the continent field before thresholds (default `[0,1]` =
-  identity); raising `min` above ~0.1 removes the flat sandy lowlands, but a
-  value at or below ~0.05 can strand the seeded settlement far from drinkable
-  water (the entity-pathing run test dies out).
-- Rivers are the zero crossing of a *single low-frequency Perlin* field
-  (`river_size` ~0.0035, `river_density` ~0.012 as the half-width). One octave
-  keeps the zero contour a long, smooth, meandering channel; a ridged/multi-
-  octave field shatters the same coverage into thousands of disconnected specks
-  (measured: ~2k components vs ~140). Do not re-add octaves to the river field.
+  identity); raising `min` above ~0.1 removes the flat sandy lowlands. The
+  shipped config uses `min = 0.0` for wide lowlands, so the world origin is
+  often a tiny coastal islet with almost no forage. `EntityManager::findHabitableSpawn`
+  therefore founds the settlement at the nearest land tile that has a
+  *gatherable* (forest for wood, hill for stone) within an entity's vision, and
+  falls back to the nearest land tile when none qualifies. Wood gates the first
+  farm, which is the only food source, so a settlement founded away from any
+  gatherable would starve before it could build. Water is no longer a need, so
+  the spawn no longer weighs it.
+- Rivers were removed: the single-frequency zero-crossing field produced
+  disconnected cyan specks that read as unnatural, so the map no longer carves
+  river channels. Do not re-add a river element or its noise field without a
+  real flow/erosion model.
 - Lakes flood a low basin (elevation between `lake_level` and the `hill`
   threshold) where the lake field peaks, and are checked *before* the beach so a
   basin reads as water, not sand. A low lake frequency with a high `lake_size`

@@ -61,13 +61,7 @@ std::string makeVariantConfig(const std::string& name, const std::function<void(
 }
 
 // Classify by element, not by colour: the palette may give shallow water a
-// non-zero red channel, and fresh water (lakes/rivers) must be distinguishable
-// from the ocean.
-bool isWater(MapGenerator& generator, const sf::Vector2i& world)
-{
-    return Resources::isWater(generator.getBiomeElement(world));
-}
-
+// non-zero red channel.
 bool isOcean(MapGenerator& generator, const sf::Vector2i& world)
 {
     return Resources::isOcean(generator.getBiomeElement(world));
@@ -160,8 +154,6 @@ TEST_CASE("island mode surrounds the origin with water")
     const std::string config = makeVariantConfig("island", [](nlohmann::json& js) {
         js["island"]["enabled"] = true;
         js["island"]["falloff"] = 0.4;
-        // Isolate island shaping from rivers, which also cut water into land.
-        js["river"]["enabled"] = false;
     });
 
     auto generator = std::make_unique<MapGenerator>(frames, config);
@@ -189,58 +181,6 @@ TEST_CASE("island mode surrounds the origin with water")
     CHECK(edgeWater == samples);
 }
 
-TEST_CASE("rivers carve water into otherwise dry land")
-{
-    int frames = 0;
-
-    // Compare the same seed with rivers off and on: rivers must only add water,
-    // never remove it, and must not drown the whole map.
-    const std::string plainConfig = makeVariantConfig("river_off", [](nlohmann::json& js) {
-        js["island"]["enabled"] = false;
-        js["river"]["enabled"] = false;
-    });
-    const std::string riverConfig = makeVariantConfig("river_on", [](nlohmann::json& js) {
-        js["island"]["enabled"] = false;
-        js["river"]["enabled"] = true;
-        js["river"]["freq"] = 0.01;
-        js["river"]["threshold"] = 0.06;
-    });
-
-    auto plain = std::make_unique<MapGenerator>(frames, plainConfig);
-    plain->setSeed(2024);
-    plain->setNoises();
-
-    auto river = std::make_unique<MapGenerator>(frames, riverConfig);
-    river->setSeed(2024);
-    river->setNoises();
-
-    const int tileSize = plain->getTileSize();
-    int extraWater = 0;
-    int removedWater = 0;
-    int addedWater = 0;
-    int land = 0;
-    constexpr int range = 1000;
-    for (int x = -range; x <= range; x += 2 * tileSize)
-    {
-        for (int y = -range; y <= range; y += 2 * tileSize)
-        {
-            const bool plainWater = isWater(*plain, { x, y });
-            const bool riverWater = isWater(*river, { x, y });
-
-            if (riverWater && !plainWater) ++extraWater;
-            if (!riverWater && plainWater) ++removedWater;
-            if (riverWater) ++addedWater;
-            else ++land;
-        }
-    }
-
-    // Rivers only convert land to water, and they clearly do so here.
-    CHECK(removedWater == 0);
-    CHECK(extraWater > 0);
-    CHECK(addedWater > 0);
-    CHECK(land > 0);
-}
-
 TEST_CASE("lakes carve fresh water into otherwise dry land")
 {
     int frames = 0;
@@ -249,12 +189,10 @@ TEST_CASE("lakes carve fresh water into otherwise dry land")
     // must leave the map mostly dry.
     const std::string plainConfig = makeVariantConfig("lake_off", [](nlohmann::json& js) {
         js["island"]["enabled"] = false;
-        js["river"]["enabled"] = false;
         js["lake"]["enabled"] = false;
     });
     const std::string lakeConfig = makeVariantConfig("lake_on", [](nlohmann::json& js) {
         js["island"]["enabled"] = false;
-        js["river"]["enabled"] = false;
         js["lake"]["enabled"] = true;
         js["lake"]["level"] = 0.30;
         js["lake"]["threshold"] = 0.55;
@@ -299,16 +237,14 @@ TEST_CASE("fresh water is drinkable and distinguished from the ocean")
 
     // The accessor classification is what survival and knowledge rely on.
     CHECK(Resources::isWater(Elements::lake));
-    CHECK(Resources::isWater(Elements::river));
     CHECK(Resources::isWater(Elements::ocean));
     CHECK_FALSE(Resources::isWater(Elements::very_deep_ocean));
     CHECK_FALSE(Resources::isWater(Elements::sand));
 
     CHECK(Resources::isOcean(Elements::ocean));
     CHECK_FALSE(Resources::isOcean(Elements::lake));
-    CHECK_FALSE(Resources::isOcean(Elements::river));
 
-    // Every lake/river tile found in the world is walkable, so an entity can
+    // Every lake tile found in the world is walkable, so an entity can
     // stand on it to drink.
     const int tileSize = generator->getTileSize();
     int fresh = 0;
@@ -317,7 +253,7 @@ TEST_CASE("fresh water is drinkable and distinguished from the ocean")
         for (int y = -range; y <= range; y += tileSize)
         {
             const Elements e = generator->getBiomeElement({ x, y });
-            if (e != Elements::lake && e != Elements::river) continue;
+            if (e != Elements::lake) continue;
             ++fresh;
             CHECK(MoveCost::moveCost(e) > 0.f);
         }
@@ -586,7 +522,6 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
     // high biome and, with a min above the ocean thresholds, flood the lowlands.
     const std::string flatConfig = makeVariantConfig("height_narrow", [](nlohmann::json& js) {
         js["island"]["enabled"] = false;
-        js["river"]["enabled"] = false;
         js["height_range"]["min"] = 0.0;
         js["height_range"]["max"] = 0.3;
     });
@@ -621,7 +556,6 @@ TEST_CASE("height_range caps peaks and floors the lowlands")
     // the same seed gets strictly less water than the baseline.
     const std::string floodConfig = makeVariantConfig("height_flood", [](nlohmann::json& js) {
         js["island"]["enabled"] = false;
-        js["river"]["enabled"] = false;
         js["height_range"]["min"] = 0.5;
         js["height_range"]["max"] = 1.0;
     });

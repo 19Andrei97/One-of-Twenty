@@ -15,7 +15,7 @@
 // what makes an Earth-like map and keeps each slider meaningful:
 //
 //   domain warp -> continent + shelf -> ridged mountain belts -> island falloff
-//   -> elevation bands -> lake basins -> river channels -> climate biomes.
+//   -> elevation bands -> lake basins -> climate biomes.
 //
 // Climate is sampled separately (latitude temperature + moisture) and only
 // re-classifies the *land* bands: the elevation bands still decide where the
@@ -26,7 +26,7 @@ public:
         explicit GenerateTerrain(const MapConfig& config);
 
         // Terrain generation uses the floating-point seed; every field is offset
-        // from it so terrain, ore, lake and river noise never align.
+        // from it so terrain, ore and lake noise never align.
         void setSeed(int seed);
 
         // Element at a tile (the pure noise answer, before any edit).
@@ -77,7 +77,6 @@ private:
         FastNoiseLite                   m_noise_clay;
         FastNoiseLite                   m_noise_iron;
         FastNoiseLite                   m_noise_silver;
-        FastNoiseLite                   m_noise_river;
         FastNoiseLite                   m_noise_lake;
         // Forest density field: sizes each forest tile's wood pile so stands vary
         // (a few big trees, many small ones) rather than every tile holding the
@@ -96,8 +95,8 @@ private:
         };
         Sample sampleAt(const sf::Vector2i& tile) const;
 
-        // Warp a tile coordinate through the shared domain-warp field, giving the
-        // natural, non-linear coastlines and river bends instead of noise-grid bands.
+        // Warp a tile coordinate through the shared domain-warp field, giving
+        // natural, non-linear coastlines instead of noise-grid bands.
         sf::Vector2f warp(const sf::Vector2i& tile) const;
 
         float islandFalloff(const sf::Vector2i& tile) const;

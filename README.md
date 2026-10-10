@@ -130,7 +130,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `1` | Spawn a generic human entity |
 | Mouse hover | Inspect the tile under the cursor and show its info box |
 | Left click | Paint the tile under the cursor (map edit debug) |
-| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, rivers, lakes and ore (each slider has a one-line description) |
+| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, lakes and ore (each slider has a one-line description); preset buttons (Earth, Pangaea, Archipelago) apply a whole world in one click |
 
 ## Running in a browser (remote display)
 
@@ -307,19 +307,17 @@ Retired from the roadmap; kept here as a record.
   only when an entity enters a new tile, which cuts the per-frame vision scan from
   every entity every frame to roughly once per tile traversed.
 - [x] **Map depth.** Tile-space coordinates end to end; `tile_types` is
-  authoritative and edits rebuild the chunk mesh; island/river/lake/height-range
+  authoritative and edits rebuild the chunk mesh; island/lake/height-range
   options; one noise field per resource; `getElementAtWorld` for post-edit
   queries; split sampling into `GenerateTerrain` + `MapConfig` + `Chunk.h`.
   Terrain reads as an Earth-like map from a layered pipeline (domain warp ->
   continent -> ridged mountain belts -> climate biomes): latitude-driven
   temperature and a moisture field pick forest/hill/desert bands, ridged belts
-  raise snow-capped ranges, rivers follow the smooth zero crossing of a
-  low-frequency field (long and meandering, not straight parallel bands), and
-  discrete lake basins sit in the low ground. Every knob is a single, described
-  HUD slider (land amount, continent size, coast roughness, mountain height and
-  width, temperature, rainfall, snow line, river density and size, lake level and
-  size, ore richness) backed by a `MapConfig` field, and a deliberately dark,
-  desaturated palette keeps it from looking psychedelic.
+  raise snow-capped ranges, and discrete lake basins sit in the low ground.
+  Every knob is a single, described HUD slider (land amount, continent size,
+  coast roughness, mountain height and width, temperature, rainfall, snow line,
+  lake level and size, ore richness) backed by a `MapConfig` field, and a
+  deliberately dark, desaturated palette keeps it from looking psychedelic.
 - [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; sleep is the
   only per-entity survival need (hunger and thirst are gone), while food is a
   settlement resource eaten once per person per day. The settlement's shared map

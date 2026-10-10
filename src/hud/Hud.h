@@ -148,6 +148,10 @@ public:
 	// Relabel a button by the function name it was bound to, so a control whose
 	// meaning flips (Pause / Play) can update its own text.
 	void setButtonLabel(const std::string& functionName, const std::string& label);
+	// Drive a slider from code, by the function name it was bound to. Used by
+	// presets (and tests) to move the handle and fire the change callback as a
+	// drag would. Returns false when no slider carries that name.
+	bool setSliderValue(const std::string& functionName, float value);
 	// Attach the game clock the built-in time controls act on.
 	void setClock(std::shared_ptr<GameClock> clock) { m_clock = std::move(clock); }
 
