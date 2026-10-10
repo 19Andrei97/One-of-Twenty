@@ -142,7 +142,7 @@ int main()
     std::printf("run summary: %s\n", em.runSummary().format().c_str());
     std::printf("population: %d  capacity: %d  births: %d  deaths: %d\n",
                 em.population(), em.populationCapacity(), em.births(), em.deaths());
-    std::printf("knowledge: explored=%d known=%d\n",
+    std::printf("knowledge: explored=%zu known=%zu\n",
                 em.knowledge().exploredCells(), em.knowledge().knownLocations());
     std::printf("buildings scanned: %zu\n", buildings.size());
     for (const auto& [k, v] : counts)
