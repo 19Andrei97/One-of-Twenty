@@ -87,7 +87,7 @@ TEST_CASE("loadEntityConfig reads the survival block")
     const EntityConfig cfg = loadEntityConfig(entityConfigPath());
 
     CHECK(cfg.survival.initial_population == 8);
-    CHECK(cfg.survival.max_population == 120);
+    CHECK(cfg.survival.max_population == 20);
     CHECK(cfg.survival.lethal_days_without_food == 3);
     CHECK(cfg.survival.food_per_person_per_day == 1);
     // Lifespan is authored in years and stored in hours.

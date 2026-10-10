@@ -57,3 +57,34 @@ if(OpenGL_FOUND)
 endif()
 
 add_test(NAME unit_tests COMMAND unit_tests)
+
+# A long-horizon soak harness: runs the real update loop for 1000 in-game days
+# and reports growth and village shape. Built but not registered with ctest, so
+# it does not slow the suite; run it by hand (`./bin/sim_1000days` under xvfb).
+add_executable(sim_1000days sim_1000days.cpp)
+target_include_directories(sim_1000days PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/helpers
+    ${CMAKE_SOURCE_DIR}/src/pch
+    ${CMAKE_SOURCE_DIR}/src/entity_manager
+    ${CMAKE_SOURCE_DIR}/src/hud
+    ${CMAKE_SOURCE_DIR}/src/game
+    ${CMAKE_SOURCE_DIR}/src/camera
+    ${CMAKE_SOURCE_DIR}/src/components
+)
+target_compile_definitions(sim_1000days PRIVATE
+    ONE_OF_TWENTY_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+target_link_libraries(sim_1000days PRIVATE
+    nlohmann_json::nlohmann_json
+    spdlog::spdlog
+    SFML::System
+    SFML::Graphics
+    SFML::Window
+    MapGenerator
+    EntityManager
+    Hud
+    Game
+)
+if(OpenGL_FOUND)
+    target_link_libraries(sim_1000days PRIVATE OpenGL::GL)
+endif()

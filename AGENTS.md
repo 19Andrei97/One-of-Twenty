@@ -103,9 +103,9 @@ A run that is killed by `timeout` (exit 124) is a success; check
   `Settlement` block). `EntityManager` places sites by spending the catalog cost
   and writing the element into `tile_types`, then builders finish them over
   `build_hours`. `populationCapacity()` is the entity config's
-  `survival.max_population` base plus each *completed* building's
-  `population_capacity` bonus, so houses raise the cap and an incomplete site
-  does not. `Buildings::walkCost(element, catalog)` layers the catalog override
+  `survival.max_population` base plus each *completed housing def's*
+  `population_capacity` bonus (a def with `population_capacity > 0`), so houses
+  raise the cap and an incomplete site does not. `Buildings::walkCost(element, catalog)` layers the catalog override
   over `MoveCost` for both movement and pathfinding. Keep catalog lookups by
   `byId`/`byElement`, not by rebuilding maps.
 - Building placement goes through one rule, `EntityManager::canBuildOn`, which
@@ -128,11 +128,43 @@ A run that is killed by `timeout` (exit 124) is a success; check
   derived from `Random`, so a whole run's layout depends on the global MT state.
 - Housing is demand-gated: `Buildings::housesWanted(heads, capacity, per_house)`
   is the pure rule (a def is housing when `population_capacity > 0`), and
-  `planConstruction` only raises a house while the settlement is short of beds
-  (plus a two-bed buffer), so it never spends wood on capacity nobody needs. The
+  `planConstruction` only raises a house while the settlement has no free bed
+  (plus a one-house buffer), so it never spends wood on capacity nobody needs.
+  The rule fires at `heads >= capacity`, not `heads > capacity`: births stop *at*
+  capacity, so waiting for a shortfall would deadlock growth (the settlement could
+  never raise the house that lets it grow). `planConstruction` counts placed
+  housing excluding the anchor, because the city center's beds are already in
+  `capacity`; counting it would let the anchor satisfy the demand alone and no
+  house would ever go up. The
   per-house size is the housing def's own `population_capacity` (shipped 30),
   which is also what `populationCapacity()` adds once the house is complete;
-  `survival.max_population` in the entity config stays the founding base cap.
+  `survival.max_population` in the entity config stays the founding base cap
+  (shipped 20, so the first houses are demanded early rather than at a distant cap).
+  `populationCapacity()` must add `rolled_value` for *housing defs only*: a farm's
+  rolled value is its food reach, so counting it would let every farm inflate the
+  cap, inviting the births that demand the next farm (the endless-farm loop).
+- Food is demand-gated too: `planConstruction` raises a farm only while the
+  *completed* farms' summed `rolled_value` (their reach) falls short of the people
+  present AND the store is not already comfortable. `Buildings::needsFoodProducer`
+  has a stock-aware overload taking `stockedFood`/`dailyPerPerson`/`reserveDays`
+  (`economy.food_reserve_days`, shipped 3): a granary covering every mouth for that
+  many days suppresses new farms entirely, so a fed settlement stops spending wood
+  on food it has. At most one farm is ever under construction, and only completed
+  reach counts, so an in-progress site cannot suppress the next farm and starve the
+  settlement. Keep the store gate a pure function of the stock, not a timer.
+- A farm *yields* its rolled reach: `produceGoods` credits a completed food
+  producer (`feeds_population > 0`) its `rolled_value` food per in-game day, a
+  24th per hourly step with the remainder carried in `PlacedBuilding::food_progress`
+  so the daily total is exact for any reach. Do not go back to running the farm's
+  recipe once an hour: that flat 24/day starved any settlement past ~20 people and
+  made the planner raise farms that could not close the gap. A def with no rolled
+  reach (a unit-test farm) still falls back to `Buildings::produceOnce`, so the
+  pure-recipe path is unchanged for it.
+- `Def::hasRecipes()` (recipes not empty) is what marks a workshop-like producer;
+  a farm carries a recipe too but is labour, so distinguish the two by
+  `feeds_population`, not by the element. Workshops have no demand signal (nothing
+  consumes planks/tools yet), so they are bounded by `max_count` in the catalog
+  (shipped 4); without a cap they spam the village.
 - Entity appearance is data-driven: `helpers/Appearance.h` holds a `Look`
   (shape/color/outline/size) and builds the `CShape` circle; the `appearance`
   block in `config/entity_data.json` configures it per entity type (`types`) and

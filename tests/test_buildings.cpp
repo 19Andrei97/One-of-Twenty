@@ -206,8 +206,11 @@ TEST_CASE("housesWanted raises a house once the housing is full")
 {
     // No shortfall: no houses wanted, however many people.
     CHECK(Buildings::housesWanted(0, 120, 30) == 0);
-    CHECK(Buildings::housesWanted(120, 120, 30) == 0);
     CHECK(Buildings::housesWanted(50, 120, 30) == 0);
+
+    // At capacity the beds are full, so one house goes up to make room to grow
+    // (births stop at capacity, so waiting for a shortfall would deadlock).
+    CHECK(Buildings::housesWanted(120, 120, 30) == 1);
 
     // A shortfall wants enough houses to cover it plus one to spare (the house is
     // full, so another goes up).
@@ -229,6 +232,26 @@ TEST_CASE("needsFoodProducer sizes the food to the housing")
     // Short of the people the settlement could house: one more producer is wanted.
     CHECK(Buildings::needsFoodProducer(360, 340));
     CHECK(Buildings::needsFoodProducer(60, 0));
+}
+
+TEST_CASE("a comfortable store suppresses another food producer")
+{
+    // 60 people eat 1 each a day; a 3-day reserve is 180. A store that covers it
+    // makes a new farm redundant even though the standing reach falls short.
+    CHECK_FALSE(Buildings::needsFoodProducer(60, 0, 180, 1, 3));
+    CHECK_FALSE(Buildings::needsFoodProducer(60, 0, 500, 1, 3));
+
+    // Short of the reserve: the head-count shortfall still wants a producer.
+    CHECK(Buildings::needsFoodProducer(60, 0, 179, 1, 3));
+
+    // The gate only opens the door; a settlement whose authors are already covered
+    // still wants none, however small the store.
+    CHECK_FALSE(Buildings::needsFoodProducer(60, 60, 0, 1, 3));
+
+    // A disabled reserve or a zero appetite falls back to the plain head-count
+    // test, so an old config is unchanged.
+    CHECK(Buildings::needsFoodProducer(60, 0, 10000, 1, 0));
+    CHECK(Buildings::needsFoodProducer(60, 0, 10000, 0, 3));
 }
 
 TEST_CASE("a def's allowed_terrain narrows where it may stand")

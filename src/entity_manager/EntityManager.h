@@ -98,6 +98,10 @@ class EntityManager
                 // The size rolled when the site was started: people housed for a
                 // house, people fed for a food producer. Zero for anything else.
                 int          rolled_value{ 0 };
+                // A food producer grows `rolled_value` food per in-game day. The
+                // hourly pass adds a 24th of that, so this carries the remainder
+                // between hours and the daily total is exact for any reach.
+                int          food_progress{ 0 };
         };
         std::vector<PlacedBuilding>             m_buildings;
 
@@ -385,6 +389,9 @@ public:
         // The economy's stores, for the HUD and tests.
         int good(const Goods::Good which) const { return m_goods.count(which); }
         const Goods::Stock& goods() const { return m_goods; }
+        // Credit the stock directly, so a test (or a future gift/trade effect) can
+        // seed a store without routing through a gather.
+        void addGoods(const Goods::Good which, const int amount) { m_goods.add(which, amount); }
         int foodProduced() const { return m_food_produced; }
         int buildingCount() const { return static_cast<int>(m_buildings.size()); }
         int completedBuildingCount() const;
