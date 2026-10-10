@@ -7,14 +7,13 @@
 // on which tiles are drinkable or worth gathering.
 namespace Resources
 {
-    // Drinkable fresh/surface water: the surface ocean, a lake or a river. Deep
-    // water is not reachable on foot. Lakes and rivers are walkable, so an
+    // Drinkable fresh/surface water: the surface ocean or a lake. Deep
+    // water is not reachable on foot. Lakes are walkable, so an
     // entity can stand on their bank and drink.
     inline constexpr bool isWater(const Elements element) noexcept
     {
         return element == Elements::ocean
-            || element == Elements::lake
-            || element == Elements::river;
+            || element == Elements::lake;
     }
 
     // Any water, including the deep ocean an entity cannot stand in. Used by
@@ -98,7 +97,6 @@ namespace Resources
             case Elements::iron:            return "iron";
             case Elements::silver:          return "silver";
             case Elements::lake:            return "lake";
-            case Elements::river:           return "river";
             case Elements::farm:            return "farm";
             case Elements::workshop:        return "workshop";
             case Elements::house:           return "house";

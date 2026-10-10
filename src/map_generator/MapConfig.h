@@ -19,7 +19,7 @@
 //   Land        land_amount, continent_size, coast_roughness
 //   Mountains   mountain_height, mountain_scale
 //   Climate     temperature, rainfall, snow_line
-//   Water       river_density, river_size, lake_level, lake_size
+//   Water       lake_level, lake_size
 //   Resources   ore_richness
 //
 // Loaded once from config/map_data.json and shared read-only by the terrain
@@ -59,14 +59,9 @@ struct MapConfig
         float                           snow_line{ 0.95f };
 
         // --- Water ---
-        // Rivers and lakes can be switched off entirely (used to isolate them in
-        // tests and to build a deliberately dry world); both default on.
-        bool                            river_enabled{ true };
+        // Inland lakes can be switched off entirely (used to isolate terrain in
+        // tests); they default on.
         bool                            lake_enabled{ true };
-        // How many rivers are carved: higher values widen the channels.
-        float                           river_density{ 0.012f };
-        // River meander scale: small values give long, sweeping rivers.
-        float                           river_size{ 0.0035f };
         // Height of the water table for inland lakes: higher floods more basins.
         float                           lake_level{ 0.3f };
         // How readily a low basin becomes a lake: higher gives larger, fewer.
@@ -130,19 +125,11 @@ inline MapConfig loadMapConfig(const std::string& path)
         cfg.rainfall         = js_map.value("rainfall", cfg.rainfall);
         cfg.snow_line        = js_map.value("snow_line", cfg.snow_line);
 
-        // Water. Rivers/lakes also accept the older nested `river`/`lake` blocks
-        // with an `enabled` flag, so existing configs keep working.
-        cfg.river_density    = js_map.value("river_density", cfg.river_density);
-        cfg.river_size       = js_map.value("river_size", cfg.river_size);
+        // Water. Lakes also accept the older nested `lake` block with an
+        // `enabled` flag, so existing configs keep working.
         cfg.lake_level       = js_map.value("lake_level", cfg.lake_level);
         cfg.lake_size        = js_map.value("lake_size", cfg.lake_size);
 
-        if (js_map.contains("river"))
-        {
-                cfg.river_enabled = js_map["river"].value("enabled", cfg.river_enabled);
-                cfg.river_density = js_map["river"].value("threshold", cfg.river_density);
-                cfg.river_size    = js_map["river"].value("freq", cfg.river_size);
-        }
         if (js_map.contains("lake"))
         {
                 cfg.lake_enabled = js_map["lake"].value("enabled", cfg.lake_enabled);

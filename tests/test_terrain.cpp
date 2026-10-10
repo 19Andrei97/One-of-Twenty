@@ -66,7 +66,6 @@ TEST_CASE("generated worlds are Earth-like: land, sea, mountains, biomes and ore
 
     // Inland fresh water is carved and is rarer than the sea.
     CHECK(countOf(Elements::lake) > 0);
-    CHECK(countOf(Elements::river) > 0);
 
     // All three ores are present but scarce.
     CHECK(countOf(Elements::clay) > 0);

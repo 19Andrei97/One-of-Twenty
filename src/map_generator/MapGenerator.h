@@ -125,8 +125,6 @@ public:
 	void setRainfall(float value)            { m_config.rainfall = value; }
 	void setSnowLine(float value)            { m_config.snow_line = value; }
 
-	void setRiverDensity(float density)      { m_config.river_density = density; }
-	void setRiverSize(float size)            { m_config.river_size = size; }
 	void setLakeLevel(float level)           { m_config.lake_level = level; }
 	void setLakeSize(float size)             { m_config.lake_size = size; }
 
@@ -163,7 +161,6 @@ public:
 		LOG_INFO("Mountain height: {}.", m_config.mountain_height);
 		LOG_INFO("Temperature: {}.", m_config.temperature);
 		LOG_INFO("Rainfall: {}.", m_config.rainfall);
-		LOG_INFO("River density: {}.", m_config.river_density);
 	}
 
 	// GETTERS

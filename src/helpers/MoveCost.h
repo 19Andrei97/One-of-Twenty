@@ -42,7 +42,6 @@ namespace MoveCost
 
             // Inland fresh water is walkable (wading) but slower than the bank.
             case Elements::lake:            return 0.3f;
-            case Elements::river:           return 0.35f;
 
             // Built structures sit on cleared ground and are quick to cross.
             case Elements::farm:            return kDefault;

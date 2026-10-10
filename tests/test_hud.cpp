@@ -54,8 +54,6 @@ TEST_CASE("Hud registers default callbacks and checks existence")
     CHECK(hud.hasSliderCallback("temperature"));
     CHECK(hud.hasSliderCallback("rainfall"));
     CHECK(hud.hasSliderCallback("snow_line"));
-    CHECK(hud.hasSliderCallback("river_density"));
-    CHECK(hud.hasSliderCallback("river_size"));
     CHECK(hud.hasSliderCallback("lake_level"));
     CHECK(hud.hasSliderCallback("lake_size"));
     CHECK(hud.hasSliderCallback("ore_richness"));

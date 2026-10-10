@@ -46,7 +46,6 @@ void Hud::registerDefaultCallbacks()
                         { "land_amount", 0.35f }, { "continent_size", 0.0015f }, { "coast_roughness", 0.60f },
                         { "mountain_height", 0.45f }, { "mountain_scale", 0.012f },
                         { "temperature", 0.50f }, { "rainfall", 0.50f }, { "snow_line", 0.90f },
-                        { "river_density", 0.012f }, { "river_size", 0.0035f },
                         { "lake_level", 0.30f }, { "lake_size", 0.62f }, { "ore_richness", 0.55f },
                 });
         });
@@ -55,7 +54,6 @@ void Hud::registerDefaultCallbacks()
                         { "land_amount", 0.32f }, { "continent_size", 0.0035f }, { "coast_roughness", 0.75f },
                         { "mountain_height", 0.35f }, { "mountain_scale", 0.020f },
                         { "temperature", 0.58f }, { "rainfall", 0.62f }, { "snow_line", 0.95f },
-                        { "river_density", 0.008f }, { "river_size", 0.0045f },
                         { "lake_level", 0.32f }, { "lake_size", 0.62f }, { "ore_richness", 0.50f },
                 });
         });
@@ -64,7 +62,6 @@ void Hud::registerDefaultCallbacks()
                         { "land_amount", 0.46f }, { "continent_size", 0.0007f }, { "coast_roughness", 0.45f },
                         { "mountain_height", 0.60f }, { "mountain_scale", 0.008f },
                         { "temperature", 0.48f }, { "rainfall", 0.38f }, { "snow_line", 0.85f },
-                        { "river_density", 0.016f }, { "river_size", 0.0028f },
                         { "lake_level", 0.28f }, { "lake_size", 0.58f }, { "ore_richness", 0.60f },
                 });
         });
@@ -135,18 +132,6 @@ void Hud::registerDefaultCallbacks()
         registerSliderCallback("snow_line", [this, onMapChanged](float val) {
                 if (m_map)
                         m_map->setSnowLine(val);
-                onMapChanged();
-        });
-
-        registerSliderCallback("river_density", [this, onMapChanged](float val) {
-                if (m_map)
-                        m_map->setRiverDensity(val);
-                onMapChanged();
-        });
-
-        registerSliderCallback("river_size", [this, onMapChanged](float val) {
-                if (m_map)
-                        m_map->setRiverSize(val);
                 onMapChanged();
         });
 
