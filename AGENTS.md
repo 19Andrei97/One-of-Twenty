@@ -61,6 +61,10 @@ that keeps a settlement thriving.
 
 ## Conventions and gotchas
 
+- Windows SDK headers define `near`/`far` (and `min`/`max`) as macros, so a
+  test or source must not use those exact words as identifiers: MSVC expands
+  them to nothing and the line fails to parse (a clean GCC/Clang build hides
+  this). Use e.g. `near_entity`.
 - Most `.cpp` files include `<pch.h>` first; it aggregates the common headers.
   A header used directly by a test must be self-contained (include what it
   uses), because tests do not go through the pch.

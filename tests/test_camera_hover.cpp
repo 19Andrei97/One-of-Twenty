@@ -63,12 +63,14 @@ TEST_CASE("the hover readout resolves the entity under the pointer")
     EntityManager entities(font, map, clock, delta, configPath("entity_data.json"));
 
     const sf::Vector2i spawn = entities.findHabitableSpawn();
-    const entt::entity near = entities.addEntity(EntityType::Human_Generic, spawn);
-    const entt::entity far = entities.addEntity(EntityType::Human_Generic, spawn + sf::Vector2i{ 200, 200 });
+    // `near`/`far` are macros in the Windows SDK headers (they expand to nothing),
+    // so the identifiers must not be those exact words or MSVC fails to compile.
+    const entt::entity near_entity = entities.addEntity(EntityType::Human_Generic, spawn);
+    const entt::entity far_entity = entities.addEntity(EntityType::Human_Generic, spawn + sf::Vector2i{ 200, 200 });
 
-    CHECK(entities.entityAtWorld(spawn) == near);
-    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 2, 0 }) == near);
-    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 200, 200 }) == far);
+    CHECK(entities.entityAtWorld(spawn) == near_entity);
+    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 2, 0 }) == near_entity);
+    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 200, 200 }) == far_entity);
     CHECK_FALSE(entities.entityAtWorld(spawn + sf::Vector2i{ 100, 100 }).has_value());
 }
 
