@@ -1,5 +1,6 @@
 #include "EntityConfig.h"
 #include "EntityManager.h"
+#include "MapStream.h"
 #include "Random.h"
 #include "Resources.h"
 
@@ -49,6 +50,10 @@ TEST_CASE("entities never stand in the ocean during a run")
     EntityManager entities(font, map, clock, delta, entityConfigPath());
     entities.seedPopulation();
 
+    // Stream the neighbourhood in (as the game loop does) so the settlement can
+    // found a farm and feed itself; otherwise it starves within the run.
+    TestSupport::primeChunks(*map, frames, entities.findHabitableSpawn(), 512);
+
     const int tileSize = map->getTileSize();
     for (int frame = 0; frame < 60 * 24 * 3; ++frame)
     {
@@ -93,12 +98,11 @@ TEST_CASE("collision separates entities that share a position")
         }
 }
 
-TEST_CASE("the settlement drinks: thirst is replenished during a run")
+TEST_CASE("the settlement sleeps: fatigue is reset during a run")
 {
-    // Directly verifies the water-target approach: over a few days some entity's
-    // thirst must reset upward (a drink), which only happens if it reached a
-    // shore tile next to the sea. Sampling hourly catches the reset because a
-    // drink fills the need and it then decays slowly.
+    // Directly verifies the sleep action: over a few days some entity's fatigue
+    // must drop sharply (a completed sleep resets it to zero). Sampling hourly
+    // catches the reset because fatigue otherwise only rises.
     //
     // Randomness is clock-seeded, so seed it here to keep the run repeatable.
     Random::mt.seed(20241007);
@@ -113,9 +117,9 @@ TEST_CASE("the settlement drinks: thirst is replenished during a run")
     EntityManager entities(font, map, clock, delta, entityConfigPath());
     entities.seedPopulation();
 
-    bool drank = false;
-    int previousThirst = -1;
-    for (int hour = 0; hour < 24 * 3 && !drank; ++hour)
+    bool slept = false;
+    int previousSleep = -1;
+    for (int hour = 0; hour < 24 * 3 && !slept; ++hour)
     {
         for (int step = 0; step < 60; ++step)
         {
@@ -127,17 +131,17 @@ TEST_CASE("the settlement drinks: thirst is replenished during a run")
         const auto needs = entities.firstNeeds();
         if (needs)
         {
-            if (previousThirst >= 0 && needs->thirst > previousThirst)
-                drank = true;
-            previousThirst = needs->thirst;
+            if (previousSleep > 0 && needs->sleep < previousSleep)
+                slept = true;
+            previousSleep = needs->sleep;
         }
         else
         {
-            previousThirst = -1; // first entity died; resample the next one
+            previousSleep = -1; // first entity died; resample the next one
         }
     }
 
-    CHECK(drank);
+    CHECK(slept);
     for (const auto& pos : entities.entityPositions())
     {
         const auto tile = CoordMath::worldToTile(pos, map->getTileSize());

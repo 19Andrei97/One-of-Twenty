@@ -53,13 +53,14 @@ inline constexpr std::size_t kGoodCount = static_cast<std::size_t>(Good::Count);
     }
 }
 
-// The raw good a gatherable terrain element yields. Returns Wood for anything
-// that is not a known raw deposit, so a caller never has to special-case a
-// building tile (those are handled by the recipes, not here).
+// The raw good a gatherable terrain element yields. A farm is worked for food;
+// a forest yields wood, a hill stone, the ore tiles their metal. Returns Wood
+// for anything else, so a caller never has to special-case a building tile.
 [[nodiscard]] inline Good fromElement(const Elements element) noexcept
 {
     switch (element)
     {
+        case Elements::farm:   return Good::Food;
         case Elements::forest: return Good::Wood;
         case Elements::hill:   return Good::Stone;
         case Elements::clay:   return Good::Clay;
@@ -124,8 +125,9 @@ struct Stock
     switch (job)
     {
         case Jobs::Job::Farmer:
-            if (element == Elements::forest) return 0;      // forage
-            if (element == Elements::hill)   return 1;
+            if (element == Elements::farm)   return 0;      // work a farm for food
+            if (element == Elements::forest) return 1;      // gather wood to build one
+            if (element == Elements::hill)   return 2;
             return -1;
 
         case Jobs::Job::Lumberjack:

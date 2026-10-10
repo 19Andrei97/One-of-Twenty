@@ -67,7 +67,7 @@ class EntityManager
 
         // Settlement stores, plus a count of completed gathers so progress is
         // observable (HUD / tests). Goods are the economy's currency: raw gathers
-        // and crafted production both land here, and eating/spoilage draw from it.
+        // and crafted production both land here, and food/spoilage draw from it.
         Goods::Stock                            m_goods;
         int                                     m_gathers_completed{ 0 };
         int                                     m_food_produced{ 0 };
@@ -207,19 +207,16 @@ class EntityManager
         // How many placed buildings use a given def index (for max_count checks).
         int countOf(std::size_t def_index) const;
 
-        // Withdraw one unit of `element` from the settlement stores if any is
-        // held, so eating/drinking can be gated on supply. Returns false when the
-        // stores are empty (the entity then falls back to foraging the tile).
-        bool consumeFromStockpile(Elements element);
-
         // Population dynamics, run once per in-game hour. `ageEntities` advances
-        // lifespan, `applyHealth` drains/restores health from the needs,
-        // `killTheDying` removes entities whose health or lifespan ran out, and
-        // `tryBirths` adds newborns from comfortable adults.
+        // lifespan, `applyHealth` drains/restores health from a food shortfall, and
+        // `killTheDying` removes entities whose health or lifespan ran out.
+        // `consumeFoodDaily` runs once per in-game day: it draws one food per
+        // person from the store and charges each unfed entity a day of hunger.
         void decayNeeds(std::int64_t hourIndex);
         void ageEntities();
         void applyHealth();
         void killTheDying();
+        void consumeFoodDaily();
         void tryBirths();
 
         // Log a resource the first time the settlement remembers it, so a run

@@ -37,6 +37,12 @@ public:
         // Resource noise value in [0,1]. Returns 0 for a non-resource element.
         float resourceValue(const sf::Vector2i& world, Elements resource) const;
 
+        // How much wood a forest tile holds. A deterministic pseudo-random amount
+        // in [tree_wood_min, tree_wood_max], derived from a dedicated noise field
+        // so a forest reads as many differently sized stands. Only meaningful for
+        // a forest tile; other tiles return 0.
+        int treeAmountAtTile(const sf::Vector2i& tile) const;
+
         // Composed land elevation in [0,1] at a tile, after warping, mountain
         // belts, the configured height range and island falloff. Exposed so
         // callers can tell a basin (a lake sits in one) from a peak without
@@ -73,6 +79,10 @@ private:
         FastNoiseLite                   m_noise_silver;
         FastNoiseLite                   m_noise_river;
         FastNoiseLite                   m_noise_lake;
+        // Forest density field: sizes each forest tile's wood pile so stands vary
+        // (a few big trees, many small ones) rather than every tile holding the
+        // same amount.
+        FastNoiseLite                   m_noise_tree;
 
         // The warped coordinate for a tile plus the composed elevation and the
         // climate values, computed together so a full sample touches each noise

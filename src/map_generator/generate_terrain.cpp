@@ -75,6 +75,11 @@ GenerateTerrain::GenerateTerrain(const MapConfig& config)
         m_noise_lake.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
         m_noise_lake.SetFractalType(FastNoiseLite::FractalType_FBm);
 
+        // Forest density: a mid-frequency field so neighbouring forest tiles hold
+        // noticeably different amounts of wood.
+        m_noise_tree.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+        m_noise_tree.SetFractalType(FastNoiseLite::FractalType_FBm);
+
         setSeed(m_config.seed);
 }
 
@@ -127,6 +132,11 @@ void GenerateTerrain::setSeed(int seed)
 
         m_noise_lake.SetSeed(seed + 6);
         m_noise_lake.SetFrequency(0.004f);
+
+        m_noise_tree.SetSeed(seed + 11);
+        // A per-tile scale so neighbouring stands differ; high enough that a
+        // forest reads as a mosaic instead of one uniform amount.
+        m_noise_tree.SetFrequency(0.35f);
 }
 
 /*
@@ -370,4 +380,18 @@ float GenerateTerrain::resourceValue(const sf::Vector2i& coord, Elements resourc
         // here matches elementAtTile exactly; `ore_richness` only shifts the
         // threshold there and must not scale the sampling here.
         return (field->GetNoise(warped.x, warped.y) + 1.0f) * 0.5f;
+}
+
+int GenerateTerrain::treeAmountAtTile(const sf::Vector2i& tile) const
+{
+        const int lo = std::min(m_config.tree_wood_min, m_config.tree_wood_max);
+        const int hi = std::max(m_config.tree_wood_min, m_config.tree_wood_max);
+        if (hi <= lo)
+                return std::max(1, lo);
+
+        const sf::Vector2f warped = warp(tile);
+        const float value = (m_noise_tree.GetNoise(warped.x, warped.y) + 1.0f) * 0.5f;
+        const int span = hi - lo + 1;
+        const int amount = lo + static_cast<int>(value * static_cast<float>(span));
+        return std::clamp(amount, lo, hi);
 }

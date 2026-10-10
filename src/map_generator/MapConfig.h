@@ -75,6 +75,11 @@ struct MapConfig
         // --- Resources ---
         // How abundant ore deposits are: higher values grow the deposits.
         float                           ore_richness{ 0.15f };
+        // How much wood a single forest tile holds. Each tile's pile is a
+        // deterministic pseudo-random amount in [tree_wood_min, tree_wood_max]; a
+        // gatherer takes one per trip and clears the stand to a hill at zero.
+        int                             tree_wood_min{ 1 };
+        int                             tree_wood_max{ 5 };
 
         // --- Shaping (not player-facing) ---
         // Radial falloff so the world is an island surrounded by ocean.
@@ -147,6 +152,10 @@ inline MapConfig loadMapConfig(const std::string& path)
 
         // Resources.
         cfg.ore_richness     = js_map.value("ore_richness", cfg.ore_richness);
+        cfg.tree_wood_min    = js_map.value("tree_wood_min", cfg.tree_wood_min);
+        cfg.tree_wood_max    = js_map.value("tree_wood_max", cfg.tree_wood_max);
+        if (cfg.tree_wood_max < cfg.tree_wood_min)
+                std::swap(cfg.tree_wood_min, cfg.tree_wood_max);
 
         for (const auto& [key, value] : js_map["elements"].items()) {
                 cfg.biome_colors[static_cast<std::size_t>(std::stoi(key))] = {

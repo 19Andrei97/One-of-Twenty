@@ -67,13 +67,17 @@ void EntityManager::update()
         }
         m_last_survival_tick = now;
 
-        // Spoilage runs once per in-game day, not per hour, so a store of food
-        // decays at a steady rate regardless of how many hours a frame spans.
+        // The daily food pass: the settlement consumes one food per person and any
+        // entity that could not be fed accrues a hungry day, while a fed entity has
+        // its hunger streak reset. Running it per crossed day (not per hour) keeps
+        // consumption and hunger on one a-day cadence; spoilage follows on the same
+        // boundary.
         const std::int64_t dayIndex = now / GameTime::kMinutesPerDay;
         if (m_last_spoilage_day < 0)
                 m_last_spoilage_day = dayIndex;
         else if (dayIndex > m_last_spoilage_day)
         {
+                consumeFoodDaily();
                 spoilFood();
                 m_last_spoilage_day = dayIndex;
         }
@@ -242,29 +246,10 @@ void EntityManager::update()
                 const auto& front = queue.actions.front();
                 const std::int64_t elapsed = m_game_clock->getTimestamp();
 
-                if (auto action = std::dynamic_pointer_cast<CEating>(front); action
+                if (auto action = std::dynamic_pointer_cast<CSleeping>(front); action
                         && elapsed - action->timestamp_min > action->duration_min)
                 {
-                        // Draw a meal from the settlement's food store. The action
-                        // still satisfies hunger when the store is empty, so a
-                        // settlement run short of food is a food *shortage* (mood
-                        // and production), not an instant death loop.
-                        m_goods.take(Goods::Good::Food, Economy::kMealFoodCost);
-                        needs.satisfy(1);
-                        std::lock_guard<std::mutex> lock(m_mutex);
-                        queue.actions.pop_front();
-                }
-                else if (auto action = std::dynamic_pointer_cast<CDrinking>(front); action
-                        && elapsed - action->timestamp_min > action->duration_min)
-                {
-                        needs.satisfy(0);
-                        std::lock_guard<std::mutex> lock(m_mutex);
-                        queue.actions.pop_front();
-                }
-                else if (auto action = std::dynamic_pointer_cast<CSleeping>(front); action
-                        && elapsed - action->timestamp_min > action->duration_min)
-                {
-                        needs.satisfy(2);
+                        needs.satisfySleep();
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
                 }
@@ -273,13 +258,23 @@ void EntityManager::update()
                 {
                         // The gather produced a unit: carry it, then deposit it into
                         // the settlement stores as the good its tile yields, and
-                        // tally the completed trip.
+                        // tally the completed trip. A forest tile is a finite pile of
+                        // wood: deplete it and, once exhausted, clear it to a hill.
                         inventory.gather();
                         const Elements yielded = action->element;
                         m_goods.add(Goods::fromElement(yielded), inventory.deposit());
                         ++m_gathers_completed;
-                        m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
-                                        1, Goods::name(Goods::fromElement(yielded)));
+                        if (yielded == Elements::forest)
+                        {
+                                const int remaining = m_map->harvestWood(action->tile);
+                                m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
+                                                1, remaining == 0 ? "Wood (stand cleared)" : Goods::name(Goods::Good::Wood));
+                        }
+                        else
+                        {
+                                m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
+                                                1, Goods::name(Goods::fromElement(yielded)));
+                        }
 
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
@@ -325,34 +320,21 @@ void EntityManager::update()
                         idle = 0;
 
                         // Survival first: a busy entity drops a non-survival plan
-                        // (a long gather trip, a wander) for a need that has turned
-                        // critical, so a long trip cannot starve it. A plan that is
-                        // already addressing a survival need is left alone, so two
-                        // pressing needs cannot ping-pong the entity between them.
-                        const bool busySurviving = queueHasAction(queue, ActionTypes::Eating)
-                                                || queueHasAction(queue, ActionTypes::Drinking)
-                                                || queueHasAction(queue, ActionTypes::Sleeping);
+                        // (a long gather trip, a wander) for sleep once it turns
+                        // urgent, so a long trip cannot exhaust it. A plan that is
+                        // already a sleep is left alone.
+                        const bool busySurviving = queueHasAction(queue, ActionTypes::Sleeping);
                         if (!busySurviving)
                         {
                                 const auto& front = queue.actions.front();
                                 const ActionTypes current = front ? front->action_name : ActionTypes::Idle;
                                 const auto urgent = EntityDecision::interruptFor(needs, personality, m_config.decision, current);
 
-                                // Only bother when the urgent need's action is not
-                                // already on the way (the entity may be walking to
-                                // it), and there is something to head for: sleeping
-                                // needs no target, thirst needs remembered water and
-                                // hunger remembered food. Without the target check a
-                                // need with nothing remembered would re-plan an
-                                // explore every frame instead of working toward it.
-                                bool hasTarget = urgent.has_value();
-                                if (urgent == EntityDecision::Need::Thirst)
-                                        hasTarget = m_knowledge.findNearest(trs.pos, CivKnowledge::Kind::Water).has_value();
-                                else if (urgent == EntityDecision::Need::Hunger)
-                                        hasTarget = m_knowledge.findNearest(trs.pos, CivKnowledge::Kind::Food).has_value();
-
-                                if (urgent && hasTarget
-                                        && !queueHasAction(queue, EntityDecision::actionFor(*urgent)))
+                                // Sleep needs no target (the entity lies down where
+                                // it stands), so any urgent sleep is actionable. The
+                                // check below only skips re-planning an action that
+                                // is already on the way.
+                                if (urgent && !queueHasAction(queue, EntityDecision::actionFor(*urgent)))
                                 {
                                         // Plan the interruption transactionally: keep
                                         // the old plan unless the new one actually
@@ -403,27 +385,24 @@ void EntityManager::update()
         {
                         if (info.text.empty())
                         {
-                                addTextToEntityInfo(info.text, "Hunger: 100", info.size, info.text_color);
-                                addTextToEntityInfo(info.text, "Thirst: 100", info.size, info.text_color);
                                 addTextToEntityInfo(info.text, "Sleep: 0", info.size, info.text_color);
                                 addTextToEntityInfo(info.text, "Health: 100", info.size, info.text_color);
+                                addTextToEntityInfo(info.text, "Hungry: 0d", info.size, info.text_color);
                                 addTextToEntityInfo(info.text, "Job: Idle", info.size, info.text_color);
                                 addTextToEntityInfo(info.text, "Idle.", info.size, info.text_color);
                         }
 
-                        info.text[0].setString("Hunger: " + std::to_string(needs.hunger));
-                        info.text[1].setString("Thirst: " + std::to_string(needs.thirst));
-                        info.text[2].setString("Sleep: " + std::to_string(needs.sleep));
-                        info.text[3].setString("Health: " + std::to_string(health.value));
-                        info.text[4].setString("Job: " + Jobs::name(job.job));
+                        info.text[0].setString("Sleep: " + std::to_string(needs.sleep));
+                        info.text[1].setString("Health: " + std::to_string(health.value));
+                        info.text[2].setString("Hungry: " + std::to_string(needs.days_without_food) + "d");
+                        info.text[3].setString("Job: " + Jobs::name(job.job));
 
-                        static const std::array<std::pair<ActionTypes, const char*>, 6> kActions{ {
+                        static const std::array<std::pair<ActionTypes, const char*>, 5> kActions{ {
                                 { ActionTypes::Moving,    "Moving." },
-                                { ActionTypes::Eating,    "Eating." },
                                 { ActionTypes::Sleeping,  "Sleeping." },
-                                { ActionTypes::Drinking,  "Drinking." },
                                 { ActionTypes::Gathering, "Gathering." },
                                 { ActionTypes::Building,  "Building." },
+                                { ActionTypes::Idle,      "Idle." },
                         } };
 
                         std::string status = "Idle.";
@@ -433,7 +412,7 @@ void EntityManager::update()
                                         if (queue.actions.front()->action_name == action)
                                                 status = label;
                         }
-                        info.text[5].setString(status);
+                        info.text[4].setString(status);
         });
 
         // Observability: sample the run on its daily cadence. Sampling here (once
@@ -468,32 +447,6 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
                                    CPath& path,
                                    const Jobs::Job job)
 {
-        // Water is not walkable, so a drink target is approached from the nearest
-        // land tile. The closest water tile can itself be ringed by ocean, so
-        // expand outward instead of only checking its 8 neighbours, otherwise the
-        // route fails and the entity wanders instead of drinking.
-        const auto approachLand = [&](const sf::Vector2i& target) -> sf::Vector2i
-        {
-                if (!Resources::isOcean(m_map->getElementAtWorld(target)))
-                        return target;
-                const int ts = m_map->getTileSize();
-                const sf::Vector2i targetTile = CoordMath::worldToTile(target, ts);
-                for (int ring = 1; ring <= 6; ++ring)
-                {
-                        for (int dx = -ring; dx <= ring; ++dx)
-                                for (int dy = -ring; dy <= ring; ++dy)
-                                {
-                                        if (std::max(std::abs(dx), std::abs(dy)) != ring)
-                                                continue;
-                                        const sf::Vector2i candidate =
-                                                CoordMath::tileToWorld(targetTile + sf::Vector2i{ dx, dy }, ts);
-                                        if (!Resources::isOcean(m_map->getElementAtWorld(candidate)))
-                                                return candidate;
-                                }
-                }
-                return target;
-        };
-
         // Walk to a random land tile in vision, routing when possible and falling
         // back to a straight line otherwise, so exploration never stalls.
         const auto queueExplore = [&]() -> bool
@@ -511,39 +464,6 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
 
         switch (need)
         {
-                case EntityDecision::Need::Thirst:
-                {
-                        if (queueHasAction(queue, ActionTypes::Drinking))
-                                return false;
-
-                        if (auto target = knowledge.findNearest(pos, CivKnowledge::Kind::Water))
-                        {
-                                if (queueMoveTo(pos, approachLand(*target), path, queue))
-                                {
-                                        queue.actions.push_back(std::make_shared<CDrinking>(ActionTypes::Drinking, m_game_clock->getTimestamp()));
-                                        return true;
-                                }
-                        }
-                        // Nothing drinkable is reachable: go look for some.
-                        return queueExplore();
-                }
-
-                case EntityDecision::Need::Hunger:
-                {
-                        if (queueHasAction(queue, ActionTypes::Eating))
-                                return false;
-
-                        if (auto target = knowledge.findNearest(pos, CivKnowledge::Kind::Food))
-                        {
-                                if (queueMoveTo(pos, *target, path, queue))
-                                {
-                                        queue.actions.push_back(std::make_shared<CEating>(ActionTypes::Eating, m_game_clock->getTimestamp()));
-                                        return true;
-                                }
-                        }
-                        return queueExplore();
-                }
-
                 case EntityDecision::Need::Sleep:
                 {
                         if (queueHasAction(queue, ActionTypes::Sleeping))
@@ -1044,9 +964,7 @@ void EntityManager::decayNeeds(const std::int64_t hourIndex)
                 if (needs.last_update == hourIndex)
                         return;
 
-                needs.applyHourlyDecay(m_config.thirst_decay_per_hour,
-                                       m_config.hunger_decay_per_hour,
-                                       m_config.sleep_gain_per_hour);
+                needs.applyHourlyDecay(m_config.sleep_gain_per_hour);
                 needs.last_update = static_cast<int>(hourIndex);
         });
 }
@@ -1066,7 +984,7 @@ void EntityManager::applyHealth()
         m_registry->view<CBasicNeeds, CHealth>().each([&](auto, CBasicNeeds& needs, CHealth& health)
         {
                 const int delta = EntityVitals::healthChange(needs,
-                                                             survival.lethal_threshold,
+                                                             survival.lethal_days_without_food,
                                                              survival.starvation_damage_per_hour,
                                                              survival.health_regen_per_hour);
                 if (delta > 0)
@@ -1074,6 +992,37 @@ void EntityManager::applyHealth()
                 else if (delta < 0)
                         health.damage(-delta);
         });
+}
+
+void EntityManager::consumeFoodDaily()
+{
+        const auto& survival = m_config.survival;
+
+        // The settlement eats from its store: one food per person per day. When
+        // the store runs short the food is rationed entity by entity, so the ones
+        // that go without each accrue a day of hunger.
+        int available = m_goods.count(Goods::Good::Food);
+        const int perPerson = std::max(0, survival.food_per_person_per_day);
+        int fed = 0;
+
+        m_registry->view<CBasicNeeds>().each([&](auto, CBasicNeeds& needs)
+        {
+                if (perPerson == 0 || available >= perPerson)
+                {
+                        available -= perPerson;
+                        needs.days_without_food = 0;
+                        ++fed;
+                }
+                else
+                {
+                        ++needs.days_without_food;
+                }
+        });
+
+        // Draw what was actually eaten out of the store in one write.
+        const int eaten = fed * perPerson;
+        if (eaten > 0)
+                m_goods.take(Goods::Good::Food, eaten);
 }
 
 void EntityManager::killTheDying()
@@ -1096,11 +1045,9 @@ void EntityManager::killTheDying()
                         return;
 
                 Observability::EventCause cause = Observability::EventCause::Natural;
-                if (aged && !EntityVitals::isStarving(needs, m_config.survival.lethal_threshold))
+                if (aged && !EntityVitals::isStarving(needs, m_config.survival.lethal_days_without_food))
                         cause = Observability::EventCause::Aged;
-                else if (needs.thirst <= m_config.survival.lethal_threshold)
-                        cause = Observability::EventCause::Dehydrated;
-                else if (needs.hunger <= m_config.survival.lethal_threshold)
+                else if (EntityVitals::isStarving(needs, m_config.survival.lethal_days_without_food))
                         cause = Observability::EventCause::Starved;
                 m_death_cause[entity] = cause;
         });
@@ -1299,35 +1246,19 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
                 return e;
         };
 
-        // Nearest water tile, expanding ring by ring. Stop at the first ring that
-        // holds any water: it is the closest coast, and later rings are farther.
-        std::optional<sf::Vector2i> coast;
-        constexpr int kMaxRing = 256;
-        for (int ring = 0; ring <= kMaxRing && !coast; ++ring)
-        {
-                for (int dx = -ring; dx <= ring && !coast; ++dx)
-                        for (int dy = -ring; dy <= ring && !coast; ++dy)
-                        {
-                                if (std::max(std::abs(dx), std::abs(dy)) != ring)
-                                        continue;
-                                if (Resources::isWater(elementAt(dx, dy)))
-                                        coast = sf::Vector2i{ dx, dy };
-                        }
-        }
-        if (!coast)
-                return { 0, 0 };
-
-        // Near that coast, prefer the closest land tile that also has forage
-        // within reach. Fall back to the closest land tile if none does, so the
-        // settlement can at least drink.
-        const auto foodWithinReach = [&](const int cx, const int cy)
+        // Nearest land tile to the origin that has a gatherable (forest for wood,
+        // hill for stone) within an entity's vision. Wood gates the first farm, so
+        // a settlement founded away from any gatherable would starve before it
+        // could build. Falls back to the nearest land tile when none qualifies, so
+        // the search always returns a walkable spot.
+        const auto gatherableWithinReach = [&](const int cx, const int cy)
         {
                 for (int ox = -reachTiles; ox <= reachTiles; ++ox)
                         for (int oy = -reachTiles; oy <= reachTiles; ++oy)
                         {
                                 if (std::hypot(static_cast<float>(ox), static_cast<float>(oy)) * tileSize > reach)
                                         continue;
-                                if (Resources::isFood(elementAt(cx + ox, cy + oy)))
+                                if (Resources::isGatherable(elementAt(cx + ox, cy + oy)))
                                         return true;
                         }
                 return false;
@@ -1335,34 +1266,37 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
 
         sf::Vector2i bestLand{ 0, 0 };
         float bestLandDist = 0.f;
-        sf::Vector2i bestFoodLand{ 0, 0 };
-        float bestFoodDist = 0.f;
-        for (int ox = -reachTiles; ox <= reachTiles; ++ox)
+        sf::Vector2i bestWorkLand{ 0, 0 };
+        float bestWorkDist = 0.f;
+        constexpr int kMaxRing = 256;
+        for (int ring = 0; ring <= kMaxRing; ++ring)
         {
-                for (int oy = -reachTiles; oy <= reachTiles; ++oy)
-                {
-                        const float dist = std::hypot(static_cast<float>(ox), static_cast<float>(oy)) * tileSize;
-                        if (dist < 1.f || dist > reach - tileSize)
-                                continue;
-                        const int tx = coast->x + ox;
-                        const int ty = coast->y + oy;
-                        if (Resources::isWater(elementAt(tx, ty)))
-                                continue;
+                for (int dx = -ring; dx <= ring; ++dx)
+                        for (int dy = -ring; dy <= ring; ++dy)
+                        {
+                                if (std::max(std::abs(dx), std::abs(dy)) != ring)
+                                        continue;
+                                const float dist = std::hypot(static_cast<float>(dx), static_cast<float>(dy));
+                                if (Resources::isOcean(elementAt(dx, dy)))
+                                        continue;
 
-                        if (bestLandDist == 0.f || dist < bestLandDist)
-                        {
-                                bestLandDist = dist;
-                                bestLand = sf::Vector2i{ tx, ty };
+                                if (bestLandDist == 0.f)
+                                {
+                                        bestLandDist = dist;
+                                        bestLand = sf::Vector2i{ dx, dy };
+                                }
+                                if (bestWorkDist == 0.f && gatherableWithinReach(dx, dy))
+                                {
+                                        bestWorkDist = dist;
+                                        bestWorkLand = sf::Vector2i{ dx, dy };
+                                }
                         }
-                        if ((bestFoodDist == 0.f || dist < bestFoodDist) && foodWithinReach(tx, ty))
-                        {
-                                bestFoodDist = dist;
-                                bestFoodLand = sf::Vector2i{ tx, ty };
-                        }
-                }
+                if (bestWorkDist > 0.f)
+                        break;
         }
 
-        const sf::Vector2i chosen = (bestFoodDist > 0.f) ? bestFoodLand : bestLand;
+        const sf::Vector2i chosen = (bestWorkDist > 0.f) ? bestWorkLand
+                                 : (bestLandDist > 0.f) ? bestLand : sf::Vector2i{ 0, 0 };
         return sf::Vector2i{ chosen.x * tileSize, chosen.y * tileSize };
 }
 

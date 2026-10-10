@@ -64,6 +64,11 @@ struct Chunk {
 	sf::Vector2i    position;                       // top left position of chunk, in tiles
 	sf::VertexArray vertices;                       // the map in vertices ready to draw
 	std::unordered_map<sf::Vector2i, Elements, Vector2iHash> tile_types;
+	// Remaining wood on each forest tile (tile coordinate -> units). Filled at
+	// generation from the tree-density field; a gather decrements the entry and
+	// clears the tile to a hill once it reaches zero. Only forest tiles have an
+	// entry.
+	std::unordered_map<sf::Vector2i, int, Vector2iHash> tree_wood;
 	bool unload{ true };
 };
 

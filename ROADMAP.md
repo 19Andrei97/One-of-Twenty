@@ -75,21 +75,24 @@ The engine core and the survival loop are in place:
   and speed, with slower/pause/faster buttons wired to the clock, so a run
   can be watched slowly or fast-forwarded over a lifetime.
 - **Survival and population dynamics.** Entities age (`CLifespan`) and die of
-  old age; starvation and dehydration drain `CHealth` (a slow resource separate
-  from the needs) while a comfortable entity recovers; eating and drinking draw
-  on the settlement stockpile; comfortable adults reproduce on their own timer
-  (`CReproduction`); and population/vital stats reach the HUD. Movement and the
-  survival systems both run on in-game time, so the clock speed never outruns
-  the walk to water and pausing freezes the settlement. The seeded population
-  founds itself on a habitable coastal site with water and forage in reach, so a
-  run produces a story instead of a static crowd.
+  old age; a food shortfall costs an unfed entity a day of hunger and three
+  hungry days in a row drain `CHealth` (a slow resource separate from the needs)
+  while a comfortable, rested entity recovers; sleep is the only per-entity
+  survival need; food is eaten from the settlement stockpile once per person per
+  day; comfortable adults reproduce on their own timer (`CReproduction`); and
+  population/vital stats reach the HUD. Movement and the survival systems both
+  run on in-game time, so the clock speed never outruns the walk to work and
+  pausing freezes the settlement. The seeded population founds itself on a
+  habitable site with wood to gather and land to farm in reach, so a run produces
+  a story instead of a static crowd.
 - **Settlement economy and jobs.** Entities have roles (`helpers/Jobs.h`) bound
   to their type through the `entity_types` block, so farmers, lumberjacks,
   miners, builders and explorers pursue their role (explorers map the frontier
   rather than gather); gathers bank into a
   per-good stockpile (`helpers/Goods.h`), the shortage rule reassigns idle
   entities to understaffed jobs (`helpers/Economy.h`), farms and workshops run
-  recipes, food spoils daily, and eating draws on the store. Buildings are placed
+  recipes, food spoils daily, and food is consumed from the store once per person
+  per day. Buildings are placed
   with `setTileColor` so they render and persist, and a stats panel shows the
   stockpile, buildings and gather count.
 - **Observability and tuning.** A bounded event log records a run's story
@@ -132,8 +135,10 @@ Turn "gather the nearest resource" into production with roles and buildings.
 - [x] Add recipes / production chains that convert raw stock (wood, stone, clay,
       iron, silver) into goods, so different resources matter (`helpers/Goods.h`,
       `helpers/Economy.h`).
-- [x] Make food a real resource: foraging, farms and spoilage, so hunger is
-      supplied by production rather than a tile fallback.
+- [x] Make food a real resource: farms and spoilage, so hunger is supplied by
+      production rather than a tile fallback. Farms are the only food source;
+      wild forest/hill yields wood/stone, and a forest tile holds a finite pile
+      of wood that becomes a hill once cleared.
 - [~] Add a stockpile HUD panel showing counts and rates over time — the panel
       shows per-good counts, buildings and gathers; rates over time are still to
       come.

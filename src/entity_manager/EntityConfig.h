@@ -18,12 +18,11 @@
 // file raises a clear std::runtime_error instead of failing silently.
 struct EntityConfig
 {
-    // How fast the raw need counters move per in-game hour.
-    int hunger_decay_per_hour{ 3 };
-    int thirst_decay_per_hour{ 5 };
+    // How fast fatigue rises per in-game hour. Food is no longer a per-entity
+    // need: the settlement consumes one food per person at the end of each day.
     int sleep_gain_per_hour{ 2 };
 
-    // Population dynamics: ageing, lethal needs, health and reproduction.
+    // Population dynamics: ageing, lethal hunger, health and reproduction.
     // Defaults are shipped so the simulation runs even with an older config file.
     struct Survival
     {
@@ -33,9 +32,13 @@ struct EntityConfig
         // Hard ceiling on the population, so births cannot run away.
         int max_population{ 120 };
 
-        // A need counter at or below this starts draining health. Fullness
-        // counters (thirst/hunger) run 100 (comfortable) down to 0 (dire).
-        int lethal_threshold{ 0 };
+        // Consecutive days an entity may end without food before its health
+        // starts draining. A single missed meal is harmless; a run of them kills.
+        int lethal_days_without_food{ 3 };
+
+        // Food each entity consumes at the end of an in-game day. The settlement
+        // stock is drawn down by this much per head.
+        int food_per_person_per_day{ 1 };
 
         // How many in-game hours an entity lives before dying of old age.
         // Expressed in years in the config (a year is GameTime::kHoursPerYear).
@@ -47,11 +50,11 @@ struct EntityConfig
         int birth_interval_hours{ GameTime::kHoursPerDay * 300 };
 
         // Reproduction: an entity gives birth when it is at least this
-        // comfortable (1 = every need satisfied) and its own interval has passed.
+        // comfortable (1 = fully rested) and its own interval has passed.
         float birth_comfort{ 0.8f };
 
-        // Health: how fast starvation/dehydration drains it, and how fast a
-        // comfortable entity recovers. Death happens when health reaches zero.
+        // Health: how fast hunger drains it, and how fast a rested entity
+        // recovers. Death happens when health reaches zero.
         int starvation_damage_per_hour{ 4 };
         int health_regen_per_hour{ 1 };
     };
@@ -112,19 +115,6 @@ struct EntityConfig
 
     // Weighted decision policy (thresholds, biases, idle tolerance).
     EntityDecision::Config decision{};
-
-    // Convenience: the per-hour decay for each need, in thirst/hunger/sleep
-    // order. Positive values mean "move toward urgent".
-    [[nodiscard]] int decayPerHour(EntityDecision::Need need) const noexcept
-    {
-        switch (need)
-        {
-            case EntityDecision::Need::Thirst: return thirst_decay_per_hour;
-            case EntityDecision::Need::Hunger: return hunger_decay_per_hour;
-            case EntityDecision::Need::Sleep:  return sleep_gain_per_hour;
-            default:                           return 0;
-        }
-    }
 };
 
 // Build an EntityConfig from a parsed entity file. Throws std::runtime_error
@@ -136,8 +126,6 @@ inline EntityConfig loadEntityConfig(const std::string& path)
     EntityConfig cfg;
 
     const auto& needs = js.at("needs");
-    cfg.hunger_decay_per_hour = needs.at("hunger_decay_per_hour").get<int>();
-    cfg.thirst_decay_per_hour = needs.at("thirst_decay_per_hour").get<int>();
     cfg.sleep_gain_per_hour = needs.at("sleep_gain_per_hour").get<int>();
 
     const auto& decision = js.at("decision");
@@ -149,7 +137,8 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         auto& s = cfg.survival;
         s.initial_population   = survival.value("initial_population", s.initial_population);
         s.max_population       = survival.value("max_population", s.max_population);
-        s.lethal_threshold     = survival.value("lethal_threshold", s.lethal_threshold);
+        s.lethal_days_without_food = survival.value("lethal_days_without_food", s.lethal_days_without_food);
+        s.food_per_person_per_day  = survival.value("food_per_person_per_day", s.food_per_person_per_day);
         s.birth_comfort        = survival.value("birth_comfort", s.birth_comfort);
         s.starvation_damage_per_hour = survival.value("starvation_damage_per_hour", s.starvation_damage_per_hour);
         s.health_regen_per_hour      = survival.value("health_regen_per_hour", s.health_regen_per_hour);
@@ -235,8 +224,6 @@ inline EntityConfig loadEntityConfig(const std::string& path)
         out.threshold = node.at("threshold").get<float>();
         out.bias = node.value("bias", out.bias);
     };
-    readNeed("thirst", cfg.decision.thirst);
-    readNeed("hunger", cfg.decision.hunger);
     readNeed("sleep", cfg.decision.sleep);
 
     if (decision.contains("work"))

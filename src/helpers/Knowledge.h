@@ -35,7 +35,6 @@ public:
     // Named kinds of remembered location, so callers do not pass raw predicates.
     enum class Kind
     {
-        Water,
         Food
     };
 
@@ -91,8 +90,7 @@ public:
 
         for (const auto& [element, positions] : m_tiles)
         {
-            const bool usable = (kind == Kind::Water) ? Resources::isWater(element)
-                                                      : Resources::isFood(element);
+            const bool usable = (kind == Kind::Food) && Resources::isFood(element);
             if (!usable)
                 continue;
 

@@ -16,6 +16,8 @@
     "lake_level": 0.3,
     "lake_size": 0.62,
     "ore_richness": 0.55,
+    "tree_wood_min": 1,
+    "tree_wood_max": 5,
     "island": {
         "enabled": false,
         "falloff": 0.4

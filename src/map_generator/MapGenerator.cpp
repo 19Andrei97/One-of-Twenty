@@ -19,7 +19,13 @@ std::shared_ptr<Chunk> MapGenerator::generateChunk(const int tiles_per_side, con
 		for (int tx = 0; tx < tiles_per_side; ++tx)
 		{
 			const sf::Vector2i tile{ tile_position.x + tx, tile_position.y + ty };
-			chunk->tile_types[tile] = m_terrain.elementAtTile(tile);
+			const Elements element = m_terrain.elementAtTile(tile);
+			chunk->tile_types[tile] = element;
+			// A forest tile is a finite wood pile, sized from its own
+			// density field. Kept beside the tile map so a gather can
+			// deplete it without re-sampling noise.
+			if (element == Elements::forest)
+				chunk->tree_wood.emplace(tile, m_terrain.treeAmountAtTile(tile));
 		}
 
 	buildChunkVertices(*chunk);
@@ -361,6 +367,12 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 	const auto tileIt = it->second->tile_types.find(tile);
 	const Elements element = (tileIt != it->second->tile_types.end()) ? tileIt->second : getBiomeElement(pos);
 	result.push_back(std::string("Type: ") + Resources::displayName(element));
+	if (element == Elements::forest)
+	{
+		const auto treeIt = it->second->tree_wood.find(tile);
+		if (treeIt != it->second->tree_wood.end())
+			result.push_back("Wood: " + std::to_string(treeIt->second));
+	}
 	result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
 	result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
 
@@ -580,6 +592,49 @@ void MapGenerator::applyBuildingColors(const std::vector<std::pair<Elements, sf:
         std::lock_guard<std::mutex> lock(t_mutex);
         for (const auto& [element, color] : colors)
                 m_config.biome_colors[static_cast<std::size_t>(element)] = color;
+}
+
+int MapGenerator::harvestWood(const sf::Vector2i& pos)
+{
+        const sf::Vector2i tile = worldToTile(pos);
+        const sf::Vector2i chunkPos = chunkOf(tile);
+
+        std::lock_guard<std::mutex> lock(t_mutex);
+
+        auto it = c_chunks.find(chunkPos);
+        if (it == c_chunks.end() || !it->second)
+                return -1;
+
+        Chunk& chunk = *it->second;
+        const auto treeIt = chunk.tree_wood.find(tile);
+        if (treeIt == chunk.tree_wood.end())
+                return -1;
+
+        const int remaining = --treeIt->second;
+        if (remaining > 0)
+                return remaining;
+
+        // The stand is exhausted: clear it to a hill so the map reflects it, and
+        // drop the tree entry. Rebuild the mesh so the change renders at once.
+        chunk.tree_wood.erase(treeIt);
+        chunk.tile_types[tile] = Elements::hill;
+        buildChunkVertices(chunk);
+        return 0;
+}
+
+int MapGenerator::woodAt(const sf::Vector2i& pos) const
+{
+        const sf::Vector2i tile = worldToTile(pos);
+        const sf::Vector2i chunkPos = chunkOf(tile);
+
+        std::lock_guard<std::mutex> lock(t_mutex);
+
+        const auto it = c_chunks.find(chunkPos);
+        if (it == c_chunks.end() || !it->second)
+                return 0;
+
+        const auto treeIt = it->second->tree_wood.find(tile);
+        return (treeIt == it->second->tree_wood.end()) ? 0 : treeIt->second;
 }
 
 /*

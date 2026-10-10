@@ -12,7 +12,7 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 	const auto time_cfg = data.value("time", nlohmann::json::object());
 	m_game_clock->setSpeedIndex(time_cfg.value("speed_index", 1)); // 1 hour/s
 	// Start mid-morning: a midnight start would put the settlement to sleep for
-	// its first hours, before it has found food or water.
+	// its first hours, before it has found work or a farm.
 	m_game_clock->setTime(time_cfg.value("start_hour", 8), time_cfg.value("start_minute", 0));
 	m_game_clock->onNewDay([&]()
 		{

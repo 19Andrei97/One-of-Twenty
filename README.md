@@ -275,11 +275,14 @@ Retired from the roadmap; kept here as a record.
 - [x] **Settlement economy and jobs.** Entity types are bound to jobs
   (`helpers/Jobs.h`, `config/entity_data.json` `entity_types` block, with
   defaults for older configs). Gathers bank into a per-good stockpile
-  (`helpers/Goods.h`) that eating and daily spoilage draw on; the shortage rule
+  (`helpers/Goods.h`) that daily spoilage draws on; the shortage rule
   reassigns idle entities to understaffed jobs (`helpers/Economy.h`); farms grow
   food and workshops run recipes; and buildings are placed with `setTileColor`
-  so they render and persist. A stats panel shows the stockpile, buildings and
-  gather count.
+  so they render and persist. Food is a settlement resource consumed once per
+  person per day (a shortfall costs each unfed entity a day of hunger, and three
+  hungry days in a row drain health), farms are the only food source, and a
+  forest tile holds a finite pile of wood that becomes a hill once cleared. A
+  stats panel shows the stockpile, buildings and gather count.
 - [x] **Buildings catalog and construction.** `helpers/Buildings.h` is a pure,
   data-driven catalog (`config/buildings.json`) of what a building costs, looks
   like, produces and how it changes movement, so adding one is a JSON entry plus
@@ -317,13 +320,15 @@ Retired from the roadmap; kept here as a record.
   width, temperature, rainfall, snow line, river density and size, lake level and
   size, ore richness) backed by a `MapConfig` field, and a deliberately dark,
   desaturated palette keeps it from looking psychedelic.
-- [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; the
-  settlement's shared map knowledge (`helpers/Knowledge.h`) finds the nearest
-  water/food and replaces the old per-entity memory, so what one entity sees is
-  known to all and the store does not grow with the population; `EntityDecision`
-  scales need urgency by personality and config bias; vision feeds that store;
-  `MoveCost` gives every element a positive cost; `CGather`/`CInventory` bank
-  work into a settlement stockpile.
+- [x] **Entities.** `CBasicNeeds` clamps with config-driven decay; sleep is the
+  only per-entity survival need (hunger and thirst are gone), while food is a
+  settlement resource eaten once per person per day. The settlement's shared map
+  knowledge (`helpers/Knowledge.h`) finds the nearest farm/wood and replaces the
+  old per-entity memory, so what one entity sees is known to all and the store
+  does not grow with the population; `EntityDecision` scales need urgency by
+  personality and config bias; vision feeds that store; `MoveCost` gives every
+  element a positive cost; `CGather`/`CInventory` bank work into a settlement
+  stockpile.
 - [x] **Exploration.** A settlement-wide `CivKnowledge` tracks known resource
   tiles (bucketed by element) and explored coarse cells, capped so a long run
   stays bounded. The `Explorer` job (`Jobs::Job::Explorer`) returns
@@ -341,7 +346,7 @@ Retired from the roadmap; kept here as a record.
   and runs from 12 min/s up to 1 month/s, with pause/resume and a speed label.
   A compact top-right HUD panel shows the date, clock and speed next to
   slower/pause/faster buttons, and the simulation is driven by in-game time so a
-  fast clock never outruns the walk to water and pausing freezes the world.
+  fast clock never outruns the walk to work and pausing freezes the world.
 
 ---
 

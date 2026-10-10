@@ -114,117 +114,88 @@ TEST_CASE("computeUrgencies combines need state with the governing trait")
 
     SUBCASE("comfortable entity has no survival urgency but is ready to work")
     {
-        CBasicNeeds needs; // thirst/hunger 100, sleep 0
+        CBasicNeeds needs; // rested
         const auto u = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 50), cfg);
-        CHECK(u.thirst == doctest::Approx(0.f));
-        CHECK(u.hunger == doctest::Approx(0.f));
         CHECK(u.sleep == doctest::Approx(0.f));
-        // Fully comfortable, so the society drive is at its strongest.
+        // Fully rested, so the society drive is at its strongest.
         CHECK(u.work == doctest::Approx(1.f));
     }
 
-    SUBCASE("higher traits act sooner")
+    SUBCASE("higher calm acts sooner on sleep")
     {
         CBasicNeeds needs;
-        needs.thirst = 25; // urgency 0.5 before personality
+        needs.sleep = 75; // urgency 0.5 before personality
 
-        const auto brave = EntityDecision::computeUrgencies(needs, personalityWith(100, 50, 50), cfg);
-        const auto timid = EntityDecision::computeUrgencies(needs, personalityWith(0, 50, 50), cfg);
+        const auto calm = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 100), cfg);
+        const auto restless = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 0), cfg);
 
-        CHECK(brave.thirst == doctest::Approx(0.75f));
-        CHECK(timid.thirst == doctest::Approx(0.25f));
-        CHECK(brave.thirst > timid.thirst);
+        CHECK(calm.sleep == doctest::Approx(0.75f));
+        CHECK(restless.sleep == doctest::Approx(0.25f));
+        CHECK(calm.sleep > restless.sleep);
     }
 
-    SUBCASE("each need uses its own trait")
+    SUBCASE("sleep leans on Calm and work leans on Loyalty")
     {
         CBasicNeeds needs;
-        needs.thirst = 0;  // Brave
-        needs.hunger = 0;  // Greedy
-        needs.sleep = 100; // Calm
+        needs.sleep = 100; // max fatigue
 
-        const auto u = EntityDecision::computeUrgencies(needs, personalityWith(100, 50, 0), cfg);
-        CHECK(u.thirst == doctest::Approx(1.0f * 1.5f)); // max, clamped to 1
-        CHECK(u.hunger == doctest::Approx(1.0f * 1.0f));
-        CHECK(u.sleep == doctest::Approx(1.0f * 0.5f));
+        const auto u = EntityDecision::computeUrgencies(needs, personalityWith(50, 50, 100, 100), cfg);
+        CHECK(u.sleep == doctest::Approx(1.0f * 1.5f)); // max, clamped to 1
+        CHECK(u.work == doctest::Approx(0.f));          // no comfort to work from
     }
 }
 
-TEST_CASE("strongestNeed respects thresholds and a deterministic tie-break")
+TEST_CASE("strongestNeed respects the sleep threshold")
 {
-    EntityDecision::Config cfg;
+    EntityDecision::Config cfg; // sleep threshold 0.2
 
-    SUBCASE("below threshold selects nothing")
-    {
-        EntityDecision::Urgencies u;
-        u.thirst = 0.1f;
-        u.hunger = 0.15f;
-        u.sleep = 0.19f;
-        CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::None);
-    }
+    EntityDecision::Urgencies u;
+    u.sleep = 0.19f;
+    CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::None);
 
-    SUBCASE("highest wins")
-    {
-        EntityDecision::Urgencies u;
-        u.thirst = 0.3f;
-        u.hunger = 0.9f;
-        u.sleep = 0.4f;
-        CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::Hunger);
-    }
+    u.sleep = 0.2f;
+    CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::Sleep);
 
-    SUBCASE("ties resolve thirst > hunger > sleep")
-    {
-        EntityDecision::Urgencies u;
-        u.thirst = 0.8f;
-        u.hunger = 0.8f;
-        u.sleep = 0.8f;
-        CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::Thirst);
-
-        u.thirst = 0.f;
-        CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::Hunger);
-
-        u.hunger = 0.f;
-        CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::Sleep);
-    }
+    u.sleep = 0.9f;
+    CHECK(EntityDecision::strongestNeed(u, cfg) == EntityDecision::Need::Sleep);
 }
 
-TEST_CASE("decide returns needs, work, then idles and wanders")
+TEST_CASE("decide returns sleep, work, then idles and wanders")
 {
     auto cfg = defaultConfig();
     const auto personality = personalityWith(50, 50, 50);
 
-    SUBCASE("an urgent need is chosen immediately")
+    SUBCASE("an exhausted entity sleeps")
     {
         CBasicNeeds needs;
-        needs.thirst = 0;
-        CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Thirst);
+        needs.sleep = 100;
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Sleep);
     }
 
-    SUBCASE("a comfortable entity works for the settlement")
+    SUBCASE("a rested entity works for the settlement")
     {
-        CBasicNeeds needs; // fully satisfied
+        CBasicNeeds needs; // fully rested
         CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Work);
     }
 
     SUBCASE("an explorer explores instead of gathering when work is the winning drive")
     {
-        CBasicNeeds needs; // fully satisfied, so work wins
+        CBasicNeeds needs; // rested, so work wins
         CHECK(EntityDecision::decide(needs, personality, cfg, 0, Jobs::Job::Explorer) == EntityDecision::Need::Explore);
 
         // Survival still outranks exploration.
-        needs.thirst = 0;
-        CHECK(EntityDecision::decide(needs, personality, cfg, 0, Jobs::Job::Explorer) == EntityDecision::Need::Thirst);
+        needs.sleep = 100;
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0, Jobs::Job::Explorer) == EntityDecision::Need::Sleep);
     }
 
     SUBCASE("work is gated off while a need presses, and an entity too uneasy to work idles")
     {
-        // Threshold above what work can ever reach (work peaks at 1.0, but the
-        // personality multiplier keeps a default entity below this): isolates the
-        // idle/wander fallback from the work behaviour.
+        // Threshold above what work can ever reach: isolates the idle/wander
+        // fallback from the work behaviour.
         cfg.work.threshold = 2.0f;
         cfg.idle_tolerance = 3;
 
-        CBasicNeeds needs;
+        CBasicNeeds needs; // rested, but work is gated off
 
         CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::None);
         CHECK(EntityDecision::decide(needs, personality, cfg, 2) == EntityDecision::Need::None);
@@ -232,9 +203,9 @@ TEST_CASE("decide returns needs, work, then idles and wanders")
         CHECK(EntityDecision::decide(needs, personality, cfg, 99) == EntityDecision::Need::Wander);
 
         // A critical need outranks work.
-        needs.thirst = 0;
+        needs.sleep = 100;
         cfg.work.threshold = 0.f;
-        CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Thirst);
+        CHECK(EntityDecision::decide(needs, personality, cfg, 0) == EntityDecision::Need::Sleep);
     }
 
     SUBCASE("loyalty raises the work drive")
@@ -249,8 +220,6 @@ TEST_CASE("decide returns needs, work, then idles and wanders")
 
 TEST_CASE("actionFor maps needs to their satisfying action")
 {
-    CHECK(EntityDecision::actionFor(EntityDecision::Need::Thirst) == ActionTypes::Drinking);
-    CHECK(EntityDecision::actionFor(EntityDecision::Need::Hunger) == ActionTypes::Eating);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Sleep) == ActionTypes::Sleeping);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Work) == ActionTypes::Gathering);
     CHECK(EntityDecision::actionFor(EntityDecision::Need::Wander) == ActionTypes::Moving);
@@ -261,17 +230,10 @@ TEST_CASE("loadEntityConfig reads the shipped entity file")
 {
     const EntityConfig cfg = loadEntityConfig(entityConfigPath());
 
-    CHECK(cfg.hunger_decay_per_hour == 3);
-    CHECK(cfg.thirst_decay_per_hour == 5);
     CHECK(cfg.sleep_gain_per_hour == 2);
     CHECK(cfg.decision.idle_tolerance == 3);
-    CHECK(cfg.decision.thirst.threshold == doctest::Approx(0.2f));
-    CHECK(cfg.decision.hunger.bias == doctest::Approx(1.0f));
-
-    CHECK(cfg.decayPerHour(EntityDecision::Need::Thirst) == 5);
-    CHECK(cfg.decayPerHour(EntityDecision::Need::Hunger) == 3);
-    CHECK(cfg.decayPerHour(EntityDecision::Need::Sleep) == 2);
-    CHECK(cfg.decayPerHour(EntityDecision::Need::None) == 0);
+    CHECK(cfg.decision.sleep.threshold == doctest::Approx(0.2f));
+    CHECK(cfg.decision.work.bias == doctest::Approx(1.0f));
 }
 
 TEST_CASE("loadEntityConfig rejects a missing file")
@@ -299,13 +261,12 @@ TEST_CASE("EntityManager drives decay and action selection end to end")
 
     const auto initialNeeds = entities.firstNeeds();
     REQUIRE(initialNeeds.has_value());
-    CHECK(initialNeeds->thirst == 100);
-    CHECK(initialNeeds->hunger == 100);
     CHECK(initialNeeds->sleep == 0);
+    CHECK(initialNeeds->days_without_food == 0);
 
     // Phase 1: a few in-game hours, ticking the clock a frame at a time like the
-    // game loop does and running the systems once per hour. Decay should be
-    // clearly visible before any need is urgent enough to trip an action.
+    // game loop does and running the systems once per hour. Fatigue should be
+    // clearly visible before it is urgent enough to trip an action.
     const auto advanceHour = [&]()
     {
         for (int step = 0; step < 60; ++step)
@@ -318,12 +279,10 @@ TEST_CASE("EntityManager drives decay and action selection end to end")
 
     const auto midNeeds = entities.firstNeeds();
     REQUIRE(midNeeds.has_value());
-    CHECK(midNeeds->hunger < initialNeeds->hunger);
-    CHECK(midNeeds->thirst < initialNeeds->thirst);
     CHECK(midNeeds->sleep > initialNeeds->sleep);
 
-    // Phase 2: keep going until a need crosses its threshold and the entity
-    // starts acting. Thirst falls fastest, so it should trip first.
+    // Phase 2: keep going until the need crosses its threshold and the entity
+    // starts acting. Fatigue rises steadily, so it should trip eventually.
     bool acted = false;
     for (int hour = 0; hour < 40 && !acted; ++hour)
     {

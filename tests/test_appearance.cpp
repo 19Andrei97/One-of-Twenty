@@ -33,12 +33,10 @@ std::string writeTempAppearanceConfig(const std::string& name, const std::string
         std::filesystem::temp_directory_path() / ("appearance_test_" + name + ".json");
     std::ofstream out(path);
     out << R"({
-        "needs": { "hunger_decay_per_hour": 3, "thirst_decay_per_hour": 5, "sleep_gain_per_hour": 2 },
+        "needs": { "sleep_gain_per_hour": 2 },
         "appearance": )" << appearanceJson << R"(,
         "decision": {
             "idle_tolerance": 3,
-            "thirst": { "threshold": 0.20, "bias": 1.0 },
-            "hunger": { "threshold": 0.20, "bias": 1.0 },
             "sleep":  { "threshold": 0.20, "bias": 1.0 },
             "work":   { "threshold": 0.50, "bias": 1.0 }
         }

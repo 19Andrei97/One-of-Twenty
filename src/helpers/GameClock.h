@@ -10,7 +10,7 @@
 // Calendar constants for the in-game clock. The simulation uses a tidy 12 x
 // 30-day year (360 days) so dates are easy to reason about and display. Hours
 // remain the finest unit the survival systems care about; minutes exist so
-// actions (eating, sleeping) have a duration to run for.
+// actions (working, sleeping) have a duration to run for.
 namespace GameTime
 {
 constexpr int kMinutesPerHour = 60;
