@@ -385,6 +385,9 @@ public:
         // The economy's stores, for the HUD and tests.
         int good(const Goods::Good which) const { return m_goods.count(which); }
         const Goods::Stock& goods() const { return m_goods; }
+        // Credit the stock directly, so a test (or a future gift/trade effect) can
+        // seed a store without routing through a gather.
+        void addGoods(const Goods::Good which, const int amount) { m_goods.add(which, amount); }
         int foodProduced() const { return m_food_produced; }
         int buildingCount() const { return static_cast<int>(m_buildings.size()); }
         int completedBuildingCount() const;

@@ -852,13 +852,18 @@ int EntityManager::countOfElement(const Elements element) const
 int EntityManager::populationCapacity() const
 {
         // The base cap is the entity config's `survival.max_population` (so the
-        // existing tuning and its reload test still govern growth); every
-        // completed building adds the size it rolled when it was built (a house's
-        // people, the anchor's, ...), which is how buildings raise the capacity.
+        // existing tuning and its reload test still govern growth); only *housing*
+        // raises it, i.e. a completed def that adds population capacity. A food
+        // producer's rolled value is its food reach, not beds, so counting it here
+        // would let every farm invite the births that demand the next farm.
         int capacity = m_config.survival.max_population;
         for (const auto& building : m_buildings)
-                if (building.complete)
+        {
+                if (!building.complete)
+                        continue;
+                if (m_catalog.all()[building.def_index].population_capacity > 0)
                         capacity += building.rolled_value;
+        }
         return capacity;
 }
 
@@ -1062,13 +1067,19 @@ void EntityManager::planConstruction()
                         if (def.population_capacity > 0
                                 && placedHousing >= Buildings::housesWanted(heads, capacity, def.population_capacity))
                                 continue;
-                        // Likewise for food: raise a farm while the completed
-                        // producers do not yet feed the people present, but never
-                        // have more than one under construction at a time, so a
-                        // small settlement keeps a single farm while it grows.
+                        // Likewise for food: raise a farm only while the completed
+                        // producers do not feed the people *and* the store is not
+                        // already comfortable, but never have more than one under
+                        // construction at a time, so a small settlement keeps a
+                        // single farm while it grows and stops once the granary
+                        // covers the settlement for the configured reserve.
                         if (def.feeds_population > 0
                                 && (pendingProducers >= 1
-                                        || !Buildings::needsFoodProducer(heads, completedFeeds)))
+                                        || !Buildings::needsFoodProducer(
+                                                heads, completedFeeds,
+                                                m_goods.count(Goods::Good::Food),
+                                                m_config.survival.food_per_person_per_day,
+                                                m_config.economy.food_reserve_days)))
                                 continue;
                         if (!Buildings::affordable(m_goods, def))
                                 continue;

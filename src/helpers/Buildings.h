@@ -160,6 +160,21 @@ struct Settlement
     return projectedFeeds < toFeed;
 }
 
+// The same test, additionally accounting for what is already stored: a store
+// that covers every mouth for `reserve_days` makes another producer redundant, so
+// it is skipped even while the standing producers fall short of the head count.
+// `dailyPerPerson` is the food one person eats a day; a non-positive either lets
+// the reserve gate stand open (the plain head-count test is used).
+[[nodiscard]] inline bool needsFoodProducer(const int toFeed, const int projectedFeeds,
+                                            const int stockedFood, const int dailyPerPerson,
+                                            const int reserveDays) noexcept
+{
+    if (reserveDays > 0 && dailyPerPerson > 0
+            && stockedFood >= toFeed * dailyPerPerson * reserveDays)
+        return false;
+    return projectedFeeds < toFeed;
+}
+
 // Parse a good name (lower-case) into a `Goods::Good`. Throws on an unknown name.
 [[nodiscard]] inline Goods::Good goodFromString(const std::string& name)
 {

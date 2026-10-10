@@ -129,10 +129,22 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - Housing is demand-gated: `Buildings::housesWanted(heads, capacity, per_house)`
   is the pure rule (a def is housing when `population_capacity > 0`), and
   `planConstruction` only raises a house while the settlement is short of beds
-  (plus a two-bed buffer), so it never spends wood on capacity nobody needs. The
+  (plus a one-house buffer), so it never spends wood on capacity nobody needs. The
   per-house size is the housing def's own `population_capacity` (shipped 30),
   which is also what `populationCapacity()` adds once the house is complete;
   `survival.max_population` in the entity config stays the founding base cap.
+  `populationCapacity()` must add `rolled_value` for *housing defs only*: a farm's
+  rolled value is its food reach, so counting it would let every farm inflate the
+  cap, inviting the births that demand the next farm (the endless-farm loop).
+- Food is demand-gated too: `planConstruction` raises a farm only while the
+  *completed* farms' summed `rolled_value` (their reach) falls short of the people
+  present AND the store is not already comfortable. `Buildings::needsFoodProducer`
+  has a stock-aware overload taking `stockedFood`/`dailyPerPerson`/`reserveDays`
+  (`economy.food_reserve_days`, shipped 3): a granary covering every mouth for that
+  many days suppresses new farms entirely, so a fed settlement stops spending wood
+  on food it has. At most one farm is ever under construction, and only completed
+  reach counts, so an in-progress site cannot suppress the next farm and starve the
+  settlement. Keep the store gate a pure function of the stock, not a timer.
 - Entity appearance is data-driven: `helpers/Appearance.h` holds a `Look`
   (shape/color/outline/size) and builds the `CShape` circle; the `appearance`
   block in `config/entity_data.json` configures it per entity type (`types`) and

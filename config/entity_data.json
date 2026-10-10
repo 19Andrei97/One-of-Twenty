@@ -52,6 +52,7 @@
             "explorer": 1
         },
         "food_spoilage_percent_per_day": 5,
+        "food_reserve_days": 3,
         "farm_wood_cost": 5,
         "workshop_wood_cost": 5,
         "farm_food_per_hour": 1,

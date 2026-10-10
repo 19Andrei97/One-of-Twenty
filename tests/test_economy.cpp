@@ -687,6 +687,120 @@ TEST_CASE("placing an unknown building id fails without spending")
     CHECK(entities.buildingCount() == 0);
 }
 
+TEST_CASE("a farm feeds mouths but does not add population capacity")
+{
+    // A completed food producer must not raise the population cap: its rolled value
+    // is its food reach, not beds. If it did, every farm would invite the births
+    // that demand the next farm, and the planner would build farms endlessly.
+    const std::string file = writeTempBuildings("farm_capacity", R"([
+        { "id": "city_center", "name": "City Center", "element": "city_center",
+          "cost": {}, "build_hours": 1, "is_anchor": true, "population_capacity": 30, "priority": 0, "max_count": 1 },
+        { "id": "farm", "name": "Farm", "element": "farm",
+          "cost": {}, "build_hours": 1, "priority": 2,
+          "feeds_population": [ 40, 80 ],
+          "recipes": [ { "input_amount": 0, "output": "food", "output_amount": 1, "label": "farm" } ] }
+    ])");
+    const std::string entity_file = writeTempEntityConfig("farm_capacity", R"({})");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entity_file, file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping farm capacity test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+
+    REQUIRE(entities.placeBuilding("city_center", site));
+    REQUIRE(entities.completeBuilding(site));
+    const int withAnchor = entities.populationCapacity();
+
+    const sf::Vector2i farm_site{ site.x + tileSize * 3, site.y };
+    if (!ensureChunkLoaded(*map, frames, farm_site))
+    {
+        MESSAGE("Skipping farm capacity test: farm chunk could not be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+    REQUIRE(entities.placeBuilding("farm", farm_site));
+    REQUIRE(entities.completeBuilding(farm_site));
+    CHECK(entities.populationCapacity() == withAnchor); // the farm's reach is not beds
+
+    std::filesystem::remove(entity_file);
+    std::filesystem::remove(file);
+}
+
+TEST_CASE("a stocked granary suppresses new farms")
+{
+    // 50 mouths are within one farm's reach, but a 3-day reserve means 150 food,
+    // and the 5000 in store covers that many times over. The planner must raise no
+    // farm at all: there is no need to spend wood on food the settlement already
+    // has. Without the store gate the standing reach (0 farms) would demand one.
+    const std::string file = writeTempBuildings("farm_stock", R"([
+        { "id": "city_center", "name": "City Center", "element": "city_center",
+          "cost": {}, "build_hours": 1, "is_anchor": true, "population_capacity": 30, "priority": 0, "max_count": 1 },
+        { "id": "farm", "name": "Farm", "element": "farm",
+          "cost": { "wood": 0 }, "build_hours": 1, "priority": 2,
+          "feeds_population": [ 40, 80 ],
+          "recipes": [ { "input_amount": 0, "output": "food", "output_amount": 1, "label": "farm" } ] }
+    ])");
+    const std::string entity_file = writeTempEntityConfig("farm_stock",
+        R"({ "food_spoilage_percent_per_day": 0, "food_reserve_days": 3 })");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entity_file, file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping farm stock test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+
+    REQUIRE(entities.placeBuilding("city_center", site));
+    REQUIRE(entities.completeBuilding(site));
+    entities.addGoods(Goods::Good::Food, 5000);
+
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    for (int i = 0; i < 50; ++i)
+        entities.addEntity(EntityType::Human_Generic, spawn);
+
+    for (int hour = 0; hour < 24; ++hour)
+    {
+        for (int step = 0; step < 60; ++step)
+            clock->update(delta);
+        entities.update();
+    }
+    CHECK(entities.countOfElement(Elements::farm) == 0);
+
+    std::filesystem::remove(entity_file);
+    std::filesystem::remove(file);
+}
+
 TEST_CASE("housing decides the population capacity")
 {
     const std::string entity_file = writeTempEntityConfig("capacity", R"({})");
