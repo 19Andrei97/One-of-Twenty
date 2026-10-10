@@ -274,6 +274,20 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
   `MapGenerator::harvestWood` decrements it and clears the tile to a hill at zero,
   rebuilding the mesh. Gathers credit `Goods::fromElement`, so a farm yields food
   and a forest wood with no special case in the gather handler.
+- Work must be done *on* the tile. `CGather`/`CBuild` are queued before the walk,
+  so their timer (`timestamp_min`) is stamped on arrival, not at plan time, via a
+  `started` latch in the finish-action pass: the move is popped on arrival, so a
+  work action at the front means the entity just arrived. Do not time work from
+  the queue stamp again — a plan-timed action finished its hour mid-journey and
+  banked the yield (or advanced the site) while the entity was still walking, up
+  to a tile or more away. `EntityManager::offTileWork()` counts completions more
+  than a tile from the target and is asserted zero in tests, so a resumed
+  plan-time regression fails loudly instead of only showing on screen.
+- `EntityManager::resolveCollisions` anchors an entity whose front action is a
+  gather/build to its tile: separation pushes only the neighbour, and the de-stack
+  pass never fans a working entity out. Without this, the collision push shoved
+  workers off the tile while they were gathering/building, so the completion (and
+  the site's finished building) appeared a tile or more away.
 - EntityManager writes a building into a tile with `setTileColor`, which only
   succeeds once that tile's chunk is loaded. A test that drives the real update
   loop must stream chunks (render the view) or construction silently fails and the

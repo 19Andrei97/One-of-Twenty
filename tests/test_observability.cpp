@@ -4,6 +4,8 @@
 #include "GameClock.h"
 #include "Knowledge.h"
 #include "MapGenerator.h"
+#include "MapStream.h"
+#include "Resources.h"
 #include "RunSummary.h"
 
 #include <doctest/doctest.h>
@@ -312,6 +314,59 @@ TEST_CASE("a fresh settlement survives its first day within the population cap")
 
     CHECK(entities.births() >= 0);
     CHECK(entities.deaths() >= 0);
+}
+
+TEST_CASE("a builder finishes a site on the tile it stands on")
+{
+    // End-to-end construction: the settlement cost-starts a site, a builder walks
+    // to it and works it. Because work only accrues on the tile, the finished
+    // building's completion must be recorded while the builder is standing there
+    // (offTileWork stays zero). The staffing is pinned to a single builder so the
+    // shortage rule cannot reassign it mid-run.
+    const std::filesystem::path cfg =
+        std::filesystem::temp_directory_path() / "obs_test_builder.json";
+    {
+        std::ofstream out(cfg);
+        out << R"({
+            "needs": { "sleep_gain_per_hour": 2 },
+            "survival": { "initial_population": 1, "max_population": 99, "lifespan_years": 65 },
+            "entity_types": { "Human_Generic": { "job": "builder" } },
+            "economy": { "jobs": { "farmer": 0, "lumberjack": 0, "miner": 0, "builder": 1, "explorer": 0 } },
+            "decision": {
+                "idle_tolerance": 3,
+                "sleep": { "threshold": 0.20, "bias": 1.0 },
+                "work":  { "threshold": 0.50, "bias": 1.0 }
+            }
+        })";
+    }
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, mapConfigPath());
+    auto clock = std::make_shared<GameClock>(60.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, cfg.string());
+
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    TestSupport::primeChunks(*map, frames, spawn, 512);
+    entities.addEntity(EntityType::Human_Generic, spawn); // builder by config
+
+    entities.planConstructionForTest();
+    REQUIRE(entities.buildingCount() > 0);
+
+    for (int step = 0; step < 60 * 60 * 24 * 4 && entities.completedBuildingCount() == 0; ++step)
+    {
+        clock->update(delta);
+        entities.update();
+        entities.resolveCollisions();
+    }
+
+    CHECK(entities.completedBuildingCount() > 0);
+    CHECK(entities.offTileWork() == 0);
+
+    std::filesystem::remove(cfg);
 }
 
 // CivKnowledge is a pure value type (Chunk.h + Resources.h only), so it is

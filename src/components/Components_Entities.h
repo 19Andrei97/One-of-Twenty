@@ -257,8 +257,13 @@ struct CGather : public CAction
 {
     sf::Vector2i tile{ 0, 0 };      // the tile being worked
     Elements element{ Elements::test }; // what it yields
-    std::int64_t timestamp_min{ 0 };
+    std::int64_t timestamp_min{ 0 }; // when the entity actually arrived (set on arrival)
     int duration_min{ 60 };
+    // The work timer only runs once the entity has reached the tile. The action
+    // is queued before the walk, so `timestamp_min` cannot be the plan time: a
+    // timed-from-plan action finished its hour mid-journey and banked the yield
+    // while the entity was still far from the tile.
+    bool started{ false };
 
     CGather(ActionTypes type, const sf::Vector2i& t, const Elements e, std::int64_t stamp)
         : CAction(type), tile(t), element(e), timestamp_min(stamp) {
@@ -271,8 +276,11 @@ struct CGather : public CAction
 struct CBuild : public CAction
 {
     sf::Vector2i tile{ 0, 0 };      // the site being worked
-    std::int64_t timestamp_min{ 0 };
+    std::int64_t timestamp_min{ 0 }; // when the builder actually arrived (set on arrival)
     int duration_min{ 60 };
+    // See CGather::started: construction must not advance before the builder
+    // reaches the site, or the building appears some distance away mid-walk.
+    bool started{ false };
 
     CBuild(ActionTypes type, const sf::Vector2i& t, std::int64_t stamp)
         : CAction(type), tile(t), timestamp_min(stamp) {

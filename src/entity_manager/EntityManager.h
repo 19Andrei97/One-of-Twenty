@@ -70,6 +70,11 @@ class EntityManager
         // and crafted production both land here, and food/spoilage draw from it.
         Goods::Stock                            m_goods;
         int                                     m_gathers_completed{ 0 };
+        // Work (gather/build) that completed while the entity was more than one
+        // tile from its target. The arrival latch should make this impossible; it
+        // exists so a regression that resumes plan-time timing is caught by a test
+        // rather than only visible on screen.
+        int                                     m_off_tile_work{ 0 };
         int                                     m_food_produced{ 0 };
 
         // The building catalog (behaviour, cost, color per building) and its
@@ -340,6 +345,9 @@ public:
         int stockpile(const Elements element) const;
         int totalStockpile() const;
         int gathersCompleted() const { return m_gathers_completed; }
+        // Completed gathers/builds that happened away from their target tile. A
+        // well-behaved run reports zero; used to guard the arrival latch.
+        int offTileWork() const { return m_off_tile_work; }
 
         // The economy's stores, for the HUD and tests.
         int good(const Goods::Good which) const { return m_goods.count(which); }

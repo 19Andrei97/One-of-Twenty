@@ -98,6 +98,99 @@ TEST_CASE("collision separates entities that share a position")
         }
 }
 
+TEST_CASE("work is performed on the target tile, not from a distance")
+{
+    // Regression: gather/build actions were timed from the plan, so their
+    // duration could elapse (and the tile update fire) while the entity was still
+    // walking. The timer must start only on arrival. offTileWork() counts any
+    // completion further than one tile from the target, so it must stay zero over
+    // a real run while work still happens.
+    Random::mt.seed(20241007);
+
+    sf::Font font;
+    int frames = 0;
+    auto map = makeMap(frames);
+    auto clock = std::make_shared<GameClock>(120.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath());
+    entities.seedPopulation();
+
+    TestSupport::primeChunks(*map, frames, entities.findHabitableSpawn(), 512);
+
+    for (int frame = 0; frame < 60 * 24 * 3; ++frame)
+    {
+        clock->update(delta);
+        entities.update();
+        entities.resolveCollisions();
+    }
+
+    CHECK(entities.gathersCompleted() > 0);
+    CHECK(entities.offTileWork() == 0);
+}
+
+TEST_CASE("a gather does not complete before the entity reaches its tile")
+{
+    // Deterministic hand-built queue: walk to a tile a few steps away, gather
+    // there. The gather timer must not run while the entity is still walking, so
+    // the work is only ever banked from the tile.
+    sf::Font font;
+    int frames = 0;
+    auto map = makeMap(frames);
+    // Slow clock so the walk spans many frames and the latch timing is visible.
+    auto clock = std::make_shared<GameClock>(12.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath());
+
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    TestSupport::primeChunks(*map, frames, spawn, 512);
+    const entt::entity entity = entities.addEntity(EntityType::Human_Generic, spawn);
+
+    const int ts = map->getTileSize();
+    // Nearest land tile a few tiles away, so the target is reachable on foot.
+    sf::Vector2i farTile = spawn;
+    const sf::Vector2i spawnTile = CoordMath::worldToTile(spawn, ts);
+    for (int radius = 1; radius <= 8 && farTile == spawn; ++radius)
+    {
+        const sf::Vector2i candidate =
+            CoordMath::tileToWorld(spawnTile + sf::Vector2i{ radius, 0 }, ts);
+        if (!Resources::isOcean(map->getElementAtWorld(candidate)))
+            farTile = candidate;
+    }
+    REQUIRE(farTile != spawn);
+
+    auto* queue = entities.actionsOf(entity);
+    REQUIRE(queue != nullptr);
+    queue->actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, farTile));
+    auto gather = std::make_shared<CGather>(ActionTypes::Gathering, farTile, Elements::forest,
+                                            clock->getTimestamp());
+    queue->actions.push_back(gather);
+
+    // Step until the gather completes. While it is still at the front and the
+    // entity has not reached the tile, it must not have started, and no gather
+    // may have been banked away from the tile.
+    bool startedWhileAway = false;
+    for (int frame = 0; frame < 60 * 60; ++frame)
+    {
+        clock->update(delta);
+        entities.update();
+        entities.resolveCollisions();
+
+        const auto tile = CoordMath::worldToTile(entities.registry().get<CTransform>(entity).pos, ts);
+        if (gather->started && tile != CoordMath::worldToTile(farTile, ts))
+            startedWhileAway = true;
+        if (entities.gathersCompleted() > 0)
+            break;
+    }
+
+    CHECK_FALSE(startedWhileAway);
+    CHECK(entities.gathersCompleted() == 1);
+    CHECK(entities.offTileWork() == 0);
+}
+
 TEST_CASE("the settlement sleeps: fatigue is reset during a run")
 {
     // Directly verifies the sleep action: over a few days some entity's fatigue

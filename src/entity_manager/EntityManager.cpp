@@ -237,14 +237,24 @@ void EntityManager::update()
         });
 
         // Finish actions that have run their course, restoring the need they serve
-        // or banking what a gather produced.
-        m_registry->view<CActionsQueue, CBasicNeeds, CInventory>().each([&](auto entity, auto& queue, auto& needs, auto& inventory)
+        // or banking what a gather produced. The work actions (gather/build) are
+        // queued before the walk, so this pass also latches their timer on the
+        // first frame the entity is actually at the tile: the move is popped on
+        // arrival, so a work action at the front means the entity has just arrived.
+        m_registry->view<CActionsQueue, CBasicNeeds, CInventory, CTransform>().each([&](auto entity, auto& queue, auto& needs, auto& inventory, auto& trs)
         {
                 if (queue.actions.empty())
                         return;
 
                 const auto& front = queue.actions.front();
                 const std::int64_t elapsed = m_game_clock->getTimestamp();
+                const int tileSize = m_map->getTileSize();
+                // Work must happen on the tile; a completion further than one tile
+                // away is a bug (the arrival latch prevents it). Recorded so the
+                // regression is testable, not just visible on screen.
+                const auto offTile = [&](const sf::Vector2i& tile) {
+                        return squaredDistance(tile, trs.pos) > tileSize * tileSize;
+                };
 
                 if (auto action = std::dynamic_pointer_cast<CSleeping>(front); action
                         && elapsed - action->timestamp_min > action->duration_min)
@@ -253,13 +263,25 @@ void EntityManager::update()
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
                 }
-                else if (auto action = std::dynamic_pointer_cast<CGather>(front); action
-                        && elapsed - action->timestamp_min > action->duration_min)
+                else if (auto action = std::dynamic_pointer_cast<CGather>(front); action)
                 {
+                        // The timer starts only once the entity has arrived at the
+                        // tile, so the gather never banks a yield mid-journey.
+                        if (!action->started)
+                        {
+                                action->started = true;
+                                action->timestamp_min = elapsed;
+                                return;
+                        }
+                        if (elapsed - action->timestamp_min <= action->duration_min)
+                                return;
+
                         // The gather produced a unit: carry it, then deposit it into
                         // the settlement stores as the good its tile yields, and
                         // tally the completed trip. A forest tile is a finite pile of
                         // wood: deplete it and, once exhausted, clear it to a hill.
+                        if (offTile(action->tile))
+                                ++m_off_tile_work;
                         inventory.gather();
                         const Elements yielded = action->element;
                         m_goods.add(Goods::fromElement(yielded), inventory.deposit());
@@ -279,9 +301,21 @@ void EntityManager::update()
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();
                 }
-                else if (auto action = std::dynamic_pointer_cast<CBuild>(front); action
-                        && elapsed - action->timestamp_min > action->duration_min)
+                else if (auto action = std::dynamic_pointer_cast<CBuild>(front); action)
                 {
+                        // Same latch as a gather: no construction progress before
+                        // the builder stands on the site.
+                        if (!action->started)
+                        {
+                                action->started = true;
+                                action->timestamp_min = elapsed;
+                                return;
+                        }
+                        if (elapsed - action->timestamp_min <= action->duration_min)
+                                return;
+
+                        if (offTile(action->tile))
+                                ++m_off_tile_work;
                         // Advance the site by one hour's work. A completed site's
                         // effects apply once (applyBuildEffect is idempotent on the
                         // `complete` flag) and a construction-finished event is
@@ -638,12 +672,32 @@ void EntityManager::resolveCollisions()
                 }
         });
 
-        // Separate overlapping entities with a symmetric push.
+        // Separate overlapping entities with a symmetric push, but keep a worker
+        // anchored to the tile it is working: a gather/build action is performed
+        // on that tile, so separation must not shove the entity off it (a
+        // neighbour absorbs the whole push instead of half).
         constexpr int kMinSeparation = 12;
+        // The tile an entity is currently working, if its front action is a
+        // gather or build. Such an entity does not move during separation.
+        const auto workAnchor = [&](entt::entity entity) -> std::optional<sf::Vector2i>
+        {
+                const CActionsQueue* queue = m_registry->try_get<CActionsQueue>(entity);
+                if (!queue || queue->actions.empty())
+                        return std::nullopt;
+                const auto& front = queue->actions.front();
+                if (auto gather = std::dynamic_pointer_cast<CGather>(front))
+                        return gather->tile;
+                if (auto build = std::dynamic_pointer_cast<CBuild>(front))
+                        return build->tile;
+                return std::nullopt;
+        };
+
         std::vector<std::pair<entt::entity, sf::Vector2i>> positions;
+        std::vector<std::optional<sf::Vector2i>> anchors;
         m_registry->view<CTransform>().each([&](auto entity, CTransform& trs)
         {
                 positions.emplace_back(entity, trs.pos);
+                anchors.push_back(workAnchor(entity));
         });
 
         for (std::size_t i = 0; i < positions.size(); ++i)
@@ -656,12 +710,36 @@ void EntityManager::resolveCollisions()
                                 continue;
 
                         const float dist = std::sqrt(static_cast<float>(dist2));
-                        const float push = (kMinSeparation - dist) * 0.5f;
-                        const sf::Vector2i shift{
-                                static_cast<int>(std::lround(d.x / dist * push)),
-                                static_cast<int>(std::lround(d.y / dist * push)) };
-                        positions[i].second -= shift;
-                        positions[j].second += shift;
+                        const float overlap = static_cast<float>(kMinSeparation) - dist;
+                        const sf::Vector2i unit{
+                                static_cast<int>(std::lround(d.x / dist)),
+                                static_cast<int>(std::lround(d.y / dist)) };
+                        // A worker stays put; its neighbour takes the full push so
+                        // the pair still separates. Two workers of the same tile are
+                        // both anchored and simply remain.
+                        if (anchors[i] && anchors[j])
+                                continue;
+                        if (anchors[i])
+                        {
+                                positions[j].second += sf::Vector2i{
+                                        static_cast<int>(std::lround(unit.x * overlap)),
+                                        static_cast<int>(std::lround(unit.y * overlap)) };
+                        }
+                        else if (anchors[j])
+                        {
+                                positions[i].second -= sf::Vector2i{
+                                        static_cast<int>(std::lround(unit.x * overlap)),
+                                        static_cast<int>(std::lround(unit.y * overlap)) };
+                        }
+                        else
+                        {
+                                const float push = overlap * 0.5f;
+                                const sf::Vector2i shift{
+                                        static_cast<int>(std::lround(d.x / dist * push)),
+                                        static_cast<int>(std::lround(d.y / dist * push)) };
+                                positions[i].second -= shift;
+                                positions[j].second += shift;
+                        }
                 }
         }
 
@@ -677,16 +755,17 @@ void EntityManager::resolveCollisions()
         // De-stack: the push above can be blocked by water, leaving entities on
         // the same spot. Fan each duplicate out to an adjacent land tile that no
         // already-placed entity occupies, so the settlement does not render as a
-        // single dot and no two entities share a position.
+        // single dot and no two entities share a position. An anchored worker is
+        // never fanned out: it has to stay on the tile it is working.
         static constexpr sf::Vector2i kAround[8]{ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
                                                   { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
         std::vector<sf::Vector2i> placed;
         placed.reserve(positions.size());
-        for (const auto& [entity, pos] : positions)
+        for (std::size_t k = 0; k < positions.size(); ++k)
         {
-                auto& trs = m_registry->get<CTransform>(entity);
+                auto& trs = m_registry->get<CTransform>(positions[k].first);
                 const bool duplicate = std::find(placed.begin(), placed.end(), trs.pos) != placed.end();
-                if (duplicate)
+                if (duplicate && !anchors[k])
                 {
                         const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, ts);
                         for (const auto& d : kAround)

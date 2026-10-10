@@ -292,6 +292,14 @@ Retired from the roadmap; kept here as a record.
   city center is an anchor building. The catalog's `walk_cost` layers over
   `MoveCost` (a road is faster), and `R` reloads the catalog alongside the entity
   config.
+- [x] **Work happens on the tile.** A gather/build action is queued before the
+  walk, so its work timer now starts only once the entity is standing on the
+  target tile (`CGather`/`CBuild::started`, latched in the finish pass when the
+  move is popped on arrival) rather than when the plan was made. Collision
+  separation keeps a working entity anchored to its tile, so the yield or the
+  finished building can no longer appear while the entity is still walking.
+  `EntityManager::offTileWork()` counts any completion more than a tile from its
+  target (always zero in a healthy run) and guards the regression in tests.
 - [x] **Pathfinding and collision.** A pure A* (`helpers/Pathfinding.h`) routes
   entities over the `MoveCost` map, so they go around water and prefer cheap
   ground; movement follows the route (`CPath`) and falls back to a straight line
