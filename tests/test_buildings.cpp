@@ -185,6 +185,65 @@ TEST_CASE("a road's walk cost overrides the terrain fallback")
     std::filesystem::remove(file);
 }
 
+TEST_CASE("defaultBuildable rejects sand and water but allows dry land")
+{
+    // Every building is placed on dry land only, so the beach and the sea are
+    // never built on. This is the base gate the catalog's own allow-list narrows.
+    CHECK_FALSE(Buildings::defaultBuildable(Elements::sand));
+    CHECK_FALSE(Buildings::defaultBuildable(Elements::ocean));
+    CHECK_FALSE(Buildings::defaultBuildable(Elements::deep_ocean));
+    CHECK_FALSE(Buildings::defaultBuildable(Elements::very_deep_ocean));
+    CHECK_FALSE(Buildings::defaultBuildable(Elements::lake));
+
+    CHECK(Buildings::defaultBuildable(Elements::hill));
+    CHECK(Buildings::defaultBuildable(Elements::forest));
+    CHECK(Buildings::defaultBuildable(Elements::mountain));
+    CHECK(Buildings::defaultBuildable(Elements::snow));
+    CHECK(Buildings::defaultBuildable(Elements::clay));
+}
+
+TEST_CASE("a def's allowed_terrain narrows where it may stand")
+{
+    const std::string file = writeTempBuildings("terrain", R"({
+        "buildings": [
+            { "id": "hut",  "element": "house" },
+            { "id": "mine", "element": "workshop", "allowed_terrain": [ "mountain" ] },
+            { "id": "quarry", "element": "workshop", "allowed_terrain": [ "hill", "mountain" ] }
+        ]
+    })");
+    const Buildings::Catalog catalog = Buildings::loadCatalog(file);
+
+    // No allow-list: any element is acceptable (the base gate still applies).
+    const Buildings::Def* hut = catalog.byId("hut");
+    REQUIRE(hut != nullptr);
+    CHECK(hut->allowed_terrain.empty());
+    CHECK(hut->allowsTerrain(Elements::forest));
+    CHECK(hut->allowsTerrain(Elements::mountain));
+
+    // A single-tile restriction only admits that tile.
+    const Buildings::Def* mine = catalog.byId("mine");
+    REQUIRE(mine != nullptr);
+    REQUIRE(mine->allowed_terrain.size() == 1);
+    CHECK(mine->allowsTerrain(Elements::mountain));
+    CHECK_FALSE(mine->allowsTerrain(Elements::hill));
+    CHECK_FALSE(mine->allowsTerrain(Elements::forest));
+
+    // Multiple entries admit any of them.
+    const Buildings::Def* quarry = catalog.byId("quarry");
+    REQUIRE(quarry != nullptr);
+    CHECK(quarry->allowsTerrain(Elements::hill));
+    CHECK(quarry->allowsTerrain(Elements::mountain));
+    CHECK_FALSE(quarry->allowsTerrain(Elements::forest));
+
+    // An unknown terrain name fails loudly.
+    const std::string bad = writeTempBuildings("bad_terrain", R"({
+        "buildings": [ { "id": "x", "element": "house", "allowed_terrain": [ "swamp" ] } ]
+    })");
+    CHECK_THROWS_AS((void)Buildings::loadCatalog(bad), std::runtime_error);
+    std::filesystem::remove(bad);
+    std::filesystem::remove(file);
+}
+
 TEST_CASE("the shipped catalog loads and anchors the city center")
 {
     const Buildings::Catalog catalog = Buildings::loadCatalog(shippedCatalogPath());

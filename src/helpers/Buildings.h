@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Goods.h"
 #include "MoveCost.h"
+#include "Resources.h"
 
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/System/Vector2.hpp>
@@ -55,6 +56,22 @@ struct Def
     int           priority{ 100 };       // lower builds first
     int           max_count{ 0 };        // 0 = unlimited
     std::vector<Goods::Recipe> recipes;  // production once complete
+
+    // Terrain this building may stand on. Empty means "any buildable land"
+    // (the resolver's default, minus the elements the settlement never builds
+    // on such as sand and water). Filled from `allowed_terrain` in JSON, so a
+    // building that must sit on a specific tile (a mine on a mountain, a
+    // fishery on the shore) is a data change, not a code change.
+    std::vector<Elements> allowed_terrain;
+
+    // May this def be placed on a tile of `element`? An empty allow-list means
+    // any element is acceptable, so buildings without a restriction are unchanged.
+    [[nodiscard]] bool allowsTerrain(const Elements element) const noexcept
+    {
+        if (allowed_terrain.empty())
+            return true;
+        return std::find(allowed_terrain.begin(), allowed_terrain.end(), element) != allowed_terrain.end();
+    }
 };
 
 // Parsed `settlement` block: settlement-wide construction tuning.
@@ -63,6 +80,10 @@ struct Settlement
     int max_concurrent_sites{ 4 };
     int build_radius_tiles{ 24 };
     int road_cadence_hours{ 24 };
+    // Minimum gap, in tiles, between two building origins. One tile of empty
+    // ground keeps structures from fusing into a single block, so the settlement
+    // reads as a village rather than a wall of adjacent tiles.
+    int min_spacing_tiles{ 2 };
 };
 
 // Parse an element name (the task's stable ids) into an `Elements`. Throws
@@ -90,6 +111,17 @@ struct Settlement
     if (name == "test")            return Elements::test;
 
     throw std::runtime_error("Unknown building element: '" + name + "'");
+}
+
+// The terrain a building may stand on when its def sets no `allowed_terrain`:
+// dry land, so never water and never beach sand. Placement resolves a site
+// against this first, then against the def's own allow-list, so a sand or water
+// tile is rejected for every building while a new restriction stays a data edit.
+[[nodiscard]] inline bool defaultBuildable(const Elements element) noexcept
+{
+    return !Resources::isOcean(element)
+        && element != Elements::lake
+        && element != Elements::sand;
 }
 
 // Parse a good name (lower-case) into a `Goods::Good`. Throws on an unknown name.
@@ -209,6 +241,12 @@ private:
                 def.recipes.push_back(std::move(recipe));
             }
 
+        // Optional terrain allow-list: each name is one element (see
+        // elementFromString). An empty list keeps the default "any dry land".
+        if (entry.contains("allowed_terrain"))
+            for (const auto& name : entry.at("allowed_terrain"))
+                def.allowed_terrain.push_back(elementFromString(name.get<std::string>()));
+
         catalog.add(std::move(def));
     }
 
@@ -226,6 +264,7 @@ private:
         settlement.max_concurrent_sites     = s.value("max_concurrent_sites", settlement.max_concurrent_sites);
         settlement.build_radius_tiles       = s.value("build_radius_tiles", settlement.build_radius_tiles);
         settlement.road_cadence_hours       = s.value("road_cadence_hours", settlement.road_cadence_hours);
+        settlement.min_spacing_tiles        = s.value("min_spacing_tiles", settlement.min_spacing_tiles);
     }
     return settlement;
 }

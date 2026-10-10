@@ -868,7 +868,7 @@ void EntityManager::applyBuildEffect(PlacedBuilding& building)
                 m_anchor = building.origin;
 }
 
-std::optional<sf::Vector2i> EntityManager::findBuildSite() const
+std::optional<sf::Vector2i> EntityManager::findBuildSite(const Buildings::Def& def) const
 {
         // The anchor seeds the search; before it exists, the settlement spawns its
         // first building near where the founders stand.
@@ -876,6 +876,9 @@ std::optional<sf::Vector2i> EntityManager::findBuildSite() const
         const int ts = m_map->getTileSize();
         const sf::Vector2i centerTile = CoordMath::worldToTile(center, ts);
         const int radius = std::max(1, m_settlement.build_radius_tiles);
+        // A building's world position is a tile corner, so one tile step is `ts`
+        // world units. The spacing rule compares tile coordinates.
+        const int minSpacing = std::max(1, m_settlement.min_spacing_tiles);
 
         for (int ring = 0; ring <= radius; ++ring)
         {
@@ -886,21 +889,40 @@ std::optional<sf::Vector2i> EntityManager::findBuildSite() const
                                         continue;
                                 const sf::Vector2i tile = centerTile + sf::Vector2i{ dx, dy };
                                 const sf::Vector2i world = CoordMath::tileToWorld(tile, ts);
-                                if (Resources::isOcean(m_map->getElementAtWorld(world)))
-                                        continue;
-                                bool occupied = false;
-                                for (const auto& building : m_buildings)
-                                        if (building.origin == world)
-                                        {
-                                                occupied = true;
-                                                break;
-                                        }
-                                if (occupied)
-                                        continue;
-                                return world;
+                                if (canBuildOn(def, world))
+                                        return world;
                         }
         }
         return std::nullopt;
+}
+
+bool EntityManager::canBuildOn(const Buildings::Def& def, const sf::Vector2i& worldPos) const
+{
+        const int ts = m_map->getTileSize();
+
+        // Only dry land suits a building: no ocean, no lake and no beach sand.
+        // The def may narrow this further (a future mine that must sit on a
+        // mountain), so both gates must pass.
+        const Elements element = m_map->getElementAtWorld(worldPos);
+        if (!Buildings::defaultBuildable(element) || !def.allowsTerrain(element))
+                return false;
+
+        // Leave a gap between buildings so the settlement does not fuse into one
+        // solid block. Measured in tiles with the Chebyshev metric, so diagonal
+        // neighbours are separated too. Roads are exempt: a road's whole purpose
+        // is to touch the buildings it connects.
+        if (!Resources::isRoad(def.element))
+        {
+                const int minSpacing = std::max(1, m_settlement.min_spacing_tiles);
+                const sf::Vector2i tile = CoordMath::worldToTile(worldPos, ts);
+                for (const auto& building : m_buildings)
+                {
+                        const sf::Vector2i otherTile = CoordMath::worldToTile(building.origin, ts);
+                        if (std::max(std::abs(tile.x - otherTile.x), std::abs(tile.y - otherTile.y)) < minSpacing)
+                                return false;
+                }
+        }
+        return true;
 }
 
 void EntityManager::planConstruction()
@@ -946,7 +968,7 @@ void EntityManager::planConstruction()
         if (!chosen)
                 return;
 
-        const auto site = findBuildSite();
+        const auto site = findBuildSite(*chosen);
         if (!site)
                 return;
 
@@ -963,9 +985,15 @@ bool EntityManager::placeBuilding(const std::string& building_id, const sf::Vect
         if (!def)
                 return false;
 
-        // Do not stack a new structure on an existing one: the tile would just be
-        // overwritten and the old site would keep producing from the list.
+        // Do not stack a new structure on an existing one, and keep the one rule
+        // for placement (dry land the def allows, minimum gap) in charge here too,
+        // so a manual or test placement cannot break the layout rules the planner
+        // follows. Terrain is checked before cost: an invalid tile is refused
+        // whether or not the stock could pay for it.
         if (findBuildingAt(worldPos))
+                return false;
+
+        if (!canBuildOn(*def, worldPos))
                 return false;
 
         if (!Buildings::affordable(m_goods, *def))

@@ -198,10 +198,16 @@ class EntityManager
         // site. Roads are laid separately as paths between completed buildings.
         void planConstruction();
 
-        // Find a land tile for a new building near the anchor: flat, unoccupied by
-        // any placed building or road, scanning outward ring by ring. Returns
-        // nullopt when the radius offers nothing buildable.
-        std::optional<sf::Vector2i> findBuildSite() const;
+        // Find a land tile for a new building near the anchor: dry land (never
+        // sand or water), matching the def's `allowed_terrain` when it sets one,
+        // and far enough from every placed building to leave a gap. Scans outward
+        // ring by ring. Returns nullopt when the radius offers nothing buildable.
+        std::optional<sf::Vector2i> findBuildSite(const Buildings::Def& def) const;
+
+        // The one rule for where a def may stand: its tile is dry land the def
+        // allows, and it keeps the settlement's minimum gap from every placed
+        // building. Shared by the planner and the placement API so both agree.
+        bool canBuildOn(const Buildings::Def& def, const sf::Vector2i& worldPos) const;
 
         // The nearest incomplete construction site (world distance), or nullopt
         // when everything is built. Builders walk to it and apply work.

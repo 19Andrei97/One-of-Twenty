@@ -291,7 +291,12 @@ Retired from the roadmap; kept here as a record.
   house raises the population cap above the config's `max_population`, and the
   city center is an anchor building. The catalog's `walk_cost` layers over
   `MoveCost` (a road is faster), and `R` reloads the catalog alongside the entity
-  config.
+  config. Placement is gated by one rule (`Buildings::defaultBuildable` plus the
+  def's optional `allowed_terrain`): buildings only stand on dry land (never sand
+  or water), and a settlement-wide `min_spacing_tiles` gap keeps neighbouring
+  structures from fusing into one block, so a settlement reads as a village. A
+  building that must sit on a specific tile (a future mine on a mountain) is a
+  JSON `allowed_terrain` entry, not a code change.
 - [x] **Work happens on the tile.** A gather/build action is queued before the
   walk, so its work timer now starts only once the entity is standing on the
   target tile (`CGather`/`CBuild::started`, latched in the finish pass when the

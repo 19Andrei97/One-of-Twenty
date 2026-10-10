@@ -2,7 +2,8 @@
     "settlement": {
         "max_concurrent_sites": 4,
         "build_radius_tiles": 24,
-        "road_cadence_hours": 24
+        "road_cadence_hours": 24,
+        "min_spacing_tiles": 2
     },
 
     "buildings": [

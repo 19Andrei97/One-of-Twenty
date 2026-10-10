@@ -277,7 +277,7 @@ TEST_CASE("building is gated on the cost in the stores")
     CHECK(entities.buildingCount() == 0);
 
     const int tileSize = map->getTileSize();
-    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize }; // hill, a valid dry-land site under seed 42
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping building test: no chunk could be loaded");
@@ -311,7 +311,7 @@ TEST_CASE("a completed farm produces food each hour")
     EntityManager entities(font, map, clock, delta, entity_file, file);
 
     const int tileSize = map->getTileSize();
-    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize }; // hill, a valid dry-land site under seed 42
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping farm production test: no chunk could be loaded");
@@ -363,7 +363,7 @@ TEST_CASE("a placed building cannot share a tile with another")
     EntityManager entities(font, map, clock, delta, entity_file, file);
 
     const int tileSize = map->getTileSize();
-    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize }; // hill, a valid dry-land site under seed 42
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping building-tile test: no chunk could be loaded");
@@ -381,6 +381,118 @@ TEST_CASE("a placed building cannot share a tile with another")
     std::filesystem::remove(file);
 }
 
+TEST_CASE("a settlement never builds on sand or water")
+{
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath(), buildingsConfigPath());
+
+    const int tileSize = map->getTileSize();
+    // Under seed 42 these tiles are open sea / beach sand; a house must be
+    // refused on both, so a village never grows out of the water or the dunes.
+    for (const int v : { 2, 3, 4 })
+    {
+        const sf::Vector2i sea{ v * tileSize, v * tileSize };
+        if (!ensureChunkLoaded(*map, frames, sea))
+        {
+            MESSAGE("Skipping sand/water test: no chunk could be loaded");
+            return;
+        }
+        CHECK_FALSE(entities.placeBuilding("house", sea));
+    }
+    const sf::Vector2i sand{ 10 * tileSize, 10 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, sand))
+    {
+        MESSAGE("Skipping sand/water test: no chunk could be loaded");
+        return;
+    }
+    CHECK_FALSE(entities.placeBuilding("house", sand));
+}
+
+TEST_CASE("consecutive buildings keep a gap between them")
+{
+    const std::string file = writeTempBuildings("spacing", R"([
+        { "id": "hut", "name": "Hut", "element": "house", "cost": {} }
+    ])");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    // A cost-free catalog so the test exercises the spacing rule, not the wood
+    // economy.
+    EntityManager entities(font, map, clock, delta, entityConfigPath(), file);
+
+    const int tileSize = map->getTileSize();
+    // A dry hill tile under seed 42, with more buildable land just east of it.
+    const sf::Vector2i first{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, first))
+    {
+        MESSAGE("Skipping spacing test: no chunk could be loaded");
+        std::filesystem::remove(file);
+        return;
+    }
+
+    REQUIRE(entities.placeBuilding("hut", first));
+
+    // Directly adjacent (including diagonal) is inside the default 2-tile gap, so
+    // the next hut is refused and the village keeps its spacing.
+    CHECK_FALSE(entities.placeBuilding("hut", first + sf::Vector2i{ tileSize, 0 }));
+    CHECK_FALSE(entities.placeBuilding("hut", first + sf::Vector2i{ 0, tileSize }));
+    CHECK_FALSE(entities.placeBuilding("hut", first + sf::Vector2i{ tileSize, tileSize }));
+    CHECK(entities.buildingCount() == 1);
+
+    // Two tiles east is clear of the first, so it is accepted.
+    CHECK(entities.placeBuilding("hut", first + sf::Vector2i{ 2 * tileSize, 0 }));
+    CHECK(entities.buildingCount() == 2);
+
+    std::filesystem::remove(file);
+}
+
+TEST_CASE("a road may sit next to a building despite the spacing rule")
+{
+    const std::string file = writeTempBuildings("road_gap", R"([
+        { "id": "hut",  "name": "Hut",  "element": "house", "cost": {} },
+        { "id": "road", "name": "Road", "element": "road",  "cost": {} }
+    ])");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath(), file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i hut{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, hut))
+    {
+        MESSAGE("Skipping road-gap test: no chunk could be loaded");
+        std::filesystem::remove(file);
+        return;
+    }
+
+    REQUIRE(entities.placeBuilding("hut", hut));
+    // A road is exempt from the building gap: it must be able to touch the hut.
+    CHECK(entities.placeBuilding("road", hut + sf::Vector2i{ tileSize, 0 }));
+    CHECK(entities.buildingCount() == 2);
+
+    std::filesystem::remove(file);
+}
+
 TEST_CASE("placing an unknown building id fails without spending")
 {
     sf::Font font;
@@ -394,7 +506,7 @@ TEST_CASE("placing an unknown building id fails without spending")
     EntityManager entities(font, map, clock, delta, entityConfigPath(), buildingsConfigPath());
 
     const int tileSize = map->getTileSize();
-    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize }; // hill, a valid dry-land site under seed 42
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping unknown-building test: no chunk could be loaded");
@@ -423,7 +535,7 @@ TEST_CASE("a completed house raises the population capacity")
     EntityManager entities(font, map, clock, delta, entity_file, file);
 
     const int tileSize = map->getTileSize();
-    const sf::Vector2i site{ 2 * tileSize, 2 * tileSize };
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize }; // hill, a valid dry-land site under seed 42
     if (!ensureChunkLoaded(*map, frames, site))
     {
         MESSAGE("Skipping capacity test: no chunk could be loaded");

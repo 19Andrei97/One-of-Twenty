@@ -108,6 +108,16 @@ A run that is killed by `timeout` (exit 124) is a success; check
   does not. `Buildings::walkCost(element, catalog)` layers the catalog override
   over `MoveCost` for both movement and pathfinding. Keep catalog lookups by
   `byId`/`byElement`, not by rebuilding maps.
+- Building placement goes through one rule, `EntityManager::canBuildOn`, which
+  `findBuildSite` (the planner) and `placeBuilding` (the API) both call so the
+  two paths cannot diverge. It rejects the tile unless `Buildings::defaultBuildable`
+  passes (dry land: never sand, ocean or lake) *and* the def's optional
+  `allowed_terrain` admits it, then requires the settlement's `min_spacing_tiles`
+  gap (Chebyshev, so diagonal neighbours count) from every placed building. Roads
+  are exempt from the gap (a road must touch what it connects). The allow-list is
+  JSON-driven, so a building restricted to a specific tile is a data edit; an
+  empty list means "any dry land". Do not re-add an ad-hoc `isOcean`/occupancy
+  test in `findBuildSite` or `placeBuilding`.
 - Entity appearance is data-driven: `helpers/Appearance.h` holds a `Look`
   (shape/color/outline/size) and builds the `CShape` circle; the `appearance`
   block in `config/entity_data.json` configures it per entity type (`types`) and
