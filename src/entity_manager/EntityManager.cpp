@@ -857,6 +857,14 @@ bool EntityManager::hasCityCenter() const
         return m_anchor.has_value();
 }
 
+std::optional<sf::Vector2i> EntityManager::nextBuildSite(const std::string& building_id) const
+{
+        const Buildings::Def* def = m_catalog.byId(building_id);
+        if (!def)
+                return std::nullopt;
+        return findBuildSite(*def);
+}
+
 void EntityManager::applyBuildEffect(PlacedBuilding& building)
 {
         if (building.complete)
@@ -870,29 +878,53 @@ void EntityManager::applyBuildEffect(PlacedBuilding& building)
 
 std::optional<sf::Vector2i> EntityManager::findBuildSite(const Buildings::Def& def) const
 {
-        // The anchor seeds the search; before it exists, the settlement spawns its
-        // first building near where the founders stand.
+        // The anchor (city center) seeds the search; before it exists, the
+        // settlement spawns its first building near where the founders stand.
         const sf::Vector2i center = m_anchor.value_or(findHabitableSpawn());
         const int ts = m_map->getTileSize();
         const sf::Vector2i centerTile = CoordMath::worldToTile(center, ts);
         const int radius = std::max(1, m_settlement.build_radius_tiles);
-        // A building's world position is a tile corner, so one tile step is `ts`
-        // world units. The spacing rule compares tile coordinates.
-        const int minSpacing = std::max(1, m_settlement.min_spacing_tiles);
 
-        for (int ring = 0; ring <= radius; ++ring)
+        // Start from a random point near the centre, not the centre itself: the
+        // outward scan then meets its first free tile in a random direction and at
+        // a random standoff, so successive sites scatter instead of filling the
+        // same tidy ring at one fixed distance.
+        const int jitter = std::max(1, radius / 6);
+        const sf::Vector2i seed = centerTile + sf::Vector2i{ Random::get(-jitter, jitter),
+                                                            Random::get(-jitter, jitter) };
+
+        // Radius-limited flood fill outward from the seed. It returns the nearest
+        // free tile in whatever direction the seed fell, so two sites are not the
+        // same standoff distance from the centre in a tidy ring.
+        // Bound the fill to the whole radius window, so a valid tile is never
+        // missed just because the frontier grew large before reaching it.
+        const int window = 2 * radius + 1;
+        const int maxVisit = window * window;
+        std::vector<sf::Vector2i> frontier{ seed };
+        std::vector<sf::Vector2i> visited{ seed };
+
+        for (std::size_t i = 0; i < frontier.size() && static_cast<int>(i) < maxVisit; ++i)
         {
-                for (int dx = -ring; dx <= ring; ++dx)
-                        for (int dy = -ring; dy <= ring; ++dy)
+                const sf::Vector2i tile = frontier[i];
+                if (std::max(std::abs(tile.x - centerTile.x), std::abs(tile.y - centerTile.y)) > radius)
+                        continue;
+
+                const sf::Vector2i world = CoordMath::tileToWorld(tile, ts);
+                if (canBuildOn(def, world))
+                        return world;
+
+                for (const sf::Vector2i step : { sf::Vector2i{ 1, 0 }, sf::Vector2i{ -1, 0 },
+                                                 sf::Vector2i{ 0, 1 }, sf::Vector2i{ 0, -1 } })
+                {
+                        const sf::Vector2i next = tile + step;
+                        if (std::find(visited.begin(), visited.end(), next) == visited.end())
                         {
-                                if (std::max(std::abs(dx), std::abs(dy)) != ring)
-                                        continue;
-                                const sf::Vector2i tile = centerTile + sf::Vector2i{ dx, dy };
-                                const sf::Vector2i world = CoordMath::tileToWorld(tile, ts);
-                                if (canBuildOn(def, world))
-                                        return world;
+                                visited.push_back(next);
+                                frontier.push_back(next);
                         }
+                }
         }
+
         return std::nullopt;
 }
 
@@ -940,9 +972,12 @@ void EntityManager::planConstruction()
         if (pending >= m_settlement.max_concurrent_sites)
                 return;
 
-        // Pick the next building: the city center first (always buildable), then
-        // the lowest-priority def whose max_count is not reached and that the
-        // stock can afford. Ties go to catalog order, so the result is stable.
+        // The people the settlement could house right now (its base cap plus every
+        // completed house), and the heads it must house. The gap decides whether
+        // another house is worth its wood.
+        const int capacity = populationCapacity();
+        const int heads = entityCount();
+
         const Buildings::Def* chosen = nullptr;
         if (!hasCityCenter() && countOf(m_catalog.indexOf(m_catalog.byId("city_center"))) == 0)
                 chosen = m_catalog.byId("city_center");
@@ -958,6 +993,14 @@ void EntityManager::planConstruction()
                                 continue;
                         if (def.costs.empty() && def.recipes.empty())
                                 continue; // nothing to build toward (a pure anchor)
+                        // Do not keep raising houses the settlement does not need: a
+                        // def is housing when it adds population capacity, and the
+                        // planner stops once the beds cover the people (plus a small
+                        // buffer). A new housing def is recognized by its own
+                        // `population_capacity`, so this stays data-only.
+                        if (def.population_capacity > 0
+                                && countOf(index) >= Buildings::housesWanted(heads, capacity, def.population_capacity))
+                                continue;
                         if (!Buildings::affordable(m_goods, def))
                                 continue;
                         if (!chosen || def.priority < chosen->priority)

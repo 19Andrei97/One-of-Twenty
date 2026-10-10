@@ -118,6 +118,21 @@ A run that is killed by `timeout` (exit 124) is a success; check
   JSON-driven, so a building restricted to a specific tile is a data edit; an
   empty list means "any dry land". Do not re-add an ad-hoc `isOcean`/occupancy
   test in `findBuildSite` or `placeBuilding`.
+- `findBuildSite` scatters the site instead of filling the nearest ring: it seeds
+  a radius-limited flood fill from a random point near the anchor and returns the
+  nearest free tile it meets, so successive buildings differ in direction and in
+  standoff distance. Keep the jitter a *fraction* of `build_radius_tiles`
+  (currently `radius / 6`); a wide jitter lands farms beyond a builder's reach
+  before the settlement is fed and the population starves out (an over-large
+  window regressed `entities never stand in the ocean during a run`). The site is
+  derived from `Random`, so a whole run's layout depends on the global MT state.
+- Housing is demand-gated: `Buildings::housesWanted(heads, capacity, per_house)`
+  is the pure rule (a def is housing when `population_capacity > 0`), and
+  `planConstruction` only raises a house while the settlement is short of beds
+  (plus a two-bed buffer), so it never spends wood on capacity nobody needs. The
+  per-house size is the housing def's own `population_capacity` (shipped 30),
+  which is also what `populationCapacity()` adds once the house is complete;
+  `survival.max_population` in the entity config stays the founding base cap.
 - Entity appearance is data-driven: `helpers/Appearance.h` holds a `Look`
   (shape/color/outline/size) and builds the `CShape` circle; the `appearance`
   block in `config/entity_data.json` configures it per entity type (`types`) and

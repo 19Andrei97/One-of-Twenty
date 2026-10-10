@@ -93,7 +93,10 @@ The engine core and the survival loop are in place:
   entities to understaffed jobs (`helpers/Economy.h`), farms and workshops run
   recipes, food spoils daily, and food is consumed from the store once per person
   per day. Buildings are placed
-  with `setTileColor` so they render and persist, and a stats panel shows the
+  with `setTileColor` so they render and persist: sites only stand on dry land
+  with a settlement-wide gap, the site search scatters around the anchor rather
+  than following a fixed ring, and housing is only raised while the population
+  outruns the capacity it already has. A stats panel shows the
   stockpile, buildings and gather count.
 - **Observability and tuning.** A bounded event log records a run's story
   (births, deaths with cause, gathers, discoveries) stamped with the in-game

@@ -297,6 +297,16 @@ Retired from the roadmap; kept here as a record.
   structures from fusing into one block, so a settlement reads as a village. A
   building that must sit on a specific tile (a future mine on a mountain) is a
   JSON `allowed_terrain` entry, not a code change.
+- [x] **Scattered, demand-driven building sites.** The site search no longer
+  fills the nearest ring around the anchor: it seeds from a random point near the
+  anchor and scans outward, so successive buildings land in different directions
+  and at different standoff distances, and the settlement reads as an organic
+  village rather than a computer-drawn spiral. Houses are large (a JSON
+  `population_capacity`, shipped at 30) and the planner only raises one while the
+  population outruns the capacity it already has (plus a two-bed buffer), so a
+  settlement stops spending wood on beds nobody needs. The jitter stays modest
+  (a fraction of `build_radius_tiles`) so a site never wanders beyond a builder's
+  reach before the settlement can feed itself.
 - [x] **Work happens on the tile.** A gather/build action is queued before the
   walk, so its work timer now starts only once the entity is standing on the
   target tile (`CGather`/`CBuild::started`, latched in the finish pass when the

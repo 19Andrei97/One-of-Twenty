@@ -25,7 +25,7 @@
             "color": [ 190, 120, 90 ],
             "cost": { "wood": 15 },
             "build_hours": 6,
-            "population_capacity": 4,
+            "population_capacity": 30,
             "priority": 1,
             "max_count": 0
         },

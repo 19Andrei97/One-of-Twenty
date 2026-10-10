@@ -57,7 +57,7 @@ struct Def
     int           max_count{ 0 };        // 0 = unlimited
     std::vector<Goods::Recipe> recipes;  // production once complete
 
-    // Terrain this building may stand on. Empty means "any buildable land"
+    // The terrain this building may stand on. Empty means "any buildable land"
     // (the resolver's default, minus the elements the settlement never builds
     // on such as sand and water). Filled from `allowed_terrain` in JSON, so a
     // building that must sit on a specific tile (a mine on a mountain, a
@@ -122,6 +122,18 @@ struct Settlement
     return !Resources::isOcean(element)
         && element != Elements::lake
         && element != Elements::sand;
+}
+
+// How many more houses the settlement wants: enough to house the people the
+// current capacity does not cover, plus a two-bed buffer, and zero once the
+// housing already covers the population. The construction planner stops raising
+// houses on this, so a settlement never spends wood on beds nobody needs.
+[[nodiscard]] inline int housesWanted(const int heads, const int capacity, const int per_house) noexcept
+{
+    if (per_house <= 0 || heads <= capacity)
+        return 0;
+    const int shortfall = heads - capacity;
+    return (shortfall + 2 + per_house - 1) / per_house;
 }
 
 // Parse a good name (lower-case) into a `Goods::Good`. Throws on an unknown name.

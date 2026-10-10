@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <set>
 #include <string>
 
 // The economy helpers are pure value types (a Stock and pure functions over it),
@@ -490,6 +491,116 @@ TEST_CASE("a road may sit next to a building despite the spacing rule")
     CHECK(entities.placeBuilding("road", hut + sf::Vector2i{ tileSize, 0 }));
     CHECK(entities.buildingCount() == 2);
 
+    std::filesystem::remove(file);
+}
+
+TEST_CASE("the build-site search scatters instead of following a fixed ring")
+{
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entityConfigPath(), buildingsConfigPath());
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i center{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, center))
+    {
+        MESSAGE("Skipping scatter test: no chunk could be loaded");
+        return;
+    }
+
+    // Anchor the settlement so the search radius has a centre to roam around.
+    REQUIRE(entities.placeBuilding("city_center", center));
+    REQUIRE(entities.completeBuilding(center));
+
+    // Draw many candidate sites. A fixed ring would return the same tile (and the
+    // same standoff distance) every time; the random seed makes both vary.
+    std::set<std::pair<int, int>> tiles;
+    std::set<int> distances;
+    const sf::Vector2i centerTile = center / tileSize;
+    for (int draw = 0; draw < 40; ++draw)
+    {
+        const auto site = entities.nextBuildSite("house");
+        REQUIRE(site.has_value());
+        // The anchor's own tile is never returned: it already holds a building.
+        const sf::Vector2i tile = (*site) / tileSize;
+        CHECK(tile != centerTile);
+        tiles.insert({ tile.x, tile.y });
+        distances.insert(std::max(std::abs(tile.x - centerTile.x),
+                                  std::abs(tile.y - centerTile.y)));
+    }
+
+    CHECK(tiles.size() >= 5);      // the location scatters
+    CHECK(distances.size() >= 2);  // and not all at one standoff distance
+}
+
+TEST_CASE("the planner raises housing only when the settlement needs it")
+{
+    // A house with a zero-cost entry (so it is always affordable and the only gate
+    // left is need) and a city center. The entity config's base cap is 40, so a
+    // small settlement wants no houses at all.
+    const std::string file = writeTempBuildings("demand", R"([
+        { "id": "city_center", "name": "City Center", "element": "city_center",
+          "cost": {}, "build_hours": 1, "is_anchor": true, "priority": 0, "max_count": 1 },
+        { "id": "house", "name": "House", "element": "house",
+          "cost": { "wood": 0 }, "build_hours": 1, "population_capacity": 30, "priority": 1 }
+    ])");
+    const std::string entity_file = writeTempEntityConfig("demand", R"({})");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entity_file, file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping demand test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+
+    // Anchor the settlement first, so the planner has nothing else it must build.
+    REQUIRE(entities.placeBuilding("city_center", site));
+    REQUIRE(entities.completeBuilding(site));
+
+    // No people, no need: several hours pass with no house raised.
+    for (int hour = 0; hour < 3; ++hour)
+    {
+        for (int step = 0; step < 60; ++step)
+            clock->update(delta);
+        entities.update();
+    }
+    CHECK(entities.countOfElement(Elements::house) == 0);
+
+    // Fill the settlement past the config's base cap (40); now a house is wanted.
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    for (int i = 0; i < 41; ++i)
+        entities.addEntity(EntityType::Human_Generic, spawn);
+    CHECK(entities.population() > entities.populationCapacity());
+
+    for (int hour = 0; hour < 3; ++hour)
+    {
+        for (int step = 0; step < 60; ++step)
+            clock->update(delta);
+        entities.update();
+    }
+    CHECK(entities.countOfElement(Elements::house) >= 1);
+
+    std::filesystem::remove(entity_file);
     std::filesystem::remove(file);
 }
 

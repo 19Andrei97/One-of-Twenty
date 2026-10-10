@@ -200,8 +200,10 @@ class EntityManager
 
         // Find a land tile for a new building near the anchor: dry land (never
         // sand or water), matching the def's `allowed_terrain` when it sets one,
-        // and far enough from every placed building to leave a gap. Scans outward
-        // ring by ring. Returns nullopt when the radius offers nothing buildable.
+        // and far enough from every placed building to leave a gap. The search
+        // starts from a random point near the anchor (so successive sites scatter
+        // rather than marching around the centre) and scans outward to the first
+        // free tile. Returns nullopt when the radius offers nothing buildable.
         std::optional<sf::Vector2i> findBuildSite(const Buildings::Def& def) const;
 
         // The one rule for where a def may stand: its tile is dry land the def
@@ -389,6 +391,10 @@ public:
         // plus each completed building's `population_capacity` bonus (houses), so
         // a built settlement can outgrow its founding cap.
         int populationCapacity() const;
+        // The site the planner would pick for `building_id` right now, or nullopt
+        // when the def is unknown or no tile in the radius is free. Exposed so a
+        // test can exercise the site search (and its scatter) directly.
+        std::optional<sf::Vector2i> nextBuildSite(const std::string& building_id) const;
         // Whether a city center has been completed; the settlement's anchor.
         bool hasCityCenter() const;
         // The settlement anchor (city-center origin) once it exists.

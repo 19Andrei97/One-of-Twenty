@@ -202,6 +202,23 @@ TEST_CASE("defaultBuildable rejects sand and water but allows dry land")
     CHECK(Buildings::defaultBuildable(Elements::clay));
 }
 
+TEST_CASE("housesWanted stops building housing the settlement already has")
+{
+    // No shortfall: no houses wanted, however many people.
+    CHECK(Buildings::housesWanted(0, 120, 30) == 0);
+    CHECK(Buildings::housesWanted(120, 120, 30) == 0);
+    CHECK(Buildings::housesWanted(50, 120, 30) == 0);
+
+    // A shortfall wants enough houses to cover it plus the two-bed buffer.
+    CHECK(Buildings::housesWanted(121, 120, 30) == 1); // 1 short, the buffer fits one
+    CHECK(Buildings::housesWanted(139, 120, 30) == 1); // 19 short, buffer still one
+    CHECK(Buildings::housesWanted(149, 120, 30) == 2); // 29 short, buffer needs two
+    CHECK(Buildings::housesWanted(420, 120, 30) == 11); // 300 short, buffer spreads
+
+    // A non-positive per-house size never demands houses (guards a bad config).
+    CHECK(Buildings::housesWanted(200, 0, 0) == 0);
+}
+
 TEST_CASE("a def's allowed_terrain narrows where it may stand")
 {
     const std::string file = writeTempBuildings("terrain", R"({
@@ -253,6 +270,17 @@ TEST_CASE("the shipped catalog loads and anchors the city center")
     REQUIRE(city_center != nullptr);
     CHECK(city_center->is_anchor);
     CHECK(city_center->max_count == 1);
+
+    // A house houses a village-sized crowd, not a single family, so the planner
+    // does not paper the map with houses.
+    const Buildings::Def* house = catalog.byId("house");
+    REQUIRE(house != nullptr);
+    CHECK(house->population_capacity == 30);
+    CHECK(house->allowsTerrain(Elements::hill));
+
+    // The settlement gap is set, so the planner keeps a village-like spacing.
+    const Buildings::Settlement settlement = Buildings::loadSettlement(shippedCatalogPath());
+    CHECK(settlement.min_spacing_tiles >= 1);
 
     // Every def has a stable id and a renderable element.
     for (const auto& def : catalog.all())
