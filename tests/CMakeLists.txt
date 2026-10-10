@@ -19,6 +19,7 @@ add_executable(unit_tests
     test_hud.cpp
     test_scene.cpp
     test_camera_hover.cpp
+    test_headless_sim.cpp
 )
 
 # The helper headers under test are header-only; expose them directly.
@@ -31,6 +32,7 @@ target_include_directories(unit_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/game
     ${CMAKE_SOURCE_DIR}/src/camera
     ${CMAKE_SOURCE_DIR}/src/components
+    ${CMAKE_SOURCE_DIR}/src/headless
 )
 
 # Tests read config/map_data.json; ctest runs from the build tree, so bake in
@@ -50,6 +52,7 @@ target_link_libraries(unit_tests PRIVATE
     EntityManager
     Hud
     Game
+    HeadlessSim
 )
 
 if(OpenGL_FOUND)

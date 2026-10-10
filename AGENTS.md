@@ -24,8 +24,8 @@ ctest --test-dir build --output-on-failure
 
 ### Running headlessly (CI / containers)
 
-The game needs an X11 display; without one SFML aborts during static
-initialization, before `main`. Use Xvfb:
+The *rendering* path needs an X11 display; without one SFML aborts during static
+initialization, before `main`. Use Xvfb to run the game:
 
 ```bash
 cd build/bin && xvfb-run -a ./OneOfTwenty
@@ -33,6 +33,31 @@ cd build/bin && xvfb-run -a ./OneOfTwenty
 
 A run that is killed by `timeout` (exit 124) is a success; check
 `logs/game.log` for startup traces.
+
+The *simulation* does not need a display. `MapGenerator::stream(viewBounds)` does
+chunk load/evict with no GL and no render target; `render()` only draws. The
+headless runner (`src/headless`, built as `bin/OneOfTwentySim`, option
+`ONE_OF_TWENTY_BUILD_SIM`) drives the same clock/map/entity loop with no window:
+
+```bash
+cd build/bin && ./OneOfTwentySim --days 360 --seed 42 --population 8
+ctest --test-dir build --output-on-failure      # passes with no DISPLAY
+```
+
+The unit tests no longer need a display: `tests/MapStream.h` streams chunks
+through `stream()`, and the render test is the only case that needs a GL context
+(it skips when none is available). Still use `xvfb-run -a ctest ...` to include
+the render test.
+
+The runner constructs `MapGenerator` with `synchronous = true`: the real-time
+worker threads cannot keep up when the clock runs far faster than real time, so
+`stream()` generates the view's chunks inline (`queueMissingChunks` +
+`generateQueuedChunks`, the bodies the workers loop over). The game leaves this
+off, so its streaming is unchanged. The runner also seeds `Random::mt`
+(`setRandomSeed`) for repeatable runs, since placement/wander draw from it.
+Clock speed changes outcomes (a high speed coarsens decision sampling and can
+starve a settlement); the CLI defaults to 360 min/s (6 h/s), a shipped preset
+that keeps a settlement thriving.
 
 ## Conventions and gotchas
 

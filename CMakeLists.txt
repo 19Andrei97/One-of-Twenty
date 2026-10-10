@@ -172,6 +172,13 @@ add_subdirectory(src/helpers)
 add_subdirectory(src/hud)
 add_subdirectory(src/map_generator)
 
+# Headless simulation runner (no window/GL). On by default; it makes the
+# simulation runnable and testable without a screen.
+option(ONE_OF_TWENTY_BUILD_SIM "Build the headless simulation runner" ON)
+if(ONE_OF_TWENTY_BUILD_SIM)
+    add_subdirectory(src/headless)
+endif()
+
 # Main executable
 add_executable(${PROJECT_NAME} src/main.cpp)
 
