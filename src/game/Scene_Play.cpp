@@ -353,13 +353,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 					m_hud->input(*mousePressed, guiPos);
 				}
 
-				if (!m_paused && m_camera && m_map)
-				{
-					sf::Vector2f worldPos = m_game->getWindow().mapPixelToCoords(pixel, m_camera->getCamera());
-
-					// Map edit
-					m_map->setTileColor(static_cast<sf::Vector2i>(worldPos), Elements::test);
-				}
+				// Left click is UI-only for now: it must not edit the map.
 				break;
 			}
 			default: break;
