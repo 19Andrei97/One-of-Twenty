@@ -54,7 +54,6 @@ enum class EventCause
     None,
     Aged,
     Starved,
-    Dehydrated,
     Natural
 };
 
@@ -64,7 +63,6 @@ enum class EventCause
     {
         case EventCause::Aged:       return "aged";
         case EventCause::Starved:    return "starved";
-        case EventCause::Dehydrated: return "dehydrated";
         case EventCause::Natural:    return "natural";
         default:                     return "none";
     }

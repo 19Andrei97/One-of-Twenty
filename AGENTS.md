@@ -92,8 +92,9 @@ A run that is killed by `timeout` (exit 124) is a success; check
 - A busy entity interrupts a non-survival plan when a need turns critical
   (`EntityDecision::interruptFor`, used in the decision loop). The replan is
   transactional — the old plan is restored unless the urgent action actually
-  starts — so a need with no remembered target cannot thrash the entity. Keep
-  survival plans (Eat/Drink/Sleep) non-interruptible by other survival needs.
+  starts — so a need with no remembered target cannot thrash the entity. Sleep is
+  the only per-entity survival need, so a sleep plan is the only non-interruptible
+  one; food is a settlement-level stock (see below), not an entity decision.
 - `EntityManager::reloadConfig` re-reads the entity JSON *and* the building
   catalog in place; the `R` key in `Scene_Play` binds it. Add new tuning as a
   member of `EntityConfig` so reload picks it up for free.
@@ -254,9 +255,24 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
   pass that tallies `m_deaths` once, because `killTheDying` only marks entities
   and is idempotent across hour-steps. Reproduction is per entity
   (`CReproduction`) rather than a settlement-wide cooldown.
-- `CHealth` is a slow resource separate from the needs: starvation drains it,
-  comfort regenerates it, and death happens at zero. Keep this indirection so a
-  need emptied in one coarse step does not kill a healthy entity instantly.
+- `CHealth` is a slow resource separate from the needs: a food shortfall drains
+  it, a rested entity regenerates it, and death happens at zero. Keep this
+  indirection so a missed meal does not kill a healthy entity instantly.
+- Food is a *settlement-level* resource, not a per-entity need: `consumeFoodDaily`
+  draws `food_per_person_per_day` per head once per in-game day; each entity left
+  unfed accrues `days_without_food`, and `lethal_days_without_food` consecutive
+  days start draining health. Sleep (`sleep_gain_per_hour`) is the only per-entity
+  need. Farms are the *only* food source (`Resources::isFood` is farm-only);
+  wild forest/hill yield wood/stone via gathers, never food.
+- A forest tile is a finite wood pile (`Chunk::tree_wood`, sized at generation
+  from `tree_wood_min`/`tree_wood_max` via `GenerateTerrain::treeAmountAtTile`);
+  `MapGenerator::harvestWood` decrements it and clears the tile to a hill at zero,
+  rebuilding the mesh. Gathers credit `Goods::fromElement`, so a farm yields food
+  and a forest wood with no special case in the gather handler.
+- EntityManager writes a building into a tile with `setTileColor`, which only
+  succeeds once that tile's chunk is loaded. A test that drives the real update
+  loop must stream chunks (render the view) or construction silently fails and the
+  settlement starves; see `tests/MapStream.h`.
 - `config/entity_data.json` `survival` accepts both the newer friendly units
   (`lifespan_years`, `birth_interval_days`) and the older hours keys
   (`lifespan_hours`, `birth_cooldown_hours`); keep both loadable.

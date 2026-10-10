@@ -26,11 +26,11 @@ namespace Resources
             || element == Elements::very_deep_ocean;
     }
 
-    // Edible land: the tiles an entity forages to satisfy hunger. Kept apart
-    // from the workable deposits below so eating draws from food, not ore.
+    // Edible land: a farm is the only tile that yields food. Wild terrain (a
+    // forest or a hill) can be worked for wood or stone but is not itself food.
     inline constexpr bool isFood(const Elements element) noexcept
     {
-        return element == Elements::forest || element == Elements::hill;
+        return element == Elements::farm;
     }
 
     // Workable land: the tiles an entity can gather to produce a settlement
@@ -66,15 +66,15 @@ namespace Resources
         return element == Elements::road;
     }
 
-    // Consumable: what eating and drinking withdraw from the settlement stores.
-    // Water is drunk straight from the tile; food is eaten from the stockpile.
+    // Consumable: food, eaten from the settlement stockpile. Water is no longer a
+    // need, so it is not tracked as a resource.
     inline constexpr bool isConsumable(const Elements element) noexcept
     {
-        return isWater(element) || isFood(element);
+        return isFood(element);
     }
 
-    // Any tile worth remembering so an entity knows where to go: water to drink,
-    // food to eat, gatherables to work.
+    // Any tile worth remembering so an entity knows where to go: food to gather
+    // from a farm, or a gatherable to work. Water is no longer remembered.
     inline constexpr bool isResource(const Elements element) noexcept
     {
         return isConsumable(element) || isGatherable(element);

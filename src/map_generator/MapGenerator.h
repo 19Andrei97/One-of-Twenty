@@ -135,6 +135,18 @@ public:
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
 	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 
+	// Take one unit of wood from the forest tile under a world position.
+	// Returns the wood remaining on the tile after the harvest; when it reaches
+	// zero the stand is cleared and the tile becomes a hill (the mesh is rebuilt
+	// so the change renders immediately). Returns -1 when the tile no longer
+	// holds a tree (depleted, or not a forest), so the caller can skip crediting a
+	// trip to a stale target.
+	int harvestWood(const sf::Vector2i& pos);
+
+	// Remaining wood on the forest tile under a world position, or 0 when the
+	// tile holds no tree. For the tile info readout.
+	int woodAt(const sf::Vector2i& pos) const;
+
 	// Overwrite the palette entries for building elements with the colors the
 	// building catalog declares, so a structure renders with its JSON color.
 	// Terrain colors are untouched: only the pairs passed in change. Call once

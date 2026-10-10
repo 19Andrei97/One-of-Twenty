@@ -82,13 +82,11 @@ std::string writeTempEntityConfig(const std::string& name, const std::string& ec
         std::filesystem::temp_directory_path() / ("economy_test_" + name + ".json");
     std::ofstream out(path);
     out << R"({
-        "needs": { "hunger_decay_per_hour": 3, "thirst_decay_per_hour": 5, "sleep_gain_per_hour": 2 },
+        "needs": { "sleep_gain_per_hour": 2 },
         "survival": { "initial_population": 8, "max_population": 40, "lifespan_years": 65 },
         "economy": )" << economyJson << R"(,
         "decision": {
             "idle_tolerance": 3,
-            "thirst": { "threshold": 0.20, "bias": 1.0 },
-            "hunger": { "threshold": 0.20, "bias": 1.0 },
             "sleep":  { "threshold": 0.20, "bias": 1.0 },
             "work":   { "threshold": 0.50, "bias": 1.0 }
         }
@@ -248,9 +246,11 @@ TEST_CASE("job assignment fills the largest staffing gap")
 
 TEST_CASE("job preference orders each role's favourite resources")
 {
-    // A farmer values forage over hill, a lumberjack only wood.
-    CHECK(Goods::jobPreference(Jobs::Job::Farmer, Elements::forest) == 0);
-    CHECK(Goods::jobPreference(Jobs::Job::Farmer, Elements::hill) == 1);
+    // A farmer works a farm for food, then gathers wood to build one. A
+    // lumberjack only wants wood.
+    CHECK(Goods::jobPreference(Jobs::Job::Farmer, Elements::farm) == 0);
+    CHECK(Goods::jobPreference(Jobs::Job::Farmer, Elements::forest) == 1);
+    CHECK(Goods::jobPreference(Jobs::Job::Farmer, Elements::hill) == 2);
     CHECK(Goods::jobPreference(Jobs::Job::Lumberjack, Elements::forest) == 0);
     CHECK(Goods::jobPreference(Jobs::Job::Lumberjack, Elements::hill) == -1);
 
@@ -487,11 +487,9 @@ TEST_CASE("an entity config without the economy block still loads with defaults"
     {
         std::ofstream out(path);
         out << R"({
-            "needs": { "hunger_decay_per_hour": 3, "thirst_decay_per_hour": 5, "sleep_gain_per_hour": 2 },
+            "needs": { "sleep_gain_per_hour": 2 },
             "decision": {
                 "idle_tolerance": 3,
-                "thirst": { "threshold": 0.20, "bias": 1.0 },
-                "hunger": { "threshold": 0.20, "bias": 1.0 },
                 "sleep":  { "threshold": 0.20, "bias": 1.0 }
             }
         })";

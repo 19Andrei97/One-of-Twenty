@@ -27,8 +27,8 @@ struct Config
         float bias{ 1.f };       // >1 pursues sooner/longer, <1 tolerates it longer
     };
 
-    Need thirst{};
-    Need hunger{};
+    // Sleep is the only survival need now: food is a settlement-level stock that
+    // is consumed once a day, so hunger is not an entity decision.
     Need sleep{};
 
     // Society work is only considered once every survival need is satisfied, so
@@ -49,8 +49,6 @@ struct Config
 enum class Need
 {
     None,
-    Thirst,
-    Hunger,
     Sleep,
     Work,
     Explore,
@@ -67,8 +65,7 @@ namespace detail
 
 } // namespace detail
 
-// Normalised (0..1) urgency of a need given its raw counter. `hunger`/`thirst`
-// are fullness counters (100 comfortable, 0 dire) so they invert; `sleep` is a
+// Normalised (0..1) urgency of a need given its raw counter. `sleep` is a
 // fatigue counter (0 rested, 100 exhausted) and maps straight through. Urgency
 // is 0 while the need is comfortable and grows to 1 at the extreme.
 [[nodiscard]] inline float urgency(const int value, const bool inverted) noexcept
@@ -86,7 +83,7 @@ namespace detail
 }
 
 // Personality maps 0..100 onto a 0.5x..1.5x multiplier: higher traits act
-// sooner (drink/eat/sleep earlier), lower ones wait longer.
+// sooner (sleep earlier), lower ones wait longer.
 [[nodiscard]] inline float personalityFactor(const int trait) noexcept
 {
     return detail::clampf(0.5f + static_cast<float>(trait) / 100.f, 0.5f, 1.5f);
@@ -98,33 +95,19 @@ namespace detail
     return (it != personality.traits.end()) ? it->second : 50;
 }
 
-// The personality-adjusted urgency of each need. `thirst`/`hunger`/`sleep` are
-// the survival needs; `work` is the society drive, derived from how comfortable
-// the entity is overall. Exposed for tests and the HUD.
+// The personality-adjusted urgency of each need. `sleep` is the survival need;
+// `work` is the society drive, derived from how rested the entity is.
 struct Urgencies
 {
-    float thirst{ 0.f };
-    float hunger{ 0.f };
     float sleep{ 0.f };
     float work{ 0.f };
 
-    [[nodiscard]] float byIndex(const std::size_t index) const noexcept
-    {
-        switch (index)
-        {
-            case 0: return thirst;
-            case 1: return hunger;
-            default: return sleep;
-        }
-    }
-
-    // How comfortable the entity is overall: 1 when every need is satisfied, 0
-    // when any need is critical. Work is driven by this, so an entity only turns
-    // to society work once it is not struggling to survive.
+    // How comfortable the entity is overall: 1 when rested, 0 when exhausted.
+    // Work is driven by this, so an entity only turns to society work once it is
+    // not struggling to stay awake.
     [[nodiscard]] float comfort() const noexcept
     {
-        const float worst = std::max({ thirst, hunger, sleep });
-        return std::clamp(1.f - worst, 0.f, 1.f);
+        return std::clamp(1.f - sleep, 0.f, 1.f);
     }
 };
 
@@ -137,18 +120,12 @@ struct Urgencies
         return biasedUrgency(urgency, bias) * personalityFactor(trait);
     };
 
-    Urgencies u{
-        weighted(EntityDecision::urgency(needs.thirst, /* inverted */ true),
-                 cfg.thirst.bias, traitValue(personality, PersonalityTrait::Brave)),
-        weighted(EntityDecision::urgency(needs.hunger, /* inverted */ true),
-                 cfg.hunger.bias, traitValue(personality, PersonalityTrait::Greedy)),
-        weighted(EntityDecision::urgency(needs.sleep, /* inverted */ false),
-                 cfg.sleep.bias, traitValue(personality, PersonalityTrait::Calm)),
-        0.f,
-    };
+    Urgencies u{};
+    u.sleep = weighted(EntityDecision::urgency(needs.sleep, /* inverted */ false),
+                       cfg.sleep.bias, traitValue(personality, PersonalityTrait::Calm));
 
     // Work urgency leans on how comfortable the entity is overall (comfort) and
-    // on Loyalty as the society trait, so a stressed entity keeps to survival.
+    // on Loyalty as the society trait, so a tired entity keeps to survival.
     u.work = weighted(u.comfort(), cfg.work.bias,
                       traitValue(personality, PersonalityTrait::Loyal));
     return u;
@@ -159,8 +136,6 @@ struct Urgencies
 {
     switch (need)
     {
-        case Need::Thirst:  return ActionTypes::Drinking;
-        case Need::Hunger:  return ActionTypes::Eating;
         case Need::Sleep:   return ActionTypes::Sleeping;
         case Need::Work:    return ActionTypes::Gathering;
         // Exploration and wandering are both "walk somewhere": they differ only in
@@ -169,31 +144,16 @@ struct Urgencies
     }
 }
 
-// Pick the most urgent survival need at or above its threshold, or `None`. Ties
-// resolve in the fixed thirst > hunger > sleep order so the result is
-// deterministic. Work is handled separately in `decide` because it is only
-// eligible once no survival need is pressing.
+// Pick the survival need at or above its threshold, or `None`.
 [[nodiscard]] inline Need strongestNeed(const Urgencies& u, const Config& cfg) noexcept
 {
-    const std::array<float, 3> values{ u.thirst, u.hunger, u.sleep };
-    const std::array<float, 3> thresholds{ cfg.thirst.threshold, cfg.hunger.threshold, cfg.sleep.threshold };
-    const std::array<Need, 3> needs{ Need::Thirst, Need::Hunger, Need::Sleep };
-
-    Need best = Need::None;
-    float bestValue = 0.f;
-    for (std::size_t i = 0; i < values.size(); ++i)
-    {
-        if (values[i] >= thresholds[i] && values[i] > bestValue)
-        {
-            bestValue = values[i];
-            best = needs[i];
-        }
-    }
-    return best;
+    if (u.sleep >= cfg.sleep.threshold)
+        return Need::Sleep;
+    return Need::None;
 }
 
-// Decide what an entity should do. Survival needs come first; if none is
-// pressing and the entity is comfortable enough to work, an explorer sets off to
+// Decide what an entity should do. Survival comes first; if sleep is not
+// pressing and the entity is rested enough to work, an explorer sets off to
 // extend the settlement's knowledge while everyone else gathers. Otherwise it
 // idles, and once `idleFrames` reaches the tolerance it wanders instead of
 // standing still.
@@ -216,14 +176,12 @@ struct Urgencies
 }
 
 // The need an action is currently working to satisfy. `Moving` is unknown (it is
-// shared by every errand, from a drink trip to exploration), so it maps to
+// shared by every errand, from a work trip to exploration), so it maps to
 // `None`: a plain move carries no committed need.
 [[nodiscard]] constexpr Need servedNeed(const ActionTypes action) noexcept
 {
     switch (action)
     {
-        case ActionTypes::Eating:    return Need::Hunger;
-        case ActionTypes::Drinking:  return Need::Thirst;
         case ActionTypes::Sleeping:  return Need::Sleep;
         case ActionTypes::Gathering: return Need::Work;
         case ActionTypes::Building:  return Need::Work;
@@ -238,8 +196,8 @@ struct Urgencies
 // and is not the one the current action already serves, the entity should drop
 // its plan and see to that need. This is what lets a long gather trip be
 // interrupted before a need drains health, and it never thrashes on the need it
-// is already serving (an entity mid-meal keeps eating). The caller must still
-// avoid re-planning a need whose action is already queued.
+// is already serving. The caller must still avoid re-planning a need whose
+// action is already queued.
 [[nodiscard]] inline std::optional<Need> interruptFor(const CBasicNeeds& needs,
                                                       const CPersonality& personality,
                                                       const Config& cfg,

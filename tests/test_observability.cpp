@@ -46,12 +46,10 @@ std::string writeTempObservabilityConfig(const std::string& name, const std::str
         std::filesystem::temp_directory_path() / ("obs_test_" + name + ".json");
     std::ofstream out(path);
     out << R"({
-        "needs": { "hunger_decay_per_hour": 3, "thirst_decay_per_hour": 5, "sleep_gain_per_hour": 2 },
+        "needs": { "sleep_gain_per_hour": 2 },
         "survival": )" << survivalJson << R"(,
         "decision": {
             "idle_tolerance": 3,
-            "thirst": { "threshold": 0.20, "bias": 1.0 },
-            "hunger": { "threshold": 0.20, "bias": 1.0 },
             "sleep":  { "threshold": 0.20, "bias": 1.0 },
             "work":   { "threshold": 0.50, "bias": 1.0 }
         }
@@ -140,34 +138,27 @@ TEST_CASE("interruptFor lets a critical need preempt a non-survival plan")
     EntityDecision::Config cfg; // shipped thresholds
     CPersonality personality;
 
-    CBasicNeeds comfortable;    // every need satisfied
+    CBasicNeeds comfortable;    // rested
     CHECK_FALSE(EntityDecision::interruptFor(comfortable, personality, cfg, ActionTypes::Gathering).has_value());
 
-    CBasicNeeds thirsty;
-    thirsty.thirst = 0;         // critical dehydration
+    CBasicNeeds exhausted;
+    exhausted.sleep = 100;      // critical fatigue
 
-    // A gather trip (and a wander) are dropped for thirst.
-    CHECK(EntityDecision::interruptFor(thirsty, personality, cfg, ActionTypes::Gathering)
-          == EntityDecision::Need::Thirst);
-    CHECK(EntityDecision::interruptFor(thirsty, personality, cfg, ActionTypes::Moving)
-          == EntityDecision::Need::Thirst);
+    // A gather trip (and a wander) are dropped for sleep.
+    CHECK(EntityDecision::interruptFor(exhausted, personality, cfg, ActionTypes::Gathering)
+          == EntityDecision::Need::Sleep);
+    CHECK(EntityDecision::interruptFor(exhausted, personality, cfg, ActionTypes::Moving)
+          == EntityDecision::Need::Sleep);
 
-    // But a plan already addressing thirst is not abandoned (no thrash).
-    CHECK_FALSE(EntityDecision::interruptFor(thirsty, personality, cfg, ActionTypes::Drinking).has_value());
-
-    // A different critical need still preempts: hunger wins over a drink plan.
-    CBasicNeeds starving;
-    starving.hunger = 0;
-    CHECK(EntityDecision::interruptFor(starving, personality, cfg, ActionTypes::Drinking)
-          == EntityDecision::Need::Hunger);
+    // But a plan already addressing sleep is not abandoned (no thrash).
+    CHECK_FALSE(EntityDecision::interruptFor(exhausted, personality, cfg, ActionTypes::Sleeping).has_value());
 }
 
 TEST_CASE("servedNeed maps actions to the need they satisfy")
 {
-    CHECK(EntityDecision::servedNeed(ActionTypes::Eating) == EntityDecision::Need::Hunger);
-    CHECK(EntityDecision::servedNeed(ActionTypes::Drinking) == EntityDecision::Need::Thirst);
     CHECK(EntityDecision::servedNeed(ActionTypes::Sleeping) == EntityDecision::Need::Sleep);
     CHECK(EntityDecision::servedNeed(ActionTypes::Gathering) == EntityDecision::Need::Work);
+    CHECK(EntityDecision::servedNeed(ActionTypes::Building) == EntityDecision::Need::Work);
     CHECK(EntityDecision::servedNeed(ActionTypes::Moving) == EntityDecision::Need::None);
 }
 
@@ -189,12 +180,10 @@ TEST_CASE("reloading the config re-reads tuning from disk and rejects a bad file
     {
         std::ofstream out(file);
         out << R"({
-            "needs": { "hunger_decay_per_hour": 3, "thirst_decay_per_hour": 5, "sleep_gain_per_hour": 2 },
+            "needs": { "sleep_gain_per_hour": 2 },
             "survival": { "initial_population": 8, "max_population": 99, "lifespan_years": 65 },
             "decision": {
                 "idle_tolerance": 3,
-                "thirst": { "threshold": 0.20, "bias": 1.0 },
-                "hunger": { "threshold": 0.20, "bias": 1.0 },
                 "sleep":  { "threshold": 0.20, "bias": 1.0 },
                 "work":   { "threshold": 0.50, "bias": 1.0 }
             }
@@ -259,19 +248,18 @@ TEST_CASE("a busy entity drops a wander for a critical need in the update loop")
     float delta = 1.f / 60.f;
     EntityManager entities(font, map, clock, delta, obsEntityConfigPath());
 
-    // Found the entity where the settlement would: a land tile with water and
-    // forage in reach, so a drink target genuinely exists.
+    // Found the entity where the settlement would: a land tile with a
+    // gatherable in reach, so it is a real, workable site.
     const sf::Vector2i spawn = entities.findHabitableSpawn();
     const entt::entity entity = entities.addEntity(EntityType::Human_Generic, spawn);
     REQUIRE(entities.entityCount() == 1);
 
-    // One update lets the settlement remember nearby water/food in its shared
+    // One update lets the settlement remember nearby resources in its shared
     // knowledge.
     entities.update();
-    const bool knowsWater = entities.knowledge().findNearest(spawn, CivKnowledge::Kind::Water).has_value();
 
     // Force the entity onto a long, non-survival errand and make it critically
-    // thirsty. The update should abandon the wander for a drink.
+    // exhausted. The update should abandon the wander to sleep.
     auto* queue = entities.actionsOf(entity);
     REQUIRE(queue != nullptr);
     queue->actions.clear();
@@ -279,7 +267,7 @@ TEST_CASE("a busy entity drops a wander for a critical need in the update loop")
 
     auto* needs = entities.needsOf(entity);
     REQUIRE(needs != nullptr);
-    needs->thirst = 0;
+    needs->sleep = CBasicNeeds::kMax;
 
     entities.update();
 
@@ -287,22 +275,12 @@ TEST_CASE("a busy entity drops a wander for a critical need in the update loop")
     REQUIRE(after != nullptr);
     REQUIRE_FALSE(after->actions.empty());
 
-    if (knowsWater)
-    {
-        // A remembered drink target exists, so the wander is replaced by a drink
-        // errand (a move toward it, then the drinking action itself).
-        bool drinking = false;
-        for (const auto& action : after->actions)
-            if (action && action->action_name == ActionTypes::Drinking)
-                drinking = true;
-        CHECK(drinking);
-    }
-    else
-    {
-        // Nothing remembered: the entity cannot plan a drink, so it must keep its
-        // plan rather than be left with an empty queue (no thrash).
-        CHECK_FALSE(after->actions.empty());
-    }
+    // Sleep needs no target, so the wander is always replaced by a sleep action.
+    bool sleeping = false;
+    for (const auto& action : after->actions)
+        if (action && action->action_name == ActionTypes::Sleeping)
+            sleeping = true;
+    CHECK(sleeping);
 }
 
 TEST_CASE("a fresh settlement survives its first day within the population cap")
@@ -363,16 +341,12 @@ TEST_CASE("shared knowledge merges observations and deduplicates tiles")
 TEST_CASE("shared knowledge finds the nearest remembered location of a kind")
 {
     CivKnowledge knowledge(8);
-    knowledge.remember({ { Elements::ocean, { 100, 0 } } });
-    knowledge.remember({ { Elements::ocean, { 5, 0 } } });
+    knowledge.remember({ { Elements::forest, { 100, 0 } } });
+    knowledge.remember({ { Elements::farm, { 5, 0 } } });
     knowledge.remember({ { Elements::forest, { 9, 0 } } });
 
-    // Water covers every ocean tile; the nearest to the query wins.
-    CHECK(knowledge.findNearest({ 0, 0 }, CivKnowledge::Kind::Water) == std::optional<sf::Vector2i>{ { 5, 0 } });
-    CHECK(knowledge.findNearest({ 0, 0 }, CivKnowledge::Kind::Food) == std::optional<sf::Vector2i>{ { 9, 0 } });
-
-    // Querying from elsewhere returns the nearer of the known water tiles.
-    CHECK(knowledge.findNearest({ 90, 0 }, CivKnowledge::Kind::Water) == std::optional<sf::Vector2i>{ { 100, 0 } });
+    // Food covers farm tiles; the nearest to the query wins.
+    CHECK(knowledge.findNearest({ 0, 0 }, CivKnowledge::Kind::Food) == std::optional<sf::Vector2i>{ { 5, 0 } });
 }
 
 TEST_CASE("explored coverage is bucketed and bounded by max_cells")

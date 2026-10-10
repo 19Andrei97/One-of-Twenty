@@ -43,8 +43,6 @@ inline constexpr std::size_t kEntityTypeCount = static_cast<std::size_t>(EntityT
 enum class ActionTypes 
 {
     Moving,
-    Eating,
-    Drinking,
     Sleeping,
     Gathering,
     Building,
@@ -87,47 +85,37 @@ struct CBasicNeeds
 {
     static constexpr int kMax{ 100 };
 
-    int thirst{ kMax };
-    int hunger{ kMax };
+    // Fatigue: 0 is rested, 100 is exhausted. It rises while awake and resets
+    // when a sleep action finishes.
     int sleep{ 0 };
+
+    // Consecutive in-game days that ended with no food for this entity. Reaching
+    // the configured limit starts draining health; a day with food resets it.
+    int days_without_food{ 0 };
 
     std::int64_t last_update{ 0 };
 
     CBasicNeeds() {}
 
-    // Advance the counters for a one-hour step: fullness falls, fatigue rises.
-    // Values are clamped to [0, 100] so callers never have to re-clamp.
-    void applyHourlyDecay(const int thirst_delta, const int hunger_delta, const int sleep_delta)
+    // Advance the counters for a one-hour step: fatigue rises. Clamped to
+    // [0, 100] so callers never have to re-clamp.
+    void applyHourlyDecay(const int sleep_delta)
     {
-        thirst = std::clamp(thirst - thirst_delta, 0, kMax);
-        hunger = std::clamp(hunger - hunger_delta, 0, kMax);
-        sleep  = std::clamp(sleep + sleep_delta, 0, kMax);
+        sleep = std::clamp(sleep + sleep_delta, 0, kMax);
     }
 
-    // Restore a need to full when its action finishes.
-    void satisfy(const int which)  // 0 = thirst, 1 = hunger, 2 = sleep
-    {
-        if (which == 0) thirst = kMax;
-        else if (which == 1) hunger = kMax;
-        else sleep = 0;
-    }
+    // Restore fatigue to rested when a sleep action finishes.
+    void satisfySleep() { sleep = 0; }
 
-    // Whether any need is still comfortable. Survival needs decay at a fixed rate
-    // per in-game hour; when a single frame advances several hours at once (a slow
-    // frame, a high time scale) an entity can run from comfortable to empty before
-    // it gets a chance to act. Death is only allowed once a need has been seen
-    // low, so such a jump cannot kill an otherwise healthy entity.
-    [[nodiscard]] bool healthy() const noexcept
-    {
-        return thirst > kMax / 4 && hunger > kMax / 4 && sleep < kMax * 3 / 4;
-    }
+    // Whether the entity is rested enough to work and to recover health.
+    [[nodiscard]] bool rested() const noexcept { return sleep < kMax * 3 / 4; }
 };
 
-// A slow resource separate from the needs: starvation and dehydration drain it,
-// a comfortable entity slowly regains it, and the entity dies when it reaches
-// zero. Keeping death on health rather than on a need crossing zero means an
-// entity weakens and can recover instead of dropping dead the instant it runs
-// out of water, which also makes coarse clock steps survivable.
+// A slow resource separate from the needs: going without food drains it, a
+// rested and fed entity slowly regains it, and the entity dies when it reaches
+// zero. Keeping death on health rather than on an instant starvation check means
+// an entity weakens and can recover instead of dropping dead the moment a meal
+// is missed.
 struct CHealth
 {
     static constexpr int kMax{ 100 };
@@ -252,26 +240,6 @@ struct CMoving : public CAction
 
     CMoving(ActionTypes type, const sf::Vector2i& tgt = { 0, 0 })
         : CAction(type), target(tgt) {
-    }
-};
-
-struct CEating : public CAction
-{
-    std::int64_t timestamp_min{ 0 };
-    int duration_min{ 45 };
-
-    CEating(ActionTypes type, std::int64_t stamp)
-        : CAction(type), timestamp_min(stamp) {
-    }
-};
-
-struct CDrinking : public CAction
-{
-    std::int64_t timestamp_min{ 0 };
-    int duration_min{ 45 };
-
-    CDrinking(ActionTypes type, std::int64_t stamp)
-        : CAction(type), timestamp_min(stamp) {
     }
 };
 

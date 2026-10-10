@@ -2,6 +2,7 @@
 #include "EntityManager.h"
 #include "EntityVitals.h"
 #include "GameClock.h"
+#include "MapStream.h"
 
 #include <doctest/doctest.h>
 
@@ -33,12 +34,10 @@ std::string writeTempEntityConfig(const std::string& name, const std::string& su
         std::filesystem::temp_directory_path() / ("entity_test_" + name + ".json");
     std::ofstream out(path);
     out << R"({
-        "needs": { "hunger_decay_per_hour": 3, "thirst_decay_per_hour": 5, "sleep_gain_per_hour": 2 },
+        "needs": { "sleep_gain_per_hour": 2 },
         "survival": )" << survivalJson << R"(,
         "decision": {
             "idle_tolerance": 3,
-            "thirst": { "threshold": 0.20, "bias": 1.0 },
-            "hunger": { "threshold": 0.20, "bias": 1.0 },
             "sleep":  { "threshold": 0.20, "bias": 1.0 },
             "work":   { "threshold": 0.50, "bias": 1.0 }
         }
@@ -47,25 +46,22 @@ std::string writeTempEntityConfig(const std::string& name, const std::string& su
 }
 } // namespace
 
-TEST_CASE("isStarving trips at or below the lethal threshold")
+TEST_CASE("isStarving trips once enough days pass without food")
 {
-    CBasicNeeds needs; // thirst/hunger 100
-    CHECK_FALSE(EntityVitals::isStarving(needs, 0));
+    CBasicNeeds needs; // days_without_food 0
+    CHECK_FALSE(EntityVitals::isStarving(needs, 3));
 
-    needs.thirst = 1;
-    CHECK_FALSE(EntityVitals::isStarving(needs, 0));
+    needs.days_without_food = 2;
+    CHECK_FALSE(EntityVitals::isStarving(needs, 3));
 
-    needs.thirst = 0;
-    CHECK(EntityVitals::isStarving(needs, 0));
+    needs.days_without_food = 3;
+    CHECK(EntityVitals::isStarving(needs, 3));
+    CHECK(EntityVitals::isStarving(needs, 2));
 
-    needs.thirst = 100;
-    needs.hunger = 0;
-    CHECK(EntityVitals::isStarving(needs, 0));
-
-    // A non-zero threshold is inclusive.
-    needs.hunger = 5;
-    CHECK(EntityVitals::isStarving(needs, 5));
+    // A non-zero threshold is inclusive: four hungry days clear a limit of four.
     CHECK_FALSE(EntityVitals::isStarving(needs, 4));
+    needs.days_without_food = 4;
+    CHECK(EntityVitals::isStarving(needs, 4));
 }
 
 TEST_CASE("isAged reports an exhausted lifespan")
@@ -74,26 +70,16 @@ TEST_CASE("isAged reports an exhausted lifespan")
     CHECK(EntityVitals::isAged(CLifespan{ 0 }));
 }
 
-TEST_CASE("comfort is one when rested and fed, zero when any need is dire")
+TEST_CASE("comfort is one when rested and zero when exhausted")
 {
-    CBasicNeeds needs; // thirst/hunger 100, sleep 0
+    CBasicNeeds needs; // sleep 0
     CHECK(EntityVitals::comfort(needs) == doctest::Approx(1.f));
 
-    needs.hunger = 50;
-    CHECK(EntityVitals::comfort(needs) == doctest::Approx(0.5f));
-
-    // Sleep is a fatigue counter: 50 sleep is 50 rest, so it caps comfort at 0.5.
-    needs.hunger = 100;
     needs.sleep = 50;
     CHECK(EntityVitals::comfort(needs) == doctest::Approx(0.5f));
 
     needs.sleep = 100;
     CHECK(EntityVitals::comfort(needs) == doctest::Approx(0.f));
-
-    // The worst need governs.
-    needs.sleep = 0;
-    needs.thirst = 20;
-    CHECK(EntityVitals::comfort(needs) == doctest::Approx(0.2f));
 }
 
 TEST_CASE("loadEntityConfig reads the survival block")
@@ -102,7 +88,8 @@ TEST_CASE("loadEntityConfig reads the survival block")
 
     CHECK(cfg.survival.initial_population == 8);
     CHECK(cfg.survival.max_population == 120);
-    CHECK(cfg.survival.lethal_threshold == 0);
+    CHECK(cfg.survival.lethal_days_without_food == 3);
+    CHECK(cfg.survival.food_per_person_per_day == 1);
     // Lifespan is authored in years and stored in hours.
     CHECK(cfg.survival.lifespan_hours == 65 * GameTime::kHoursPerYear);
     CHECK(cfg.survival.birth_comfort == doctest::Approx(0.8f));
@@ -190,11 +177,10 @@ TEST_CASE("seedPopulation is idempotent")
     CHECK(entities.population() == seeded);
 }
 
-TEST_CASE("the seeded settlement has water and food within vision")
+TEST_CASE("the seeded settlement has gatherables within vision")
 {
-    // The founders spawn together on a habitable site, so the whole population
-    // can drink and forage without leaving the neighbourhood. The world origin is
-    // inland on most seeds, so seeding there would starve the settlement.
+    // The founders spawn together on a workable site, so the settlement can
+    // gather wood (to build its first farm) without leaving the neighbourhood.
     sf::Font font;
     int frames = 0;
     auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
@@ -205,12 +191,9 @@ TEST_CASE("the seeded settlement has water and food within vision")
 
     const sf::Vector2i spawn = entities.findHabitableSpawn();
     const auto nearby = map->getResourcesWithinBoundary(spawn, CVision{}.radius);
-    const bool hasWater = std::any_of(nearby.begin(), nearby.end(),
-            [](const auto& entry) { return Resources::isWater(entry.first); });
-    const bool hasFood = std::any_of(nearby.begin(), nearby.end(),
-            [](const auto& entry) { return Resources::isFood(entry.first); });
-    CHECK(hasWater);
-    CHECK(hasFood);
+    const bool hasGatherable = std::any_of(nearby.begin(), nearby.end(),
+            [](const auto& entry) { return Resources::isGatherable(entry.first); });
+    CHECK(hasGatherable);
 
     entities.seedPopulation();
     CHECK(entities.population() == 8);
@@ -218,9 +201,9 @@ TEST_CASE("the seeded settlement has water and food within vision")
 
 TEST_CASE("the seeded population neither dies out nor grows without bound")
 {
-    // End to end through the real update loop: with water and food in reach the
-    // settlement survives several simulated years. Reproduction is slow (a
-    // multi-year interval), so over this window it should hold together rather
+    // End to end through the real update loop: with wood to gather and farms to
+    // work the settlement survives several simulated years. Reproduction is slow
+    // (a multi-year interval), so over this window it should hold together rather
     // than boom; the hard cap is what keeps it from running away.
     sf::Font font;
     int frames = 0;
@@ -231,6 +214,12 @@ TEST_CASE("the seeded population neither dies out nor grows without bound")
     float delta = 1.f / 60.f;
     EntityManager entities(font, map, clock, delta, entityConfigPath());
     entities.seedPopulation();
+
+    // Stream the neighbourhood in, as the game's render loop does: without a
+    // loaded chunk a construction site cannot be written to the map and the
+    // settlement can never found its first farm.
+    const sf::Vector2i spawn = entities.findHabitableSpawn();
+    TestSupport::primeChunks(*map, frames, spawn, 512);
 
     // Five simulated years. One update per in-game hour (120 min/s, 0.5 s of
     // real time) keeps the run quick while still driving the hourly survival
@@ -249,8 +238,10 @@ TEST_CASE("a comfortable settlement reproduces and births show up over time")
 {
     // The birth gate is per entity and slow, so give a small, hand-tuned
     // settlement a short interval to prove the loop actually produces children.
+    // It still needs enough founders to staff a builder (a settlement of pure
+    // farmers cannot finish the very farms that feed it).
     const std::string file = writeTempEntityConfig("breeders",
-        R"({ "initial_population": 4, "max_population": 40, "lifespan_years": 5, "birth_interval_days": 30 })");
+        R"({ "initial_population": 8, "max_population": 40, "lifespan_years": 5, "birth_interval_days": 30 })");
 
     sf::Font font;
     int frames = 0;
@@ -261,6 +252,9 @@ TEST_CASE("a comfortable settlement reproduces and births show up over time")
     float delta = 1.f / 60.f;
     EntityManager entities(font, map, clock, delta, file);
     entities.seedPopulation();
+
+    // Stream chunks so the settlement can found farms and feed itself.
+    TestSupport::primeChunks(*map, frames, entities.findHabitableSpawn(), 512);
 
     bool born = false;
     for (int hour = 0; hour < 24 * 200 && !born; ++hour)
@@ -281,8 +275,8 @@ TEST_CASE("a comfortable settlement reproduces and births show up over time")
 TEST_CASE("a fast clock does not outrun survival")
 {
     // Regression: needs decay in in-game hours, so if movement ran on real time
-    // the settlement would starve before it could walk to water. At one month
-    // per second (the fastest preset) the founders must still survive a year.
+    // the settlement would starve before it could walk to work. At one month per
+    // second (the fastest preset) the founders must still survive a year.
     sf::Font font;
     int frames = 0;
     auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
@@ -293,6 +287,8 @@ TEST_CASE("a fast clock does not outrun survival")
     float delta = 1.f / 720.f;
     EntityManager entities(font, map, clock, delta, entityConfigPath());
     entities.seedPopulation();
+
+    TestSupport::primeChunks(*map, frames, entities.findHabitableSpawn(), 512);
 
     for (int hour = 0; hour < GameTime::kHoursPerYear; ++hour)
     {
@@ -316,6 +312,9 @@ TEST_CASE("a paused clock freezes entity movement")
     EntityManager entities(font, map, clock, delta, entityConfigPath());
     entities.seedPopulation();
 
+    // Stream chunks so the settlement can found farms and feed itself.
+    TestSupport::primeChunks(*map, frames, entities.findHabitableSpawn(), 512);
+
     const auto runFrames = [&](int count)
     {
         for (int i = 0; i < count; ++i)
@@ -325,7 +324,7 @@ TEST_CASE("a paused clock freezes entity movement")
         }
     };
 
-    // Warm up so entities have begun walking to water and food.
+    // Warm up so entities have begun walking to work and rest.
     runFrames(60 * 200);
     const auto moving = entities.entityPositions();
     CHECK(entities.population() > 0);
@@ -341,20 +340,21 @@ TEST_CASE("a paused clock freezes entity movement")
     CHECK(clock->getTimestamp() > frozenTimestamp);
 }
 
-TEST_CASE("health drains while starving and recovers when comfortable")
+TEST_CASE("health drains while starving and recovers when rested")
 {
-    CBasicNeeds needs; // thirst/hunger 100, sleep 0
+    CBasicNeeds needs; // rested, not hungry
 
-    // Comfortable: health regenerates.
-    CHECK(EntityVitals::healthChange(needs, 0, 4, 1) == 1);
+    // Rested and fed: health regenerates.
+    CHECK(EntityVitals::healthChange(needs, 3, 4, 1) == 1);
 
-    // Dehydrated: health drains.
-    needs.thirst = 0;
-    CHECK(EntityVitals::healthChange(needs, 0, 4, 1) == -4);
+    // Hungry for the lethal number of days: health drains.
+    needs.days_without_food = 3;
+    CHECK(EntityVitals::healthChange(needs, 3, 4, 1) == -4);
 
-    // Neither comfortable nor starving: health holds steady.
-    needs.thirst = CBasicNeeds::kMax / 4; // at the "healthy" boundary
-    CHECK(EntityVitals::healthChange(needs, 0, 4, 1) == 0);
+    // Neither starving nor rested: health holds steady.
+    needs.days_without_food = 0;
+    needs.sleep = CBasicNeeds::kMax; // exhausted
+    CHECK(EntityVitals::healthChange(needs, 3, 4, 1) == 0);
 }
 
 TEST_CASE("CHealth clamps damage and healing")
@@ -376,12 +376,12 @@ TEST_CASE("CHealth clamps damage and healing")
 
 TEST_CASE("health drains under constant starvation and kills the settlement")
 {
-    // A lethal threshold of 100 makes every entity count as starving from the
-    // first hour, so health drains at a fixed rate and the founders die of it
-    // long before old age. This exercises applyHealth + killTheDying through the
-    // real update loop.
+    // With no farm and no stored food, every entity misses its daily meal from
+    // the first day, so each accrues hungry days and health drains once the
+    // lethal streak is reached. This exercises consumeFoodDaily + applyHealth +
+    // killTheDying through the real update loop.
     const std::string file = writeTempEntityConfig("starve",
-        R"({ "initial_population": 8, "max_population": 40, "lifespan_years": 100, "lethal_threshold": 100 })");
+        R"({ "initial_population": 8, "max_population": 40, "lifespan_years": 100, "lethal_days_without_food": 3, "food_per_person_per_day": 1 })");
 
     sf::Font font;
     int frames = 0;
@@ -397,9 +397,10 @@ TEST_CASE("health drains under constant starvation and kills the settlement")
     REQUIRE(health.has_value());
     CHECK(*health == CHealth::kMax);
 
-    // 100 health at 4/hour is 25 hours to zero; run well past that. One update
-    // per in-game hour (60 min/s scale, a 1 s delta).
-    for (int hour = 0; hour < 60; ++hour)
+    // 3 hungry days before health drains, then 100 health at 4/hour is 25 more
+    // hours. One update per in-game hour (60 min/s scale, a 1 s delta); run
+    // well past 3 days + 25 hours.
+    for (int hour = 0; hour < 120; ++hour)
     {
         clock->update(1.f);
         entities.update();

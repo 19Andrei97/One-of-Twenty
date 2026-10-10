@@ -1,14 +1,13 @@
 {
     "needs": {
-        "hunger_decay_per_hour": 3,
-        "thirst_decay_per_hour": 5,
         "sleep_gain_per_hour": 2
     },
 
     "survival": {
         "initial_population": 8,
         "max_population": 120,
-        "lethal_threshold": 0,
+        "lethal_days_without_food": 3,
+        "food_per_person_per_day": 1,
         "lifespan_years": 65,
         "birth_interval_days": 300,
         "birth_comfort": 0.8,
@@ -61,8 +60,6 @@
 
     "decision": {
         "idle_tolerance": 3,
-        "thirst": { "threshold": 0.20, "bias": 1.0 },
-        "hunger": { "threshold": 0.20, "bias": 1.0 },
         "sleep":  { "threshold": 0.20, "bias": 1.0 },
         "work":   { "threshold": 0.50, "bias": 1.0 }
     }
