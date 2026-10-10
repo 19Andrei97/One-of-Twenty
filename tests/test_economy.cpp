@@ -344,6 +344,65 @@ TEST_CASE("a completed farm produces food each hour")
     std::filesystem::remove(file);
 }
 
+TEST_CASE("a farm yields its rolled reach over a day, not a flat rate")
+{
+    // Regression: a farm's size is the 40-80 reach rolled when its site is
+    // started, and it must grow that many food per day. Before, it ran its recipe
+    // once an hour (24/day), so one farm starved any settlement past ~20 people
+    // and the planner kept raising farms that could not close the gap.
+    const std::string entity_file = writeTempEntityConfig("farm_reach",
+        R"({ "farm_food_per_hour": 1, "farm_wood_cost": 0, "workshop_wood_cost": 0 })");
+    const std::string file = writeTempBuildings("farm_reach", R"([
+        { "id": "farm", "name": "Farm", "element": "farm",
+          "cost": {}, "build_hours": 1,
+          "feeds_population": [ 40, 80 ],
+          "recipes": [ { "input_amount": 0, "output": "food", "output_amount": 1, "label": "farm" } ] }
+    ])");
+
+    sf::Font font;
+    int frames = 0;
+    auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");
+    map->setSeed(42);
+    map->setNoises();
+    auto clock = std::make_shared<GameClock>(60.f);
+    clock->setTime(8, 0);
+
+    float delta = 1.f / 60.f;
+    EntityManager entities(font, map, clock, delta, entity_file, file);
+
+    const int tileSize = map->getTileSize();
+    const sf::Vector2i site{ 10 * tileSize, 12 * tileSize };
+    if (!ensureChunkLoaded(*map, frames, site))
+    {
+        MESSAGE("Skipping farm reach test: no chunk could be loaded");
+        std::filesystem::remove(entity_file);
+        std::filesystem::remove(file);
+        return;
+    }
+
+    REQUIRE(entities.placeBuilding("farm", site));
+    REQUIRE(entities.completeBuilding(site));
+
+    const int before = entities.foodProduced();
+    // A full day: 24 hourly steps.
+    for (int hour = 0; hour < 24; ++hour)
+    {
+        for (int step = 0; step < 60; ++step)
+            clock->update(delta);
+        entities.update();
+    }
+
+    // `foodProduced()` counts building production only (foraging is tallied
+    // separately), so the day's delta is exactly the farm's rolled reach - in the
+    // 40-80 band, and never the old flat 24.
+    const int produced = entities.foodProduced() - before;
+    CHECK(produced >= 40);
+    CHECK(produced <= 80);
+
+    std::filesystem::remove(entity_file);
+    std::filesystem::remove(file);
+}
+
 TEST_CASE("a placed building cannot share a tile with another")
 {
     const std::string entity_file = writeTempEntityConfig("unique_tile",

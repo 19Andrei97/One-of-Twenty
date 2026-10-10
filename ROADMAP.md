@@ -97,10 +97,12 @@ The engine core and the survival loop are in place:
   with a settlement-wide gap, the site search scatters around the anchor rather
   than following a fixed ring, a building's size (house capacity, farm reach) is
   rolled once at construction from a JSON range, only housing raises the
-  population cap (a farm's roll is food reach, not beds), housing is only raised
-  while the population outruns the capacity it already has, and farms only while
-  the completed farms do not yet feed the people present and the store is not
-  already comfortable (`economy.food_reserve_days`). Work (gather/build) is
+  population cap (a farm's roll is food reach, not beds), a farm yields that reach
+  (its rolled number of food per day, not a flat hourly rate), housing is only
+  raised while the settlement has no free bed (the anchor's beds aside), and farms
+  only while the completed farms do not yet feed the people present and the store
+  is not already comfortable (`economy.food_reserve_days`). Workshops, whose output
+  nothing consumes yet, are capped by `max_count`. Work (gather/build) is
   applied on the target tile: the timer starts on arrival and a completion is
   withheld while the entity is off the tile. A stats panel shows the
   stockpile, buildings and gather count.

@@ -98,6 +98,10 @@ class EntityManager
                 // The size rolled when the site was started: people housed for a
                 // house, people fed for a food producer. Zero for anything else.
                 int          rolled_value{ 0 };
+                // A food producer grows `rolled_value` food per in-game day. The
+                // hourly pass adds a 24th of that, so this carries the remainder
+                // between hours and the daily total is exact for any reach.
+                int          food_progress{ 0 };
         };
         std::vector<PlacedBuilding>             m_buildings;
 

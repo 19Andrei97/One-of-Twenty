@@ -206,8 +206,11 @@ TEST_CASE("housesWanted raises a house once the housing is full")
 {
     // No shortfall: no houses wanted, however many people.
     CHECK(Buildings::housesWanted(0, 120, 30) == 0);
-    CHECK(Buildings::housesWanted(120, 120, 30) == 0);
     CHECK(Buildings::housesWanted(50, 120, 30) == 0);
+
+    // At capacity the beds are full, so one house goes up to make room to grow
+    // (births stop at capacity, so waiting for a shortfall would deadlock).
+    CHECK(Buildings::housesWanted(120, 120, 30) == 1);
 
     // A shortfall wants enough houses to cover it plus one to spare (the house is
     // full, so another goes up).

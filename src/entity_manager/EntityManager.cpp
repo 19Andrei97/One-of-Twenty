@@ -769,13 +769,33 @@ void EntityManager::produceGoods()
         // food from pure labour; a workshop turns raw goods into crafted ones.
         // The element switch is gone: behaviour comes from the catalog def, so a
         // new producer is a JSON entry.
-        for (const auto& building : m_buildings)
+        for (auto& building : m_buildings)
         {
                 if (!building.complete)
                         continue;
                 const auto& def = m_catalog.all()[building.def_index];
-                if (def.recipes.empty())
+                if (!def.hasRecipes())
                         continue;
+
+                // A food producer's size is the reach rolled when its site was
+                // started (the 40-80 band), not the recipe's per-hour amount: it
+                // grows `rolled_value` food a day, credited a 24th per hour with
+                // the remainder carried, so the daily total is exact. A def with no
+                // rolled reach (a unit-test farm) keeps the recipe's own output.
+                if (def.feeds_population > 0 && building.rolled_value > 0)
+                {
+                        building.food_progress += building.rolled_value;
+                        const int produced = building.food_progress / GameTime::kHoursPerDay;
+                        building.food_progress %= GameTime::kHoursPerDay;
+                        if (produced > 0)
+                        {
+                                m_goods.add(Goods::Good::Food, produced);
+                                m_food_produced += produced;
+                                m_events.record(Observability::EventKind::Production,
+                                                m_game_clock->getTimestamp(), produced, def.name);
+                        }
+                        continue;
+                }
 
                 // A recipe with no input yields per the configured output; anything
                 // else is capped by the shipped per-hour production tuning.
@@ -1024,17 +1044,20 @@ void EntityManager::planConstruction()
                 // Count the placed housing (started or done) so several housing
                 // defs share one budget; sum the reach of every *completed* food
                 // producer, and note whether one is already under construction.
-                // Counting completed reach means the planner raises another farm
-                // only while the ones actually standing do not feed the people; the
-                // at-most-one-pending rule keeps it from stacking a queue of farms
-                // that would all be redundant once the first completes.
+                // The anchor's beds are already in `capacity`, so it is not counted
+                // here (else the city center would satisfy the housing demand on
+                // its own and no house would ever be raised). Counting completed
+                // reach means the planner raises another farm only while the ones
+                // actually standing do not feed the people, and the one-pending cap
+                // stops it from queuing several farms that would all be redundant
+                // once the first completes.
                 int placedHousing = 0;
                 int completedFeeds = 0;
                 int pendingProducers = 0;
                 for (const auto& building : m_buildings)
                 {
                         const auto& def = m_catalog.all()[building.def_index];
-                        if (def.population_capacity > 0)
+                        if (def.population_capacity > 0 && !def.is_anchor)
                                 ++placedHousing;
                         if (def.feeds_population > 0)
                         {
@@ -1129,7 +1152,7 @@ bool EntityManager::placeBuilding(const std::string& building_id, const sf::Vect
         m_buildings.push_back(PlacedBuilding{
                 m_catalog.indexOf(def), worldPos,
                 std::max(1, def->build_hours) * std::max(1, def->work_per_hour), false,
-                rollBuildValue(*def) });
+                rollBuildValue(*def), 0 });
         LOG_INFO("Construction started: {} at ({},{}).", def->name, worldPos.x, worldPos.y);
         return true;
 }
