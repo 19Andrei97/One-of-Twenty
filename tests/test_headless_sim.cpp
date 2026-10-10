@@ -11,6 +11,8 @@
 #include <string>
 #include <tuple>
 
+#include <nlohmann/json.hpp>
+
 // The headless runner is what lets the simulation run with no screen. These
 // tests pin the two properties it rests on: chunk streaming works with no GL
 // context, and the clock/map/entity loop advances a settlement without a window.
@@ -29,21 +31,26 @@ std::string sourceDir()
 
 // A config.json that points every asset at the source tree (ctest runs from the
 // build tree, so relative paths would miss) and logs to the temp directory.
+// Built as a JSON object so paths are escaped correctly: on Windows they contain
+// backslashes, which are invalid escapes if interpolated into a raw JSON string.
 std::string headlessConfig()
 {
-    const std::string src = sourceDir();
-    const std::filesystem::path cfg =
-        std::filesystem::temp_directory_path() / "one_of_twenty_headless_test.json";
+    const std::filesystem::path src = sourceDir();
+    const std::filesystem::path tmp = std::filesystem::temp_directory_path();
 
-    std::ofstream out(cfg);
-    out << R"({
-        "map":   { "file": ")" << src << R"(/config/map_data.json" },
-        "entity":{ "file": ")" << src << R"(/config/entity_data.json" },
-        "buildings": { "file": ")" << src << R"(/config/buildings.json" },
-        "logger":{ "file": ")" << std::filesystem::temp_directory_path().string() << R"(/one_of_twenty_headless_test.log", "level": "warn" },
-        "time":  { "start_hour": 8, "start_minute": 0, "speed_index": 1 }
-    })";
-    return cfg.string();
+    const nlohmann::json cfg = {
+        { "map",       { { "file", (src / "config/map_data.json").string() } } },
+        { "entity",    { { "file", (src / "config/entity_data.json").string() } } },
+        { "buildings", { { "file", (src / "config/buildings.json").string() } } },
+        { "logger",    { { "file", (tmp / "one_of_twenty_headless_test.log").string() },
+                         { "level", "warn" } } },
+        { "time",      { { "start_hour", 8 }, { "start_minute", 0 }, { "speed_index", 1 } } },
+    };
+
+    const std::filesystem::path path = tmp / "one_of_twenty_headless_test.json";
+    std::ofstream out(path);
+    out << cfg.dump(2);
+    return path.string();
 }
 
 } // namespace
