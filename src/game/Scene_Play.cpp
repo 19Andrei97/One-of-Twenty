@@ -49,6 +49,10 @@ void Scene_Play::update(float deltaTime)
 	m_deltaTime = deltaTime;
 	m_game_clock->update(m_deltaTime);
 
+	// The camera is view-only, so it keeps moving while the simulation is
+	// paused: a player can still look around a frozen world.
+	sCamera();
+
 	if (!m_paused)
 	{
 		sMovement();
@@ -145,29 +149,33 @@ void Scene_Play::sMovement()
 {
 	if (m_entity_manager)
 		m_entity_manager->update();
+}
 
-	if (m_camera)
+void Scene_Play::sCamera()
+{
+	if (!m_camera)
+		return;
+
+	const float step = m_camera->getVelocity() * m_deltaTime;
+	if (m_camera->cInput.up)
 	{
-		if (m_camera->cInput.up)
-		{
-			m_camera->move(0, -m_camera->getVelocity() * m_deltaTime);
-			m_current_position.y -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-		}
-		else if (m_camera->cInput.down)
-		{
-			m_camera->move(0, m_camera->getVelocity() * m_deltaTime);
-			m_current_position.y += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-		}
-		if (m_camera->cInput.left)
-		{
-			m_camera->move(-m_camera->getVelocity() * m_deltaTime, 0);
-			m_current_position.x -= static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-		}
-		else if (m_camera->cInput.right)
-		{
-			m_camera->move(m_camera->getVelocity() * m_deltaTime, 0);
-			m_current_position.x += static_cast<int>(m_camera->getVelocity() * m_deltaTime);
-		}
+		m_camera->move(0, -step);
+		m_current_position.y -= static_cast<int>(step);
+	}
+	else if (m_camera->cInput.down)
+	{
+		m_camera->move(0, step);
+		m_current_position.y += static_cast<int>(step);
+	}
+	if (m_camera->cInput.left)
+	{
+		m_camera->move(-step, 0);
+		m_current_position.x -= static_cast<int>(step);
+	}
+	else if (m_camera->cInput.right)
+	{
+		m_camera->move(step, 0);
+		m_current_position.x += static_cast<int>(step);
 	}
 }
 
@@ -177,8 +185,26 @@ void Scene_Play::sCollision()
                 m_entity_manager->resolveCollisions();
 }
 
+void Scene_Play::updateHover()
+{
+	if (!m_entity_manager || !m_camera || !m_game)
+	{
+		if (m_entity_manager)
+			m_entity_manager->clearHoverWorld();
+		return;
+	}
+
+	const sf::Vector2f worldPos =
+		m_game->getWindow().mapPixelToCoords(m_mouse_pixel, m_camera->getCamera());
+	m_entity_manager->setHoverWorld(static_cast<sf::Vector2i>(worldPos));
+}
+
 void Scene_Play::sRender(sf::RenderTarget& target)
 {
+	// The pointer's world position is resolved once per frame, right before the
+	// entities are drawn, so the hover readout tracks the cursor and the camera.
+	updateHover();
+
 	if (m_camera && m_map)
 	{
 		target.setView(m_camera->getCamera());
@@ -238,19 +264,21 @@ void Scene_Play::sUserInput(const sf::Event& event)
 			}
 		}
 
+		// Camera keys are view-only, so they register even while paused.
+		if (m_camera)
+		{
+			if (keyPressed->code == sf::Keyboard::Key::W)
+				m_camera->cInput.up = true;
+			if (keyPressed->code == sf::Keyboard::Key::S)
+				m_camera->cInput.down = true;
+			if (keyPressed->code == sf::Keyboard::Key::A)
+				m_camera->cInput.left = true;
+			if (keyPressed->code == sf::Keyboard::Key::D)
+				m_camera->cInput.right = true;
+		}
+
 		if (!m_paused)
 		{
-			if (m_camera)
-			{
-				if (keyPressed->code == sf::Keyboard::Key::W)
-					m_camera->cInput.up = true;
-				if (keyPressed->code == sf::Keyboard::Key::S)
-					m_camera->cInput.down = true;
-				if (keyPressed->code == sf::Keyboard::Key::A)
-					m_camera->cInput.left = true;
-				if (keyPressed->code == sf::Keyboard::Key::D)
-					m_camera->cInput.right = true;
-			}
 			if (m_map)
 			{
 				if (keyPressed->code == sf::Keyboard::Key::M)
@@ -267,27 +295,30 @@ void Scene_Play::sUserInput(const sf::Event& event)
 
 	if (const auto* keyReleased = event.getIf<sf::Event::KeyReleased>())
 	{
+		// Release camera keys even while paused, so a key held across a pause does
+		// not stick down.
+		if (m_camera)
+		{
+			switch (keyReleased->code)
+			{
+			case sf::Keyboard::Key::W:
+				m_camera->cInput.up = false;
+				break;
+			case sf::Keyboard::Key::S:
+				m_camera->cInput.down = false;
+				break;
+			case sf::Keyboard::Key::A:
+				m_camera->cInput.left = false;
+				break;
+			case sf::Keyboard::Key::D:
+				m_camera->cInput.right = false;
+				break;
+			default: break;
+			}
+		}
+
 		if (!m_paused)
 		{
-			if (m_camera)
-			{
-				switch (keyReleased->code)
-				{
-				case sf::Keyboard::Key::W:
-					m_camera->cInput.up = false;
-					break;
-				case sf::Keyboard::Key::S:
-					m_camera->cInput.down = false;
-					break;
-				case sf::Keyboard::Key::A:
-					m_camera->cInput.left = false;
-					break;
-				case sf::Keyboard::Key::D:
-					m_camera->cInput.right = false;
-					break;
-				default: break;
-				}
-			}
 			if (m_map && keyReleased->code == sf::Keyboard::Key::G)
 			{
 				m_map->setDebugWireFrame(false);
@@ -312,6 +343,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 			case sf::Mouse::Button::Left:
 			{
 				auto pixel = sf::Mouse::getPosition(m_game->getWindow());
+				m_mouse_pixel = pixel;
 
 				// The HUD stays live while paused, so its Pause/Play and speed
 				// controls can always be clicked.
@@ -355,6 +387,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 		if (m_game)
 		{
 			auto pixel = sf::Mouse::getPosition(m_game->getWindow());
+			m_mouse_pixel = pixel;
 
 			if (m_hud)
 			{
@@ -362,9 +395,10 @@ void Scene_Play::sUserInput(const sf::Event& event)
 				m_hud->input(*mouseMoved, mouseHudPos);
 			}
 
-			// Tile info follows the pointer while the simulation runs, so the readout
-			// always shows whatever tile the cursor is over.
-			if (!m_paused && m_camera && m_map)
+			// Tile info follows the pointer, so the readout always shows whatever
+			// tile the cursor is over. Kept live while paused since the camera can
+			// still be panned.
+			if (m_camera && m_map)
 			{
 				sf::Vector2f worldPos = m_game->getWindow().mapPixelToCoords(pixel, m_camera->getCamera());
 				if (m_hud)
@@ -376,8 +410,9 @@ void Scene_Play::sUserInput(const sf::Event& event)
 	// MOUSE WHEEL LOGIC
 	if (const auto* mouseWheel = event.getIf<sf::Event::MouseWheelScrolled>())
 	{
-		if (!m_paused && m_camera)
+		if (m_camera)
 		{
+			m_mouse_pixel = sf::Mouse::getPosition(m_game->getWindow());
 			if (mouseWheel->delta > 0)
 				m_camera->zoomIn();
 			else

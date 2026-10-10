@@ -23,8 +23,20 @@ class Scene_Play : public Scene
 	float							m_deltaTime{ 0.f };
 	int								m_currentFrame{ 0 };
 
+	// Latest pointer position in window pixels, refreshed on move/press/wheel so
+	// the hover hit test has a position to work from even before the first move
+	// event of a frame.
+	sf::Vector2i				m_mouse_pixel{ 0, 0 };
+
+	// Resolve the world position under the pointer and hand it to the entity
+	// manager, which draws a readout only for the entity under it.
+	void updateHover();
+
 	void sMovement();
 	void sCollision();
+	// Pan the camera from the keyboard. Kept separate from sMovement so the
+	// camera still moves while the simulation is paused.
+	void sCamera();
 	// Push the current population/stockpile readout into the HUD.
 	void refreshStats();
 	// The most recent event (or the run summary when none yet), for the HUD.

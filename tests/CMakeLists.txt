@@ -18,6 +18,7 @@ add_executable(unit_tests
     test_pathfinding.cpp
     test_hud.cpp
     test_scene.cpp
+    test_camera_hover.cpp
 )
 
 # The helper headers under test are header-only; expose them directly.

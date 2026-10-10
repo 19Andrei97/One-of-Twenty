@@ -137,6 +137,12 @@ class EntityManager
         // window, so a tile read is an indexed load rather than a hash lookup.
         std::vector<Elements> m_tile_block;
 
+        // The world position the pointer is currently over, set by the scene every
+        // frame before entities are drawn. The per-entity info box is drawn only
+        // for the entity under it, so the map is not covered by a wall of
+        // readouts. Empty until the scene supplies a position.
+        std::optional<sf::Vector2i>             m_hover_world;
+
         // Private function
         void addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&& s, int size, const sf::Color& color);
 
@@ -348,6 +354,18 @@ public:
         // Completed gathers/builds that happened away from their target tile. A
         // well-behaved run reports zero; used to guard the arrival latch.
         int offTileWork() const { return m_off_tile_work; }
+
+        // The world position the pointer is over, set by the scene on mouse move.
+        // The per-entity readout is drawn only for the entity under it.
+        void setHoverWorld(const sf::Vector2i& worldPos) { m_hover_world = worldPos; }
+        void clearHoverWorld() { m_hover_world.reset(); }
+
+        // The entity whose body contains a world position (nearest wins when
+        // bodies overlap), or nullopt when the pointer is over empty ground. Uses
+        // a fixed pick radius a little larger than the drawn body, so a hover is
+        // easy to land. Public so the hover hit test can be checked without a
+        // window.
+        std::optional<entt::entity> entityAtWorld(const sf::Vector2i& worldPos) const;
 
         // The economy's stores, for the HUD and tests.
         int good(const Goods::Good which) const { return m_goods.count(which); }

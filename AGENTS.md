@@ -299,3 +299,15 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
   (registered in `registerDefaultCallbacks`, acting on the clock set via
   `setClock`). `Scene_Play` overrides `time_pause` so its own `m_paused` flag
   stays in step with the clock. The HUD stays interactive while paused.
+- View-only input is *not* gated on `m_paused`: the camera keys, the mouse wheel
+  zoom and the tile readout all run without the `!m_paused` guard, and
+  `Scene_Play::sCamera()` is called from `update()` outside the paused branch, so
+  a frozen world can still be panned and inspected. Only the simulation systems
+  (`sMovement`, `sCollision`, `M`/`G`/`1` keys) stay paused. Camera key
+  *releases* are also outside the guard, so a key held across a pause does not
+  stick down.
+- The per-entity readout is hover-only: `Scene_Play` resolves the pointer's world
+  position once per frame (`updateHover`, called from `sRender`) and hands it to
+  `EntityManager::setHoverWorld`; `render` draws an info box only for
+  `entityAtWorld()`'s hit (nearest body within a grab radius), and builds that
+  box's lines on demand rather than a text panel per entity every frame.

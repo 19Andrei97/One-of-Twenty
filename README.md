@@ -119,8 +119,8 @@ wrapping); a genuine leak or UB in project code still fails the run.
 
 | Input | Action |
 | --- | --- |
-| `W` / `A` / `S` / `D` | Move the camera |
-| Mouse wheel | Zoom in / out |
+| `W` / `A` / `S` / `D` | Move the camera (also works while paused) |
+| Mouse wheel | Zoom in / out (also works while paused) |
 | `P` | Pause / resume |
 | `[` / `]` | Slower / faster clock |
 | `H` / `Tab` | Cycle HUD level |
@@ -128,7 +128,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `M` | Re-randomize the map seed |
 | `G` (hold) | Debug wireframe view |
 | `1` | Spawn a generic human entity |
-| Mouse hover | Inspect the tile under the cursor and show its info box |
+| Mouse hover | Inspect the tile under the cursor, and show an entity's readout only while the cursor is over it |
 | Left click | Paint the tile under the cursor (map edit debug) |
 | HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, lakes and ore (each slider has a one-line description); preset buttons (Earth, Pangaea, Archipelago) apply a whole world in one click |
 
@@ -353,6 +353,10 @@ Retired from the roadmap; kept here as a record.
   A compact top-right HUD panel shows the date, clock and speed next to
   slower/pause/faster buttons, and the simulation is driven by in-game time so a
   fast clock never outruns the walk to work and pausing freezes the world.
+  The camera is view-only: it still pans and zooms while the clock is paused, so
+  a frozen world can be inspected. The per-entity readout is drawn only for the
+  entity under the pointer (`EntityManager::entityAtWorld`), seeded from the
+  pointer's world position each frame, rather than a box over every entity.
 
 ---
 

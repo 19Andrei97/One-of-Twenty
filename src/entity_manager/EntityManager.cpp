@@ -413,41 +413,9 @@ void EntityManager::update()
                         idle = 0;
         });
 
-        // Update Entity info box
-        m_registry->view<CActionsQueue, CBasicNeeds, CHealth, CEntityInfo, CJob>()
-                .each([&](auto entity, auto& queue, auto& needs, auto& health, auto& info, const CJob& job)
-        {
-                        if (info.text.empty())
-                        {
-                                addTextToEntityInfo(info.text, "Sleep: 0", info.size, info.text_color);
-                                addTextToEntityInfo(info.text, "Health: 100", info.size, info.text_color);
-                                addTextToEntityInfo(info.text, "Hungry: 0d", info.size, info.text_color);
-                                addTextToEntityInfo(info.text, "Job: Idle", info.size, info.text_color);
-                                addTextToEntityInfo(info.text, "Idle.", info.size, info.text_color);
-                        }
-
-                        info.text[0].setString("Sleep: " + std::to_string(needs.sleep));
-                        info.text[1].setString("Health: " + std::to_string(health.value));
-                        info.text[2].setString("Hungry: " + std::to_string(needs.days_without_food) + "d");
-                        info.text[3].setString("Job: " + Jobs::name(job.job));
-
-                        static const std::array<std::pair<ActionTypes, const char*>, 5> kActions{ {
-                                { ActionTypes::Moving,    "Moving." },
-                                { ActionTypes::Sleeping,  "Sleeping." },
-                                { ActionTypes::Gathering, "Gathering." },
-                                { ActionTypes::Building,  "Building." },
-                                { ActionTypes::Idle,      "Idle." },
-                        } };
-
-                        std::string status = "Idle.";
-                        if (!queue.actions.empty() && queue.actions.front())
-                        {
-                                for (const auto& [action, label] : kActions)
-                                        if (queue.actions.front()->action_name == action)
-                                                status = label;
-                        }
-                        info.text[4].setString(status);
-        });
+        // The per-entity readout is not refreshed here: only the hovered entity's
+        // box is drawn, so its text is built in render() on demand instead of
+        // rebuilding a panel for every entity every frame.
 
         // Observability: sample the run on its daily cadence. Sampling here (once
         // per update) rather than per hour keeps the history one point per day
@@ -1200,26 +1168,72 @@ void EntityManager::render(sf::RenderTarget& window)
                 }
         });
 
-        // INFO BOXES
+        // INFO BOXES: only the entity under the pointer shows a readout, so the map
+        // stays clear. The lines are built here (not per frame in update) so the
+        // hovered entity's panel reflects the current state the moment it is drawn.
+        if (!m_hover_world)
+                return;
+
+        const std::optional<entt::entity> hovered = entityAtWorld(*m_hover_world);
+        if (!hovered)
+                return;
+
         m_registry->view<CTransform, CEntityInfo>().each([&](auto entity, auto& trs, auto& info)
         {
-                if (info.text.empty())
+                if (entity != *hovered)
                         return;
 
-                float padding           = 5.f;
-                float lineHeight        = static_cast<float>(info.size) + 2.f;
-                float boxWidth          = 0.f;
+                const CBasicNeeds* needs = m_registry->try_get<CBasicNeeds>(entity);
+                const CHealth* health = m_registry->try_get<CHealth>(entity);
+                const CJob* job = m_registry->try_get<CJob>(entity);
+                const CActionsQueue* queue = m_registry->try_get<CActionsQueue>(entity);
 
-                // Find the widest text line
+                static const std::array<std::pair<ActionTypes, const char*>, 5> kActions{ {
+                        { ActionTypes::Moving,    "Moving." },
+                        { ActionTypes::Sleeping,  "Sleeping." },
+                        { ActionTypes::Gathering, "Gathering." },
+                        { ActionTypes::Building,  "Building." },
+                        { ActionTypes::Idle,      "Idle." },
+                } };
+
+                std::string status = "Idle.";
+                if (queue && !queue->actions.empty() && queue->actions.front())
+                {
+                        for (const auto& [action, label] : kActions)
+                                if (queue->actions.front()->action_name == action)
+                                        status = label;
+                }
+
+                const std::vector<std::string> lines{
+                        "Sleep: " + std::to_string(needs ? needs->sleep : 0),
+                        "Health: " + std::to_string(health ? health->value : 0),
+                        "Hungry: " + std::to_string(needs ? needs->days_without_food : 0) + "d",
+                        "Job: " + Jobs::name(job ? job->job : Jobs::Job::Idle),
+                        status,
+                };
+
+                if (info.text.size() != lines.size())
+                {
+                        info.text.clear();
+                        for (const auto& line : lines)
+                                addTextToEntityInfo(info.text, std::string(line), info.size, info.text_color);
+                }
+                else
+                {
+                        for (std::size_t i = 0; i < lines.size(); ++i)
+                                info.text[i].setString(lines[i]);
+                }
+
+                const float padding    = 5.f;
+                const float lineHeight = static_cast<float>(info.size) + 2.f;
+
+                float boxWidth = 0.f;
                 for (auto& text : info.text)
                         boxWidth = std::max(boxWidth, text.getLocalBounds().size.x);
 
-                float boxHeight = lineHeight * info.text.size() + padding * 2;
+                const float boxHeight = lineHeight * static_cast<float>(info.text.size()) + padding * 2;
 
-                // Resize the box to fit text width + padding
                 info.shape.setSize(sf::Vector2f{ boxWidth + padding * 2, boxHeight });
-
-                // Position the box right above the entity
                 info.shape.setPosition(sf::Vector2f{
                         trs.pos.x - info.shape.getSize().x / 2.f,
                         trs.pos.y - info.shape.getSize().y - padding
@@ -1227,7 +1241,6 @@ void EntityManager::render(sf::RenderTarget& window)
 
                 window.draw(info.shape);
 
-                // Draw each text line inside the box
                 int i = 0;
                 for (auto& text : info.text)
                 {
@@ -1239,7 +1252,6 @@ void EntityManager::render(sf::RenderTarget& window)
                         ++i;
                 }
         });
-
 }
 
 /// MANAGING ENTITIES //////////////////////////////////////////////////////////////
@@ -1412,6 +1424,30 @@ void EntityManager::addTextToEntityInfo(std::vector<sf::Text>& vec, std::string&
         vec.emplace_back(m_font, s);
         vec.back().setCharacterSize(size);
         vec.back().setFillColor(color);
+}
+
+std::optional<entt::entity> EntityManager::entityAtWorld(const sf::Vector2i& worldPos) const
+{
+        // A generous grab radius: the drawn body is small (a ~10-unit circle), so a
+        // pixel-exact hit would be hard to land with the mouse. `kHoverRadius` is
+        // the pick radius in world units, kept a little larger than the body.
+        constexpr float kHoverRadius{ 14.f };
+        const float limit2 = kHoverRadius * kHoverRadius;
+
+        std::optional<entt::entity> hit;
+        float best2 = limit2;
+        m_registry->view<CTransform>().each([&](auto entity, const CTransform& trs)
+        {
+                const float dx = static_cast<float>(trs.pos.x - worldPos.x);
+                const float dy = static_cast<float>(trs.pos.y - worldPos.y);
+                const float d2 = dx * dx + dy * dy;
+                if (d2 <= best2)
+                {
+                        best2 = d2;
+                        hit = entity;
+                }
+        });
+        return hit;
 }
 
 /// GETTERS ////////////////////////////////////////////////////////////////////////
