@@ -14,6 +14,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 
 // The economy helpers are pure value types (a Stock and pure functions over it),
 // so most of these cases need no map, registry or clock. The end-to-end cases at
@@ -39,34 +40,18 @@ std::string buildingsConfigPath()
 #endif
 }
 
-// Drive the generator's render loop until the chunk containing `world` is
-// loaded, so a tile edit (setTileColor) can land. Mirrors the streaming the game
-// loop performs; returns false when no GL context is available (no DISPLAY).
+// Drive the generator's streaming until the chunk containing `world` is loaded,
+// so a tile edit (setTileColor) can land. stream() does the chunk bookkeeping
+// (load/evict) with no GL, so this needs no display and cannot trip SFML's X11
+// backend, which aborts the process (uncatchable SIGABRT) when the display is
+// unset or dead. Only the render test needs a real context.
 bool ensureChunkLoaded(MapGenerator& map, int& frames, const sf::Vector2i& world)
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
-        return false;
-#endif
-
-    sf::RenderTexture target;
-    try
-    {
-        if (!target.resize({ 320, 240 }))
-            return false;
-    }
-    catch (const sf::Exception&)
-    {
-        return false;
-    }
-
     const sf::IntRect view{ { 0, 0 }, { 320, 240 } };
     for (int frame = 0; frame < 300; ++frame)
     {
         frames = frame;
-        target.clear();
-        map.render(view, target);
-        target.display();
+        map.stream(view);
 
         for (const auto& line : map.getPositionInfo(world))
             if (line.rfind("Type:", 0) == 0)

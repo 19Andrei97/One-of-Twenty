@@ -47,7 +47,11 @@ ctest --test-dir build --output-on-failure      # passes with no DISPLAY
 The unit tests no longer need a display: `tests/MapStream.h` streams chunks
 through `stream()`, and the render test is the only case that needs a GL context
 (it skips when none is available). Still use `xvfb-run -a ctest ...` to include
-the render test.
+the render test. Any test that creates a `RenderTexture` must first ask
+`TestSupport::displayAvailable()` (`tests/DisplayProbe.h`): SFML aborts the
+process (uncatchable SIGABRT) from its X11 backend when the display cannot be
+opened, and a *set-but-dead* `DISPLAY` (xvfb-run losing its server) aborts just
+like an unset one, so checking the variable alone is not enough.
 
 The runner constructs `MapGenerator` with `synchronous = true`: the real-time
 worker threads cannot keep up when the clock runs far faster than real time, so
@@ -356,7 +360,9 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
 
 - Build in `build/` with `cmake --build build -j"$(nproc)"`; the tree is
   warning-clean, so treat any new warning as a failure.
-- Tests need a display: `xvfb-run -a ctest --test-dir build --output-on-failure`.
+- The suite runs without a display (`ctest --test-dir build`); only the
+  GL-context cases need one and they skip when `displayAvailable()` is false.
+  Use `xvfb-run -a ctest --test-dir build --output-on-failure` to include them.
   A single `unit_tests` target runs all doctest cases.
 - Do not construct `MapGenerator` with a font; the constructor is
   `MapGenerator(int& frames, const std::string& map_file)`. HUD and

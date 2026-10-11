@@ -2,6 +2,7 @@
 
 #include "MapGenerator.h"
 #include "generate_terrain.h"
+#include "DisplayProbe.h"
 
 #include <doctest/doctest.h>
 
@@ -272,15 +273,14 @@ TEST_CASE("setChunkUnload reports when no chunk is loaded")
 
 TEST_CASE("render streams chunks and shuts down cleanly")
 {
-#if defined(__linux__)
     // SFML aborts the process (SIGABRT) when it cannot open an X11 display,
-    // which cannot be caught. Skip instead of crashing on headless machines.
-    if (std::getenv("DISPLAY") == nullptr)
+    // which cannot be caught, so probe first. An unset DISPLAY is not the only
+    // failure: a set-but-dead DISPLAY (xvfb-run losing its server) also aborts.
+    if (!TestSupport::displayAvailable())
     {
-        MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
+        MESSAGE("Skipping render test: no usable X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -362,13 +362,13 @@ TEST_CASE("render streams chunks and shuts down cleanly")
 
 TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
+    // SFML aborts the process (SIGABRT) from its X11 backend when it cannot
+    // open the display; probe first so an unset or dead DISPLAY skips instead.
+    if (!TestSupport::displayAvailable())
     {
         MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -457,13 +457,13 @@ TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
 
 TEST_CASE("tile cost reads the authoritative tile and is always positive")
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
+    // SFML aborts the process (SIGABRT) from its X11 backend when it cannot
+    // open the display; probe first so an unset or dead DISPLAY skips instead.
+    if (!TestSupport::displayAvailable())
     {
         MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -610,13 +610,13 @@ TEST_CASE("each resource uses its own noise field")
 
 TEST_CASE("map queries read the authoritative tile map")
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
+    // SFML aborts the process (SIGABRT) from its X11 backend when it cannot
+    // open the display; probe first so an unset or dead DISPLAY skips instead.
+    if (!TestSupport::displayAvailable())
     {
         MESSAGE("Skipping query test: no X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
