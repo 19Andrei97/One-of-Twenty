@@ -57,6 +57,17 @@ private:
 	// DEBUG variables
 	bool            d_wire_frame{ false };
 
+	// When set, stream() fills the queue and generates chunks on the calling
+	// thread instead of waiting on the worker threads. The workers pace
+	// themselves in real time, which starves a headless run that advances the
+	// clock far faster than real time; synchronous mode keeps chunk delivery
+	// in step with the sim. The game leaves this off.
+	bool            m_synchronous{ false };
+
+	// Chunks in view, recomputed by stream(). render() draws this list after
+	// stream() has updated it; a headless caller streams without drawing.
+	std::vector<std::shared_ptr<Chunk>> m_visible_chunks;
+
 	// GENERATE MAP SUPPORT FUNCTIONS
 	std::shared_ptr<Chunk>  generateChunk(int tiles_per_side, const sf::Vector2i& tile_position);
 	void                    startChunksGenerator();
@@ -76,20 +87,32 @@ public:
 
 	// CONSTRUCTORS
 	MapGenerator(int& frames, const std::string& map_file)
+		: MapGenerator(frames, map_file, /*synchronous=*/false)
+	{
+	}
+
+	// As above, but with the option to generate chunks synchronously on the
+	// calling thread. A headless run that advances the clock far faster than real
+	// time uses that so chunk delivery keeps up with the simulation.
+	MapGenerator(int& frames, const std::string& map_file, bool synchronous)
 		: m_config(loadMapConfig(map_file))
 		, m_seed(m_config.seed)
 		, m_terrain(m_config)
 		, i_frames(frames)
+		, m_synchronous(synchronous)
 	{
 		c_chunk_tiles = m_config.chunk_tile_size;
 		c_chunk_margin = m_config.chunk_margin;
 
 		s_running = true;
 
-		// Generate Threads
-		(void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
-		(void)t_threads.submit_task([this] { startChunksGenerator(); });
-		(void)t_threads.submit_task([this] { startChunksGenerator(); });
+		if (!m_synchronous)
+		{
+			// Generate Threads
+			(void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
+			(void)t_threads.submit_task([this] { startChunksGenerator(); });
+			(void)t_threads.submit_task([this] { startChunksGenerator(); });
+		}
 	}
 
 	// DECONSTRUCTOR
@@ -104,8 +127,16 @@ public:
 	}
 
 	// RENDERING
+	// Update the chunk stream (load new chunks, evict far ones) for a view,
+	// with no drawing and no GL: the headless simulation runs entirely on
+	// this. Terrain sampling and the workers never needed a render context.
+	void stream(const sf::IntRect& viewBounds);
 	void render(const sf::IntRect& viewBounds, sf::RenderTarget& window);
 	void fillQueueChunks();
+	// One pass of each worker's job, with no loop and no sleep, so stream()
+	// can run them inline when m_synchronous is set.
+	void queueMissingChunks();
+	void generateQueuedChunks();
 
 	// SETTERS
 	void setSeed(int seed = Random::get(1, 1000000)) { m_seed = seed; }

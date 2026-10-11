@@ -90,6 +90,44 @@ the thread-safe `SharedContainer`, `GameClock` timekeeping, JSON config loading,
 and `MapGenerator` lifetime/determinism (biome colors for a fixed seed, worker
 shutdown, and the streaming render path).
 
+### Headless simulation (no screen)
+
+The simulation does not need a window, a GL context or a render target. Chunk
+streaming was the only part of the simulation that used to require a display;
+`MapGenerator::stream` now does it without drawing, so the whole clock/map/entity
+loop runs headless:
+
+```bash
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure     # no DISPLAY needed
+```
+
+A dedicated runner drives the same systems the game does and reports how a
+settlement unfolds. It is built by default (disable with
+`-DONE_OF_TWENTY_BUILD_SIM=OFF`):
+
+```bash
+cd build/bin
+./OneOfTwentySim --days 360 --seed 42 --population 8     # one in-game year
+./OneOfTwentySim --days 720 --speed 720 --report-days 30
+./OneOfTwentySim --help
+```
+
+Useful flags: `--days`, `--seed`, `--rng-seed` (repeatable runs), `--population`,
+`--speed` (in-game minutes per real second; the default 360 = 6 h/s keeps a
+settlement thriving), `--start-hour`, `--stream-px` (how much world stays
+loaded), `--report-days` (summary cadence, `0` = off). The runner uses
+synchronous chunk generation, so it is fast enough to simulate years in seconds
+and deterministic for a fixed seed.
+
+Note: clock speed changes outcomes. At very high speeds a frame advances many
+in-game minutes, so decisions and construction are sampled more coarsely and a
+settlement can starve; use a moderate speed (or the default) for long runs.
+
+The render test still needs a GL context, so it skips when no display is
+available; run the full suite under Xvfb (`xvfb-run -a ctest --test-dir build`)
+to include it.
+
 CI (`.github/workflows/build.yml`) builds and tests on Linux and Windows for
 every push and pull request, plus a dedicated Linux job that builds with
 AddressSanitizer and UndefinedBehaviorSanitizer.
@@ -158,6 +196,7 @@ port is reachable by others. Full details and limits: `tools/stream/README.md`.
 | `src/entity_manager` | EnTT registry, entity spawning, needs/memory/action systems, rendering |
 | `src/components` | ECS component and HUD widget definitions |
 | `src/hud` | Data-driven HUD (buttons, sliders, input boxes) loaded from JSON |
+| `src/headless` | Windowless simulation runner (`HeadlessSimulation` + `OneOfTwentySim`), no GL |
 | `src/camera` | World camera and view bounds |
 | `src/helpers` | Header-only utilities: `Logger`, `GameClock`, `Random`, `SharedContainer`, `Config`, `CoordMath`, `Appearance`, `FastNoiseLite` |
 | `src/pch` | Precompiled header aggregating the common includes |

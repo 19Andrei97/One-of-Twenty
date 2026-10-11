@@ -1461,14 +1461,19 @@ entt::entity EntityManager::addEntity(const EntityType& type, const sf::Vector2i
 
 void EntityManager::seedPopulation()
 {
+        seedPopulation(m_config.survival.initial_population);
+}
+
+void EntityManager::seedPopulation(const int count)
+{
         if (m_seeded_population)
                 return;
 
         m_seeded_population = true;
         const sf::Vector2i spawn = findHabitableSpawn();
-        const int count = m_config.survival.initial_population;
-        LOG_INFO("Seeding population of {} at ({},{}).", count, spawn.x, spawn.y);
-        for (int i = 0; i < count; ++i)
+        const int founders = std::max(0, count);
+        LOG_INFO("Seeding population of {} at ({},{}).", founders, spawn.x, spawn.y);
+        for (int i = 0; i < founders; ++i)
         {
                 const entt::entity entity = addEntity(EntityType::Human_Generic, spawn);
 
@@ -1476,10 +1481,10 @@ void EntityManager::seedPopulation()
                 // timers so the settlement does not age or breed in lockstep: the
                 // first dies at 40% of a lifespan, the last at 100%.
                 auto& life = m_registry->get<CLifespan>(entity);
-                life.remaining = m_config.survival.lifespan_hours * (4 + 6 * i / std::max(1, count)) / 10;
+                life.remaining = m_config.survival.lifespan_hours * (4 + 6 * i / std::max(1, founders)) / 10;
 
                 auto& repro = m_registry->get<CReproduction>(entity);
-                repro.cooldown_hours = m_config.survival.birth_interval_hours * (i + 1) / std::max(1, count);
+                repro.cooldown_hours = m_config.survival.birth_interval_hours * (i + 1) / std::max(1, founders);
         }
 }
 

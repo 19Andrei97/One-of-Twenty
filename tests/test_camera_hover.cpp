@@ -64,13 +64,13 @@ TEST_CASE("the hover readout resolves the entity under the pointer")
 
     const sf::Vector2i spawn = entities.findHabitableSpawn();
     // `near`/`far` are legacy macros in windows.h (SFML pulls it in), which would
-    // mangle these declarations on MSVC; use MSVC-safe names.
-    const entt::entity close = entities.addEntity(EntityType::Human_Generic, spawn);
-    const entt::entity distant = entities.addEntity(EntityType::Human_Generic, spawn + sf::Vector2i{ 200, 200 });
+    // mangle these declarations on MSVC, so use MSVC-safe names.
+    const entt::entity near_entity = entities.addEntity(EntityType::Human_Generic, spawn);
+    const entt::entity far_entity = entities.addEntity(EntityType::Human_Generic, spawn + sf::Vector2i{ 200, 200 });
 
-    CHECK(entities.entityAtWorld(spawn) == close);
-    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 2, 0 }) == close);
-    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 200, 200 }) == distant);
+    CHECK(entities.entityAtWorld(spawn) == near_entity);
+    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 2, 0 }) == near_entity);
+    CHECK(entities.entityAtWorld(spawn + sf::Vector2i{ 200, 200 }) == far_entity);
     CHECK_FALSE(entities.entityAtWorld(spawn + sf::Vector2i{ 100, 100 }).has_value());
 }
 

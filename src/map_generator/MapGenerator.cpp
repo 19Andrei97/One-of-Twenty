@@ -127,19 +127,13 @@ void MapGenerator::startChunksGenerator()
 {
 	while (s_running)
 	{
-		std::optional<sf::Vector2i> optChunkPos = tc_chunks_in_queue.pop();
-
-		if (!optChunkPos.has_value())
+		if (tc_chunks_in_queue.empty())
 		{
 			std::this_thread::sleep_for(std::chrono::milliseconds(5));
 			continue;
 		}
 
-		auto chunk = generateChunk(c_chunk_tiles, *optChunkPos);
-
-		// tc_chunks_ready has its own mutex; taking t_mutex here would only add
-		// contention on the chunk map for no benefit.
-		tc_chunks_ready.push(chunk);
+		generateQueuedChunks();
 	}
 }
 
@@ -179,154 +173,197 @@ bool chunkInView(const sf::Vector2i& chunkPos, const sf::Vector2i& chunkSize, co
 /*
 *       Render chunks based on view boundaries.
 */
+/*
+*       Update the chunk stream for a view: load the chunks the workers have
+*       produced and evict the ones that drifted out of the margin. Everything
+*       here is CPU-side (the workers sample terrain and build vertex arrays, no
+*       GL), so the headless simulation uses this directly. The visible chunks
+*       are stashed for render() to draw; a headless caller just ignores them.
+*/
+void MapGenerator::stream(const sf::IntRect& viewBounds) {
+        // Convert the pixel view into tile space once, then stay in tiles for the
+        // rest of the frame (chunk keys, hit tests, eviction distances).
+        const sf::Vector2i viewTopLeft = worldToTile(viewBounds.position);
+        const sf::Vector2i viewBottomRight = worldToTile(viewBounds.position + viewBounds.size);
+        const sf::Vector2i viewTileSize = viewBottomRight - viewTopLeft;
+
+        const sf::Vector2i chunk_alligned_position = getNextChunkPosition(viewTopLeft, c_chunk_tiles);
+        const sf::IntRect viewTiles{ chunk_alligned_position, viewTileSize };
+
+        // UPDATE in case of changes, only every 20 frames
+        if (m_reset && i_frames % 20 == 0)
+        {
+                m_reset = false;
+
+                setNoises();
+                print();
+
+                std::lock_guard<std::mutex> lock(t_mutex);
+                c_chunks.clear();
+        }
+
+        // Send camera data to worker (tile space)
+        s_camera_position.store(chunk_alligned_position);
+        s_view_size.store(viewTileSize);
+
+        // Headless mode: generate the queue inline rather than waiting on the
+        // workers, which pace themselves in real time. Bounded by the queue, which
+        // only ever holds the view's chunks.
+        if (m_synchronous)
+        {
+                queueMissingChunks();
+                while (!tc_chunks_in_queue.empty())
+                        generateQueuedChunks();
+        }
+
+        // Pull ready chunks from worker
+        while (true)
+        {
+                if (tc_chunks_ready.empty()) break; // No more chunks ready
+
+                auto chunk = tc_chunks_ready.pop();
+
+                std::lock_guard<std::mutex> lock(t_mutex);
+                // fillQueueChunks dedups against the queue and the ready list, but a chunk
+                // can be queued again in the window between the worker popping it and
+                // pushing it to the ready list. A second copy would clobber an edited
+                // chunk (setTileColor) or a pinned one, so keep what is already loaded.
+                if (c_chunks.find((*chunk)->position) == c_chunks.end())
+                        c_chunks[(*chunk)->position] = *chunk;
+        }
+
+        // Calculate visible chunks
+        m_visible_chunks.clear();
+        {
+                std::lock_guard<std::mutex> lock(t_mutex);
+
+                for (auto it = c_chunks.begin(); it != c_chunks.end(); )
+                {
+                        const sf::Vector2i& pos = it->first;
+
+                        if (chunkInView(pos, { c_chunk_tiles, c_chunk_tiles }, viewTiles))
+                        {
+                                m_visible_chunks.push_back(it->second);
+                                ++it;
+                        }
+                        else
+                        {
+                                // Calculate chunk distance from view
+                                sf::Vector2i chunkCenter = pos + sf::Vector2i(c_chunk_tiles / 2, c_chunk_tiles / 2);
+                                sf::Vector2i viewCenter = viewTiles.position + (viewTiles.size / 2);
+
+                                int dx = std::abs(chunkCenter.x - viewCenter.x) / c_chunk_tiles;
+                                int dy = std::abs(chunkCenter.y - viewCenter.y) / c_chunk_tiles;
+
+                                if (dx > (viewTiles.size.x / c_chunk_tiles) / 2 + c_chunk_margin ||
+                                        dy > (viewTiles.size.y / c_chunk_tiles) / 2 + c_chunk_margin)
+                                {
+                                        // Double-check before evicting: a chunk pinned via
+                                        // setChunkUnload (an entity or a pending change still
+                                        // references it) must survive even when it is far away.
+                                        if (it->second && !it->second->unload)
+                                        {
+                                                ++it;
+                                                continue;
+                                        }
+
+                                        // Too far — unload it
+                                        it = c_chunks.erase(it);
+                                }
+                                else {
+                                        ++it;
+                                }
+                        }
+                }
+        }
+}
+
+/*
+*       Draw the map: stream the view, then draw the chunks it left visible.
+*       The chunk bookkeeping lives in stream() so a headless run can update the
+*       map without a render target.
+*/
 void MapGenerator::render(const sf::IntRect& viewBounds, sf::RenderTarget& window) {
-	// Convert the pixel view into tile space once, then stay in tiles for the
-	// rest of the frame (chunk keys, hit tests, eviction distances).
-	const sf::Vector2i viewTopLeft = worldToTile(viewBounds.position);
-	const sf::Vector2i viewBottomRight = worldToTile(viewBounds.position + viewBounds.size);
-	const sf::Vector2i viewTileSize = viewBottomRight - viewTopLeft;
+        stream(viewBounds);
 
-	const sf::Vector2i chunk_alligned_position = getNextChunkPosition(viewTopLeft, c_chunk_tiles);
-	const sf::IntRect viewTiles{ chunk_alligned_position, viewTileSize };
+        // Draw all chunks in view
+        for (auto& chunk : m_visible_chunks)
+        {
+                if (d_wire_frame)
+                {
+                        // Before drawing your map
+                        window.pushGLStates();
+                        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                        glDisable(GL_TEXTURE_2D);
 
-	// UPDATE in case of changes, only every 20 frames
-	if (m_reset && i_frames % 20 == 0)
-	{
-		m_reset = false;
+                        // Draw your map as usual
+                        window.draw(chunk->vertices);
 
-		setNoises();
-		print();
+                        // Restore default fill mode
+                        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                        window.popGLStates();
+                }
+                else if (chunk->vertices.getVertexCount() != 0)
+                        window.draw(chunk->vertices);
 
-		std::lock_guard<std::mutex> lock(t_mutex);
-		c_chunks.clear();
-	}
+                //if (d_wire_frame)
+                        //window.draw(chunk->wire);
+        }
 
-	// Send camera data to worker (tile space)
-	s_camera_position.store(chunk_alligned_position);
-	s_view_size.store(viewTileSize);
-
-	// Pull ready chunks from worker
-	while (true)
-	{
-		if (tc_chunks_ready.empty()) break; // No more chunks ready
-
-		auto chunk = tc_chunks_ready.pop();
-
-		std::lock_guard<std::mutex> lock(t_mutex);
-		// fillQueueChunks dedups against the queue and the ready list, but a chunk
-		// can be queued again in the window between the worker popping it and
-		// pushing it to the ready list. A second copy would clobber an edited
-		// chunk (setTileColor) or a pinned one, so keep what is already loaded.
-		if (c_chunks.find((*chunk)->position) == c_chunks.end())
-			c_chunks[(*chunk)->position] = *chunk;
-	}
-
-	// Calculate visible chunks
-	std::vector<std::shared_ptr<Chunk>> visibleChunks;
-	{
-		std::lock_guard<std::mutex> lock(t_mutex);
-
-		for (auto it = c_chunks.begin(); it != c_chunks.end(); )
-		{
-			const sf::Vector2i& pos = it->first;
-
-			if (chunkInView(pos, { c_chunk_tiles, c_chunk_tiles }, viewTiles))
-			{
-				visibleChunks.push_back(it->second);
-				++it;
-			}
-			else
-			{
-				// Calculate chunk distance from view
-				sf::Vector2i chunkCenter = pos + sf::Vector2i(c_chunk_tiles / 2, c_chunk_tiles / 2);
-				sf::Vector2i viewCenter = viewTiles.position + (viewTiles.size / 2);
-
-				int dx = std::abs(chunkCenter.x - viewCenter.x) / c_chunk_tiles;
-				int dy = std::abs(chunkCenter.y - viewCenter.y) / c_chunk_tiles;
-
-				if (dx > (viewTiles.size.x / c_chunk_tiles) / 2 + c_chunk_margin ||
-					dy > (viewTiles.size.y / c_chunk_tiles) / 2 + c_chunk_margin)
-				{
-					// Double-check before evicting: a chunk pinned via
-					// setChunkUnload (an entity or a pending change still
-					// references it) must survive even when it is far away.
-					if (it->second && !it->second->unload)
-					{
-						++it;
-						continue;
-					}
-
-					// Too far — unload it
-					it = c_chunks.erase(it);
-				}
-				else {
-					++it;
-				}
-			}
-		}
-	}
-
-	// Draw all chunks in view
-	for (auto& chunk : visibleChunks)
-	{
-		if (d_wire_frame)
-		{
-			// Before drawing your map
-			window.pushGLStates();
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			glDisable(GL_TEXTURE_2D);
-
-			// Draw your map as usual
-			window.draw(chunk->vertices);
-
-			// Restore default fill mode
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			window.popGLStates();
-		}
-		else if (chunk->vertices.getVertexCount() != 0)
-			window.draw(chunk->vertices);
-
-		//if (d_wire_frame)
-			//window.draw(chunk->wire);
-	}
-
-	//std::cout << c_chunks.size() << '\n';
+        //std::cout << c_chunks.size() << '\n';
 }
 
 /*
 *       Function to fill the queue of chunks to generate. (Made to be run on different thread)
 */
+void MapGenerator::queueMissingChunks()
+{
+	// All positions below are chunk (tile) coordinates.
+	sf::Vector2i alignedPos = s_camera_position.load();
+	sf::Vector2i viewSize = s_view_size.load();
+	int num_tile_plus{ c_chunk_tiles * c_chunk_margin };
+
+	// Find missing chunks and add them to the queue
+	for (int y = alignedPos.y - num_tile_plus; y < alignedPos.y + viewSize.y + num_tile_plus; y += c_chunk_tiles)
+	{
+		for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += c_chunk_tiles)
+		{
+			sf::Vector2i chunkPos(x, y);
+
+			LOG_TRACE("Chunk Position (tile): {} {}", chunkPos.x, chunkPos.y);
+
+
+			{
+				std::lock_guard<std::mutex> lock(t_mutex);
+				if (c_chunks.find(chunkPos) != c_chunks.end()
+					|| tc_chunks_ready.containsIf([&](const std::shared_ptr<Chunk>& chunk) { return chunk && chunk->position == chunkPos; })
+					|| tc_chunks_in_queue.contains(chunkPos))
+					continue;
+			}
+
+			tc_chunks_in_queue.push(chunkPos);
+		}
+	}
+}
+
+void MapGenerator::generateQueuedChunks()
+{
+	std::optional<sf::Vector2i> optChunkPos = tc_chunks_in_queue.pop();
+	if (!optChunkPos.has_value())
+		return;
+
+	auto chunk = generateChunk(c_chunk_tiles, *optChunkPos);
+
+	// tc_chunks_ready has its own mutex; taking t_mutex here would only add
+	// contention on the chunk map for no benefit.
+	tc_chunks_ready.push(chunk);
+}
+
 void MapGenerator::fillQueueChunks()
 {
 	while (s_running)
 	{
-		// All positions below are chunk (tile) coordinates.
-		sf::Vector2i alignedPos = s_camera_position.load();
-		sf::Vector2i viewSize = s_view_size.load();
-		int num_tile_plus{ c_chunk_tiles * c_chunk_margin };
-
-		// Find missing chunks and add them to the queue
-		for (int y = alignedPos.y - num_tile_plus; y < alignedPos.y + viewSize.y + num_tile_plus; y += c_chunk_tiles)
-		{
-			for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += c_chunk_tiles)
-			{
-				sf::Vector2i chunkPos(x, y);
-
-				LOG_TRACE("Chunk Position (tile): {} {}", chunkPos.x, chunkPos.y);
-
-
-				{
-					std::lock_guard<std::mutex> lock(t_mutex);
-					if (c_chunks.find(chunkPos) != c_chunks.end()
-						|| tc_chunks_ready.containsIf([&](const std::shared_ptr<Chunk>& chunk) { return chunk && chunk->position == chunkPos; })
-						|| tc_chunks_in_queue.contains(chunkPos))
-						continue;
-				}
-
-				tc_chunks_in_queue.push(chunkPos);
-			}
-		}
-
+		queueMissingChunks();
 		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 	}
 }

@@ -332,6 +332,9 @@ public:
         // Kept separate from the constructor so tests can start from zero and add
         // entities explicitly.
         void seedPopulation();
+        // As above but with an explicit founder count, so a headless run can
+        // override the config's initial_population without editing the file.
+        void seedPopulation(int count);
 
         // A habitable world position to found the settlement: a land tile with
         // drinkable water and forageable food close enough to be reached. Falls

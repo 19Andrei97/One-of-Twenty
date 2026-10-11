@@ -30,8 +30,14 @@ jobs:
       - name: Build
         run: cmake --build build -j"$(nproc)"
 
-      - name: Test
+      - name: Test (headless, no display)
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Test (with display, render path)
         run: xvfb-run -a ctest --test-dir build --output-on-failure
+
+      - name: Headless simulation smoke run
+        run: cd build/bin && ./OneOfTwentySim --days 120 --seed 7 --rng-seed 7 --report-days 120
 
   sanitizers:
     name: Linux (gcc, ASan + UBSan)
