@@ -109,3 +109,71 @@ TEST_CASE("the camera pans while the simulation is paused")
     CHECK(scene.getGameClock()->getTimestamp() == before_minutes);
     CHECK(scene.getEntityManager()->entityPositions() == before_entities);
 }
+
+TEST_CASE("the camera stays inside the finite world")
+{
+    // The world is a finite square, so the camera must not pan past its edge.
+    // A camera that starts near the top-left corner and pans hard out of the map
+    // is clamped so its view keeps showing the map.
+    Camera camera(1280, 720);
+    const sf::IntRect world{ { -1000, -1000 }, { 2000, 2000 } };
+    camera.setWorldBounds(world);
+
+    for (int i = 0; i < 200; ++i)
+        camera.move(-1000.f, -1000.f);
+
+    const sf::View& view = camera.getCamera();
+    const float halfW = view.getSize().x / 2.f;
+    const float halfH = view.getSize().y / 2.f;
+    CHECK(view.getCenter().x - halfW >= static_cast<float>(world.position.x) - 1.f);
+    CHECK(view.getCenter().y - halfH >= static_cast<float>(world.position.y) - 1.f);
+
+    // Panning the other way clamps to the far edge.
+    for (int i = 0; i < 400; ++i)
+        camera.move(1000.f, 1000.f);
+    const sf::View& far = camera.getCamera();
+    CHECK(far.getCenter().x + halfW <= static_cast<float>(world.position.x + world.size.x) + 1.f);
+    CHECK(far.getCenter().y + halfH <= static_cast<float>(world.position.y + world.size.y) + 1.f);
+}
+
+TEST_CASE("a world-size button resizes the map and confines the camera")
+{
+    // The size buttons are registered by the HUD and act on the scene's map; the
+    // scene must also pull the camera back inside the new world. Clicking the
+    // buttons drives the real callback chain (the HUD camera is 1280x720 with its
+    // origin at 0,0, so the button positions from the config are the click points).
+    sf::Font font;
+    REQUIRE(font.openFromFile(fontPath()));
+
+    Scene_Play scene(nullptr, font, playConfig());
+    auto map = scene.getMap();
+    REQUIRE(map->getMapSize() == MapSize::Normal);
+
+    Hud* hud = scene.getHud();
+    REQUIRE(hud != nullptr);
+    REQUIRE(hud->hasButtonCallback("map_size_enormous"));
+    REQUIRE(hud->hasButtonCallback("map_size_normal"));
+
+    const auto click = [&](const sf::Vector2f& at) {
+        hud->input(sf::Event::MouseButtonPressed{ sf::Mouse::Button::Left, { static_cast<int>(at.x), static_cast<int>(at.y) } }, at);
+    };
+
+    // Grow the world: the map follows and the camera stays valid.
+    click({ 250.f, 275.f }); // over the Enormous button
+    CHECK(map->getMapSize() == MapSize::Enormous);
+    CHECK(map->getWorldTileBounds() == worldTileBounds(MapSize::Enormous, 32));
+
+    // Push the camera hard against the Enormous edge, then shrink back to Normal:
+    // the camera must be pulled inside the (much smaller) new world.
+    for (int i = 0; i < 200; ++i)
+        scene.getCamera()->move(1e6f, 1e6f);
+
+    click({ 50.f, 275.f }); // over the Normal button
+    CHECK(map->getMapSize() == MapSize::Normal);
+    CHECK(map->getWorldTileBounds() == worldTileBounds(MapSize::Normal, 32));
+
+    const sf::View& view = scene.getCamera()->getCamera();
+    const sf::IntRect bounds = map->getWorldPixelBounds();
+    CHECK(view.getCenter().x + view.getSize().x / 2.f <= static_cast<float>(bounds.position.x + bounds.size.x) + 1.f);
+    CHECK(view.getCenter().y + view.getSize().y / 2.f <= static_cast<float>(bounds.position.y + bounds.size.y) + 1.f);
+}

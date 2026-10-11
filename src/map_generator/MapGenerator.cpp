@@ -208,7 +208,12 @@ void MapGenerator::stream(const sf::IntRect& viewBounds) {
         const sf::Vector2i viewTileSize = viewBottomRight - viewTopLeft;
 
         const sf::Vector2i chunk_alligned_position = getNextChunkPosition(viewTopLeft, c_chunk_tiles);
-        const sf::IntRect viewTiles{ chunk_alligned_position, viewTileSize };
+        // Align the tile view to the chunk grid, then clip it to the finite world.
+        // Outside the world there is no terrain; clipping the view to the world
+        // rect means the chunks near the edge stay "in view" (so they are kept
+        // loaded and drawn) instead of being evicted as the camera leaves the map.
+        const sf::IntRect viewTiles = sf::IntRect{ chunk_alligned_position, viewTileSize }.findIntersection(c_world_tiles)
+                                        .value_or(sf::IntRect{ chunk_alligned_position, { 0, 0 } });
 
         // UPDATE in case of changes, only every 20 frames
         if (m_reset && i_frames % 20 == 0)
@@ -242,6 +247,12 @@ void MapGenerator::stream(const sf::IntRect& viewBounds) {
                 if (tc_chunks_ready.empty()) break; // No more chunks ready
 
                 auto chunk = tc_chunks_ready.pop();
+
+                // A worker may deliver a chunk it queued before a world-size change
+                // drained the queues. Reject anything outside the current world so a
+                // stale chunk cannot be loaded past the new edge.
+                if (!c_world_tiles.contains((*chunk)->position))
+                        continue;
 
                 std::lock_guard<std::mutex> lock(t_mutex);
                 // fillQueueChunks dedups against the queue and the ready list, but a chunk
@@ -342,6 +353,10 @@ void MapGenerator::queueMissingChunks()
 	sf::Vector2i alignedPos = s_camera_position.load();
 	sf::Vector2i viewSize = s_view_size.load();
 	int num_tile_plus{ c_chunk_tiles * c_chunk_margin };
+	// Finite world: chunks outside [-half, half) on either axis are never queued,
+	// so the camera at the edge streams only the real world and the workers do
+	// not generate a ring of unreachable chunks. Read once per pass.
+	const int worldHalf = s_world_half_tiles.load();
 
 	// Find missing chunks and add them to the queue
 	for (int y = alignedPos.y - num_tile_plus; y < alignedPos.y + viewSize.y + num_tile_plus; y += c_chunk_tiles)
@@ -349,6 +364,11 @@ void MapGenerator::queueMissingChunks()
 		for (int x = alignedPos.x - num_tile_plus; x < alignedPos.x + viewSize.x + num_tile_plus; x += c_chunk_tiles)
 		{
 			sf::Vector2i chunkPos(x, y);
+
+			// Skip chunks outside the finite world.
+			if (chunkPos.x < -worldHalf || chunkPos.x >= worldHalf ||
+			    chunkPos.y < -worldHalf || chunkPos.y >= worldHalf)
+				continue;
 
 			LOG_TRACE("Chunk Position (tile): {} {}", chunkPos.x, chunkPos.y);
 
@@ -398,11 +418,61 @@ void MapGenerator::setNoises()
 }
 
 /*
+*       Recompute the cached world rectangles from the current size. The world is
+*       a finite square of chunks centred on the tile origin, so tile and pixel
+*       bounds always agree.
+*/
+void MapGenerator::refreshWorldBounds()
+{
+	c_world_tiles = worldTileBounds(m_map_size, c_chunk_tiles);
+	c_world_pixels = worldPixelBounds(m_map_size, c_chunk_tiles, m_config.tile_size_px);
+	// Publish the half-side the worker thread reads. Set it last so a worker never
+	// sees a half that disagrees with the cached bounds.
+	s_world_half_tiles.store(c_world_tiles.size.x / 2);
+}
+
+/*
+*       Change the world size and drop everything loaded. The bounds move, so the
+*       chunks generated for the old size (and any edits in them) no longer
+*       belong; the next stream rebuilds the view inside the new world. The
+*       queue and ready list are emptied too, so the workers cannot deliver a
+*       chunk generated for the previous size.
+*/
+void MapGenerator::setMapSize(const MapSize size)
+{
+	if (size == m_map_size)
+		return;
+
+	m_map_size = size;
+	m_config.map_size = size;
+	refreshWorldBounds();
+
+	{
+		std::lock_guard<std::mutex> lock(t_mutex);
+		c_chunks.clear();
+	}
+
+	// The shared containers lock themselves; never hold t_mutex while popping.
+	while (!tc_chunks_in_queue.empty())
+		(void)tc_chunks_in_queue.pop();
+	while (!tc_chunks_ready.empty())
+		(void)tc_chunks_ready.pop();
+}
+
+/*
 *       Return the information at the requested map position.
 */
 std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 {
 	std::vector<std::string> result;
+
+	// Outside the finite world there is nothing to report; the camera is clamped
+	// to the world, but a caller may still ask about a point beyond it.
+	if (!c_world_tiles.contains(worldToTile(pos)))
+	{
+		result.push_back("Unknown");
+		return result;
+	}
 
 	sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
@@ -463,7 +533,13 @@ sf::Vector2i MapGenerator::getLocationWithinBound(sf::Vector2i& pos, float radiu
 		random.x = Random::get<int, int, int>(pos.x - radius, pos.x + radius);
 		random.y = Random::get<int, int, int>(pos.y - radius, pos.y + radius);
 
-		if (!Resources::isOcean(m_terrain.elementAtTile(worldToTile(random))))
+		// Reject tiles outside the finite world: there is no land to stand on
+		// there, and sampling noise would return terrain that is not part of the
+		// map.
+		const sf::Vector2i tile = worldToTile(random);
+		if (!c_world_tiles.contains(tile))
+			continue;
+		if (!Resources::isOcean(m_terrain.elementAtTile(tile)))
 			return random;
 	}
 
@@ -488,6 +564,9 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 		for (int dy = -tileRadius; dy <= tileRadius; ++dy)
 		{
 			const sf::Vector2i tile = centerTile + sf::Vector2i(dx, dy);
+			// Nothing to find outside the finite world.
+			if (!c_world_tiles.contains(tile))
+				continue;
 			const sf::Vector2i tileWorldPos = tileToWorld(tile);
 			const float ddx = static_cast<float>(tileWorldPos.x - pos.x);
 			const float ddy = static_cast<float>(tileWorldPos.y - pos.y);
@@ -531,6 +610,11 @@ std::unordered_map<Elements, sf::Vector2i> MapGenerator::getResourcesWithinBound
 // Return the cost of the tile position.
 float MapGenerator::getTileCost(const sf::Vector2i& pos)
 {
+        // Outside the finite world the tile is deep ocean: the slowest cost, so a
+        // stray query never reads as cheap land beyond the map edge.
+        if (!c_world_tiles.contains(worldToTile(pos)))
+                return MoveCost::moveCost(Elements::very_deep_ocean);
+
         sf::Vector2i chunkPos = chunkOf(worldToTile(pos));
 
         std::lock_guard<std::mutex> lock(t_mutex);
@@ -573,6 +657,13 @@ int MapGenerator::copyTileBlock(const sf::Vector2i& topLeftTile, const int side,
                 for (int x = 0; x < n; ++x)
                 {
                         const sf::Vector2i tile{ topLeftTile.x + x, topLeftTile.y + y };
+                        // Outside the finite world the block is deep ocean; never
+                        // sample noise for a tile that is not part of the map.
+                        if (!c_world_tiles.contains(tile))
+                        {
+                                out[static_cast<std::size_t>(y) * n + x] = Elements::very_deep_ocean;
+                                continue;
+                        }
                         // Prefer the authoritative tile map. Noise is only the
                         // fallback for tiles a loaded chunk does not own.
                         const auto chunkIt = c_chunks.find(chunkOf(tile));
@@ -711,12 +802,20 @@ sf::Vector2i MapGenerator::chunkOf(const sf::Vector2i& tile) const
 */
 Elements MapGenerator::getBiomeElement(const sf::Vector2i& coord)
 {
+	// Outside the finite world there is no terrain: report deep ocean so callers
+	// treat the edge as sea (unwalkable, nothing to gather) rather than sampling
+	// noise that belongs to a world that is not there.
+	const sf::Vector2i tile = worldToTile(coord);
+	if (!c_world_tiles.contains(tile))
+		return Elements::very_deep_ocean;
 	return m_terrain.elementAtWorld(coord);
 }
 
 Elements MapGenerator::getElementAtWorld(const sf::Vector2i& coord) const
 {
 	const sf::Vector2i tile = worldToTile(coord);
+	if (!c_world_tiles.contains(tile))
+		return Elements::very_deep_ocean;
 
 	// Compute the chunk key before locking: chunkOf is const and touches
 	// only c_chunk_tiles, and calling it inside the critical section would
@@ -738,11 +837,17 @@ Elements MapGenerator::getElementAtWorld(const sf::Vector2i& coord) const
 
 float MapGenerator::getResourceValue(const sf::Vector2i& coord, Elements resource) const
 {
+	// No ore outside the world.
+	if (!c_world_tiles.contains(worldToTile(coord)))
+		return 0.0f;
 	return m_terrain.resourceValue(coord, resource);
 }
 
 sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord)
 {
+	const sf::Vector2i tile = worldToTile(coord);
+	if (!c_world_tiles.contains(tile))
+		return m_config.biome_colors[static_cast<std::size_t>(Elements::very_deep_ocean)];
 	return m_config.biome_colors[static_cast<std::size_t>(m_terrain.elementAtWorld(coord))];
 }
 

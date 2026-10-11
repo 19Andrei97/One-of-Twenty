@@ -2,6 +2,7 @@
     "tile_size": 16,
     "chunk_tile_size": 32,
     "chunk_margin": 2,
+    "map_size": "Normal",
     "seed": 1,
     "land_amount": 0.35,
     "continent_size": 0.0015,

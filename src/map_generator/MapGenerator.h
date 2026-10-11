@@ -2,12 +2,22 @@
 
 #include "Chunk.h"
 #include "MapConfig.h"
+#include "MapSize.h"
 #include "generate_terrain.h"
 
 #include <BS_thread_pool.hpp>
 #include <SharedContainer.h>
 
 #include <SFML/Graphics.hpp>
+
+// On Windows, SFML pulls in <windows.h>, which defines the legacy `near`/`far`
+// macros. NOMINMAX (which SFML sets) only covers `min`/`max`, so `near` and
+// `far` still mangle any identifier spelled that way in a translation unit that
+// includes this header. Undefine them so the names stay usable in our code.
+#ifdef _WIN32
+    #undef near
+    #undef far
+#endif
 
 #include <atomic>
 #include <memory>
@@ -35,10 +45,24 @@ private:
 	int             c_chunk_tiles;
 	int             c_chunk_margin;
 
+	// World size (Normal / Big / Enormous) and its cached bounds. The world is a
+	// finite square of chunks centred on the tile origin, so streaming and every
+	// tile query stay inside it. Recomputed by refreshWorldBounds on a size change.
+	MapSize         m_map_size;
+	sf::IntRect     c_world_tiles;      // world rect in tiles
+	sf::IntRect     c_world_pixels;     // world rect in world pixels
+	void            refreshWorldBounds();
+
 	// SHARED variables
 	std::atomic<sf::Vector2i>       s_camera_position;
 	std::atomic<sf::Vector2i>       s_view_size;
 	std::atomic<bool>               s_running{ true };
+	// Half the world side, in tiles. The workers read this to skip chunks that
+	// lie outside the finite world; it is atomic so a size change on the main
+	// thread cannot tear the value a worker is reading. A chunk is inside the
+	// world when -half <= position < half on both axes (positions are chunk
+	// aligned, so this is exactly "the chunk's tiles are all inside").
+	std::atomic<int>                s_world_half_tiles{ 0 };
 
 	// THREAD variables
 	BS::thread_pool<>                               t_threads{ 3 };
@@ -104,6 +128,10 @@ public:
 		, i_frames(frames)
 		, m_synchronous(synchronous)
 	{
+		c_chunk_tiles = m_config.chunk_tile_size;
+		c_chunk_margin = m_config.chunk_margin;
+		m_map_size = m_config.map_size;
+		refreshWorldBounds();
 		launch();
 	}
 
@@ -117,6 +145,10 @@ public:
 		, i_frames(frames)
 		, m_synchronous(synchronous)
 	{
+		c_chunk_tiles = m_config.chunk_tile_size;
+		c_chunk_margin = m_config.chunk_margin;
+		m_map_size = m_config.map_size;
+		refreshWorldBounds();
 		launch();
 	}
 
@@ -152,6 +184,12 @@ public:
                 m_config.seed = seed;
         }
 	void setNoises();
+
+	// Change the world size (Normal / Big / Enormous). Recomputes the bounds and
+	// drops the loaded chunks, so the next stream rebuilds the view in the new
+	// world. A size change is a whole-world change; the caller also marks the map
+	// for a reset so the HUD/seed state stays consistent.
+	void setMapSize(MapSize size);
 
 	// Terrain tuning, named the way the HUD presents it. Each setter writes the
 	// live config, which the sampler reads on the next sample; a change only
@@ -218,6 +256,22 @@ public:
 	sf::Color      getBiomeColor(const sf::Vector2i& coord);
 	int            getTileSize() const { return m_config.tile_size_px; }
 	int            getSeed()     const { return m_seed; }
+
+	// World size and its bounds. `getWorldTileBounds` / `getWorldPixelBounds`
+	// return the finite world rectangle the camera and streaming clamp to;
+	// `containsTile` / `containsWorld` answer whether a point lies inside it.
+	MapSize        getMapSize()        const { return m_map_size; }
+	sf::IntRect    getWorldTileBounds()  const { return c_world_tiles; }
+	sf::IntRect    getWorldPixelBounds() const { return c_world_pixels; }
+	bool           containsTile(const sf::Vector2i& tile) const
+	{
+		return c_world_tiles.contains(tile);
+	}
+	bool           containsWorld(const sf::Vector2i& world) const
+	{
+		return c_world_pixels.contains(world);
+	}
+
 	// The live terrain config, so a caller can capture the tuned world (the
 	// menu) or rebuild one from it.
 	const MapConfig& getConfig() const { return m_config; }

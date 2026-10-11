@@ -169,6 +169,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | Mouse hover | Inspect the tile under the cursor, and show an entity's readout only while the cursor is over it |
 | Left click | Paint the tile under the cursor (map edit debug) |
 | HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, lakes and ore (each slider has a one-line description); preset buttons (Earth, Pangaea, Archipelago) apply a whole world in one click |
+| HUD size buttons | Switch the finite world size between Normal (64x64 chunks), Big (128x128) and Enormous (256x256); the camera is confined to the new bounds |
 
 ## Running in a browser (remote display)
 
@@ -307,6 +308,15 @@ the active work starts at milestone 3 (social station and importance).
 
 Retired from the roadmap; kept here as a record.
 
+- [x] **Finite map sizes.** The world is a finite square of chunks rather than an
+  endless stream, with three selectable sizes (`MapSize.h`: Normal 64x64, Big
+  128x128, Enormous 256x256 chunks). The size is set in `map_data.json`
+  (`map_size`) and switched at runtime by HUD buttons; a change recomputes the
+  world bounds and drops the loaded chunks so the next stream rebuilds the view.
+  Every query and the streaming queue clamp to the bounds, so outside the world
+  reads as deep ocean (unwalkable, no resources) instead of noise, and the camera
+  is confined to the world rectangle (an empty rect keeps the old free-panning
+  behaviour).
 - [x] **Observability and tuning.** A bounded event log (`helpers/EventLog.h`)
   records births, deaths with cause, gathers and discoveries, stamped with the
   in-game minute and queryable in tests; a `RunHistory` (`helpers/RunSummary.h`)

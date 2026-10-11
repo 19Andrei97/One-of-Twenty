@@ -48,7 +48,10 @@ The engine core and the survival loop are in place:
 - Chunked procedural map streamed on a `BS::thread_pool`, with noise
   continents/warp/minerals, ridged highland detail, islands, lake basins and
   per-resource fields; sampling lives in a stateless `GenerateTerrain` over a
-  `MapConfig` value type (`src/map_generator`).
+  `MapConfig` value type (`src/map_generator`). The world is finite: a square of
+  chunks whose side is one of three sizes (`MapSize.h`: Normal / Big / Enormous,
+  set by `map_size` in `map_data.json` and switchable from the HUD), and every
+  query, the streaming queue and the camera clamp to that rectangle.
 - Tile-space coordinates end to end (`helpers/CoordMath.h`); `tile_types` is the
   authoritative per-tile map, so edits made through `setTileColor` agree with
   what is drawn and what entities query.

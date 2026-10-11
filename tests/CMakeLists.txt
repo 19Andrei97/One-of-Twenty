@@ -1,5 +1,6 @@
 add_executable(unit_tests
     test_main.cpp
+    DisplayProbe.cpp
     test_coord_math.cpp
     test_shared_container.cpp
     test_game_clock.cpp
@@ -58,6 +59,16 @@ target_link_libraries(unit_tests PRIVATE
 
 if(OpenGL_FOUND)
     target_link_libraries(unit_tests PRIVATE OpenGL::GL)
+endif()
+
+# The tests probe XOpenDisplay (tests/DisplayProbe.cpp) before creating a GL
+# context, so a set-but-dead DISPLAY skips the GL cases instead of aborting
+# inside SFML's X11 backend.
+if(UNIX AND NOT APPLE)
+    find_package(X11 QUIET)
+    if(X11_FOUND)
+        target_link_libraries(unit_tests PRIVATE X11::X11)
+    endif()
 endif()
 
 add_test(NAME unit_tests COMMAND unit_tests)

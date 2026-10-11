@@ -5,6 +5,7 @@ add_library(MapGenerator
     generate_terrain.h
     Chunk.h
     MapConfig.h
+    MapSize.h
 )
 
 target_include_directories(MapGenerator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

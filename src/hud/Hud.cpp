@@ -66,6 +66,23 @@ void Hud::registerDefaultCallbacks()
                 });
         });
 
+        // World size. One button per size; pressing it sets the map's finite world
+        // and marks the map for a reset, so the new bounds and the regenerated
+        // chunks take effect together. The scene additionally snaps the camera
+        // inside the new world (via the map's bounds callback), which the HUD does
+        // not own.
+        const auto applySize = [this, onMapChanged](MapSize size) {
+                if (!m_map)
+                        return;
+                m_map->setMapSize(size);
+                onMapChanged();
+                if (m_onWorldSizeChanged)
+                        m_onWorldSizeChanged(size);
+        };
+        registerButtonCallback("map_size_normal", [applySize]() { applySize(MapSize::Normal); });
+        registerButtonCallback("map_size_big", [applySize]() { applySize(MapSize::Big); });
+        registerButtonCallback("map_size_enormous", [applySize]() { applySize(MapSize::Enormous); });
+
         // Time management. These act on the clock when one is attached; the scene
         // overrides time_pause to keep its own pause state in step.
         registerButtonCallback("time_slower", [this]() {

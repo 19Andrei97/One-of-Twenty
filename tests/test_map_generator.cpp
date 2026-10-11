@@ -2,6 +2,7 @@
 
 #include "MapGenerator.h"
 #include "generate_terrain.h"
+#include "DisplayProbe.h"
 
 #include <doctest/doctest.h>
 
@@ -272,15 +273,14 @@ TEST_CASE("setChunkUnload reports when no chunk is loaded")
 
 TEST_CASE("render streams chunks and shuts down cleanly")
 {
-#if defined(__linux__)
     // SFML aborts the process (SIGABRT) when it cannot open an X11 display,
-    // which cannot be caught. Skip instead of crashing on headless machines.
-    if (std::getenv("DISPLAY") == nullptr)
+    // which cannot be caught, so probe first. An unset DISPLAY is not the only
+    // failure: a set-but-dead DISPLAY (xvfb-run losing its server) also aborts.
+    if (!TestSupport::displayAvailable())
     {
-        MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
+        MESSAGE("Skipping render test: no usable X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -362,13 +362,13 @@ TEST_CASE("render streams chunks and shuts down cleanly")
 
 TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
+    // SFML aborts the process (SIGABRT) from its X11 backend when it cannot
+    // open the display; probe first so an unset or dead DISPLAY skips instead.
+    if (!TestSupport::displayAvailable())
     {
         MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -457,13 +457,13 @@ TEST_CASE("setTileColor updates the map and the rendered chunk consistently")
 
 TEST_CASE("tile cost reads the authoritative tile and is always positive")
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
+    // SFML aborts the process (SIGABRT) from its X11 backend when it cannot
+    // open the display; probe first so an unset or dead DISPLAY skips instead.
+    if (!TestSupport::displayAvailable())
     {
         MESSAGE("Skipping render test: no X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -610,13 +610,13 @@ TEST_CASE("each resource uses its own noise field")
 
 TEST_CASE("map queries read the authoritative tile map")
 {
-#if defined(__linux__)
-    if (std::getenv("DISPLAY") == nullptr)
+    // SFML aborts the process (SIGABRT) from its X11 backend when it cannot
+    // open the display; probe first so an unset or dead DISPLAY skips instead.
+    if (!TestSupport::displayAvailable())
     {
         MESSAGE("Skipping query test: no X11 display (run under xvfb-run)");
         return;
     }
-#endif
 
     int frames = 0;
 
@@ -739,4 +739,202 @@ TEST_CASE("getResourcesWithinBoundary reports the authoritative nearest resource
         if (it != after.end())
             CHECK(generator->getElementAtWorld(it->second) == Elements::test);
     }
+}
+
+TEST_CASE("map sizes describe a finite, nested, square world")
+{
+    // The three sizes are pure data, so the relationships can be checked without
+    // building a map: each is bigger than the last, all are square, and the
+    // shipped default is the smallest.
+    CHECK(mapSizeChunks(MapSize::Normal) < mapSizeChunks(MapSize::Big));
+    CHECK(mapSizeChunks(MapSize::Big) < mapSizeChunks(MapSize::Enormous));
+
+    CHECK(mapSizeChunkCount(MapSize::Normal) == mapSizeChunks(MapSize::Normal) * mapSizeChunks(MapSize::Normal));
+    CHECK(mapSizeChunkCount(MapSize::Big) == mapSizeChunks(MapSize::Big) * mapSizeChunks(MapSize::Big));
+    CHECK(mapSizeChunkCount(MapSize::Enormous) == mapSizeChunks(MapSize::Enormous) * mapSizeChunks(MapSize::Enormous));
+
+    // Names round-trip, case-insensitively.
+    CHECK(mapSizeFromString("Normal") == MapSize::Normal);
+    CHECK(mapSizeFromString("big") == MapSize::Big);
+    CHECK(mapSizeFromString("ENORMOUS") == MapSize::Enormous);
+    CHECK_THROWS_AS((void)mapSizeFromString("huge"), std::invalid_argument);
+
+    // The world rect is square, centred on the origin, and scales with the size.
+    constexpr int chunkTiles = 32;
+    const sf::IntRect normal = worldTileBounds(MapSize::Normal, chunkTiles);
+    const sf::IntRect big = worldTileBounds(MapSize::Big, chunkTiles);
+    const sf::IntRect enormous = worldTileBounds(MapSize::Enormous, chunkTiles);
+
+    CHECK(normal.size.x == normal.size.y);
+    CHECK(normal.position == -normal.size / 2);
+    CHECK(big.size.x == big.size.y);
+    CHECK(enormous.size.x == enormous.size.y);
+    CHECK(normal.size.x < big.size.x);
+    CHECK(big.size.x < enormous.size.x);
+
+    // Tile and pixel bounds agree at the map's own tile size.
+    const sf::IntRect pixel = worldPixelBounds(MapSize::Big, chunkTiles, 16);
+    CHECK(pixel.position == big.position * 16);
+    CHECK(pixel.size == big.size * 16);
+}
+
+TEST_CASE("the map config carries the selected world size")
+{
+    int frames = 0;
+
+    // The shipped config asks for Normal.
+    auto normal = makeGenerator(frames);
+    CHECK(normal->getMapSize() == MapSize::Normal);
+    CHECK(normal->getWorldTileBounds() == worldTileBounds(MapSize::Normal, 32));
+
+    // A config can ask for a bigger world; the generator's bounds follow it.
+    const std::string bigConfig = makeVariantConfig("size_big", [](nlohmann::json& js) {
+        js["map_size"] = "Big";
+    });
+    auto big = std::make_unique<MapGenerator>(frames, bigConfig);
+    CHECK(big->getMapSize() == MapSize::Big);
+    CHECK(big->getWorldTileBounds() == worldTileBounds(MapSize::Big, 32));
+    CHECK(big->getWorldPixelBounds() == worldPixelBounds(MapSize::Big, 32, big->getTileSize()));
+
+    // An unknown size is a hard error, not a silent fallback.
+    const std::string badConfig = makeVariantConfig("size_bad", [](nlohmann::json& js) {
+        js["map_size"] = "gigantic";
+    });
+    CHECK_THROWS_AS(std::make_unique<MapGenerator>(frames, badConfig), std::exception);
+}
+
+TEST_CASE("the MapConfig constructor also establishes the world bounds")
+{
+    // The menu hands a run a MapConfig value (Scene_Play builds the run map from
+    // settings.map), so this constructor must set the world bounds just like the
+    // file-loading one. A missing refreshWorldBounds leaves the bounds empty, and
+    // every query then reads "outside the world" and returns deep ocean for the
+    // whole map until a size button happens to fire.
+    int frames = 0;
+
+    MapConfig config = loadMapConfig(mapConfigPath());
+    config.map_size = MapSize::Big;
+    auto generator = std::make_unique<MapGenerator>(frames, config);
+
+    CHECK(generator->getMapSize() == MapSize::Big);
+    CHECK(generator->getWorldTileBounds() == worldTileBounds(MapSize::Big, config.chunk_tile_size));
+    CHECK(generator->getWorldPixelBounds() ==
+          worldPixelBounds(MapSize::Big, config.chunk_tile_size, config.tile_size_px));
+
+    // The origin is the world centre, so a query there must be inside the world
+    // and read the real terrain, not the out-of-bounds deep ocean.
+    CHECK(generator->containsWorld({ 0, 0 }));
+    CHECK(generator->getBiomeElement({ 0, 0 }) != Elements::very_deep_ocean);
+}
+
+TEST_CASE("outside the finite world reads as ocean and carries no resources")
+{
+    int frames = 0;
+
+    auto generator = makeGenerator(frames);
+    generator->setSeed(2024);
+    generator->setNoises();
+
+    const sf::IntRect world = generator->getWorldTileBounds();
+    const int tileSize = generator->getTileSize();
+
+    // A point just past each edge: outside the world, so deep ocean everywhere.
+    const sf::Vector2i outsideRight{ (world.position.x + world.size.x) * tileSize + tileSize, 0 };
+    const sf::Vector2i outsideLeft{ (world.position.x - 1) * tileSize, 0 };
+    const sf::Vector2i outsideTop{ 0, (world.position.y - 1) * tileSize };
+    const sf::Vector2i outsideBottom{ 0, (world.position.y + world.size.y) * tileSize };
+
+    for (const sf::Vector2i& pos : { outsideRight, outsideLeft, outsideTop, outsideBottom })
+    {
+        CHECK_FALSE(generator->containsWorld(pos));
+        CHECK(generator->getBiomeElement(pos) == Elements::very_deep_ocean);
+        CHECK(generator->getElementAtWorld(pos) == Elements::very_deep_ocean);
+        CHECK(generator->getResourceValue(pos, Elements::clay) == doctest::Approx(0.f));
+        CHECK(generator->getTileCost(pos) == doctest::Approx(MoveCost::moveCost(Elements::very_deep_ocean)));
+        for (const auto& line : generator->getPositionInfo(pos))
+            CHECK(line == "Unknown");
+    }
+
+    // The origin is the world centre, so it is inside.
+    CHECK(generator->containsWorld({ 0, 0 }));
+    CHECK(generator->containsTile({ 0, 0 }));
+}
+
+TEST_CASE("streaming never loads a chunk outside the finite world")
+{
+    int frames = 0;
+
+    // A synchronous generator so the queue is drained inline and the loaded set
+    // is deterministic (no worker timing).
+    auto generator = std::make_unique<MapGenerator>(frames, mapConfigPath(), /*synchronous=*/true);
+    generator->setSeed(2024);
+
+    // A view centred on the top-left corner of the world. Half of the view lies
+    // outside the map, so without the bound the queue would generate a ring of
+    // chunks beyond the edge.
+    const sf::IntRect world = generator->getWorldTileBounds();
+    const int tileSize = generator->getTileSize();
+    const sf::Vector2i cornerWorld{ world.position.x * tileSize, world.position.y * tileSize };
+    const sf::IntRect view{ cornerWorld - sf::Vector2i{ 256, 256 }, sf::Vector2i{ 512, 512 } };
+
+    generator->stream(view);
+
+    // Every tile just outside the world stays unloaded (deep ocean, no chunk).
+    const sf::Vector2i justOutside{ (world.position.x - 1) * tileSize, (world.position.y - 1) * tileSize };
+    for (const auto& line : generator->getPositionInfo(justOutside))
+        CHECK(line == "Unknown");
+
+    // A tile inside the corner is loaded: the bound keeps the real edge, it does
+    // not reject the whole corner.
+    const sf::Vector2i insideWorld{ (world.position.x + 1) * tileSize, (world.position.y + 1) * tileSize };
+    bool insideLoaded = false;
+    for (const auto& line : generator->getPositionInfo(insideWorld))
+        if (line.rfind("Type:", 0) == 0)
+            insideLoaded = true;
+    CHECK(insideLoaded);
+}
+
+TEST_CASE("setMapSize moves the bounds and reloads the world")
+{
+    int frames = 0;
+
+    auto generator = std::make_unique<MapGenerator>(frames, mapConfigPath(), /*synchronous=*/true);
+    generator->setSeed(2024);
+
+    const sf::IntRect normalBounds = generator->getWorldTileBounds();
+
+    // Load a chunk at the origin first, so the size change has something to drop.
+    generator->stream(sf::IntRect{ { -256, -256 }, { 512, 512 } });
+    bool loadedBefore = false;
+    for (const auto& line : generator->getPositionInfo({ 8, 8 }))
+        if (line.rfind("Type:", 0) == 0)
+            loadedBefore = true;
+    REQUIRE(loadedBefore);
+
+    generator->setMapSize(MapSize::Big);
+
+    CHECK(generator->getMapSize() == MapSize::Big);
+    CHECK(generator->getWorldTileBounds() == worldTileBounds(MapSize::Big, 32));
+    CHECK(generator->getWorldTileBounds().size.x > normalBounds.size.x);
+
+    // The loaded chunks were dropped with the old world, so the origin reads as
+    // unknown until the next stream rebuilds it.
+    for (const auto& line : generator->getPositionInfo({ 8, 8 }))
+        CHECK(line == "Unknown");
+
+    // The enlarged world is real: a point outside the old world but inside the
+    // new one is now inside the bounds, and streaming there loads it.
+    const sf::Vector2i beyondOld{ (normalBounds.position.x + normalBounds.size.x + 1) * generator->getTileSize(), 0 };
+    CHECK(generator->containsWorld(beyondOld));
+    generator->stream(sf::IntRect{ beyondOld - sf::Vector2i{ 256, 256 }, { 512, 512 } });
+    bool loadedAfter = false;
+    for (const auto& line : generator->getPositionInfo(beyondOld))
+        if (line.rfind("Type:", 0) == 0)
+            loadedAfter = true;
+    CHECK(loadedAfter);
+
+    // Setting the same size again is a no-op and does not disturb the bounds.
+    const sf::IntRect bigBounds = generator->getWorldTileBounds();
+    generator->setMapSize(MapSize::Big);
+    CHECK(generator->getWorldTileBounds() == bigBounds);
 }
