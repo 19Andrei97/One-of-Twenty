@@ -145,6 +145,10 @@ public:
 		, i_frames(frames)
 		, m_synchronous(synchronous)
 	{
+		c_chunk_tiles = m_config.chunk_tile_size;
+		c_chunk_margin = m_config.chunk_margin;
+		m_map_size = m_config.map_size;
+		refreshWorldBounds();
 		launch();
 	}
 

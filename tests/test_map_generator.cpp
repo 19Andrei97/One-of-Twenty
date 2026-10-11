@@ -803,6 +803,30 @@ TEST_CASE("the map config carries the selected world size")
     CHECK_THROWS_AS(std::make_unique<MapGenerator>(frames, badConfig), std::exception);
 }
 
+TEST_CASE("the MapConfig constructor also establishes the world bounds")
+{
+    // The menu hands a run a MapConfig value (Scene_Play builds the run map from
+    // settings.map), so this constructor must set the world bounds just like the
+    // file-loading one. A missing refreshWorldBounds leaves the bounds empty, and
+    // every query then reads "outside the world" and returns deep ocean for the
+    // whole map until a size button happens to fire.
+    int frames = 0;
+
+    MapConfig config = loadMapConfig(mapConfigPath());
+    config.map_size = MapSize::Big;
+    auto generator = std::make_unique<MapGenerator>(frames, config);
+
+    CHECK(generator->getMapSize() == MapSize::Big);
+    CHECK(generator->getWorldTileBounds() == worldTileBounds(MapSize::Big, config.chunk_tile_size));
+    CHECK(generator->getWorldPixelBounds() ==
+          worldPixelBounds(MapSize::Big, config.chunk_tile_size, config.tile_size_px));
+
+    // The origin is the world centre, so a query there must be inside the world
+    // and read the real terrain, not the out-of-bounds deep ocean.
+    CHECK(generator->containsWorld({ 0, 0 }));
+    CHECK(generator->getBiomeElement({ 0, 0 }) != Elements::very_deep_ocean);
+}
+
 TEST_CASE("outside the finite world reads as ocean and carries no resources")
 {
     int frames = 0;
