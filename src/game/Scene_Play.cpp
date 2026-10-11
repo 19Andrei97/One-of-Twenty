@@ -33,6 +33,13 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 	// CAMERA
 	LOG_DEBUG("Creating Camera.");
 	m_camera = std::make_unique<Camera>(static_cast<float>(data["window"]["width"]), static_cast<float>(data["window"]["height"]));
+	// Confine the camera to the finite world, and follow a world-size change so
+	// the view never leaves the generated map.
+	m_camera->setWorldBounds(m_map->getWorldPixelBounds());
+	m_hud->setWorldSizeCallback([this](MapSize) {
+		if (m_camera && m_map)
+			m_camera->setWorldBounds(m_map->getWorldPixelBounds());
+	});
 
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");

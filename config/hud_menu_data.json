@@ -95,6 +95,78 @@
     "level": 0,
     "function": "preset_pangaea"
   },
+  "map_size_normal": {
+    "type": "button",
+    "width": 90,
+    "height": 30,
+    "position": {
+      "x": 20,
+      "y": 260
+    },
+    "label": "Normal",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 14,
+    "level": 0,
+    "function": "map_size_normal"
+  },
+  "map_size_big": {
+    "type": "button",
+    "width": 70,
+    "height": 30,
+    "position": {
+      "x": 120,
+      "y": 260
+    },
+    "label": "Big",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 14,
+    "level": 0,
+    "function": "map_size_big"
+  },
+  "map_size_enormous": {
+    "type": "button",
+    "width": 110,
+    "height": 30,
+    "position": {
+      "x": 200,
+      "y": 260
+    },
+    "label": "Enormous",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 14,
+    "level": 0,
+    "function": "map_size_enormous"
+  },
   "land_amount": {
     "type": "slider",
     "width": 300,

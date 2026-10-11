@@ -5,6 +5,7 @@
 
 #include "Chunk.h"
 #include "Config.h"
+#include "MapSize.h"
 
 #include <nlohmann/json.hpp>
 #include <SFML/Graphics/Color.hpp>
@@ -29,6 +30,10 @@ struct MapConfig
         int                             tile_size_px{ 16 };
         int                             chunk_tile_size{ 32 };
         int                             chunk_margin{ 2 };
+
+        // Selectable world size (Normal / Big / Enormous). The world is a finite
+        // square of chunks; the count per size lives in MapSize.h.
+        MapSize                         map_size{ MapSize::Normal };
 
         int                             seed{ 1 };
 
@@ -110,6 +115,11 @@ inline MapConfig loadMapConfig(const std::string& path)
         cfg.chunk_tile_size = js_map["chunk_tile_size"];
         cfg.chunk_margin = js_map["chunk_margin"];
         cfg.seed = js_map.value("seed", cfg.seed);
+
+        // World size: a name ("Normal"/"Big"/"Enormous", case-insensitive). An
+        // unknown name throws through mapSizeFromString, so a typo fails loudly.
+        if (js_map.contains("map_size"))
+                cfg.map_size = mapSizeFromString(js_map["map_size"].get<std::string>());
 
         // Land.
         cfg.land_amount      = js_map.value("land_amount", cfg.land_amount);

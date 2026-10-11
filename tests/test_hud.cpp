@@ -45,6 +45,9 @@ TEST_CASE("Hud registers default callbacks and checks existence")
 
     CHECK(hud.hasButtonCallback("random"));
     CHECK(hud.hasButtonCallback("cycle_hud"));
+    CHECK(hud.hasButtonCallback("map_size_normal"));
+    CHECK(hud.hasButtonCallback("map_size_big"));
+    CHECK(hud.hasButtonCallback("map_size_enormous"));
 
     CHECK(hud.hasSliderCallback("land_amount"));
     CHECK(hud.hasSliderCallback("continent_size"));

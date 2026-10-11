@@ -79,6 +79,10 @@ private:
 	std::unordered_map<std::string, SliderCallback> m_sliderCallbacks;
 	std::unordered_map<std::string, InputCallback>  m_inputCallbacks;
 
+	// Fired after the world size changes (the map's bounds have already moved), so
+	// the scene can confine the camera to the new world. Optional.
+	std::function<void(MapSize)> m_onWorldSizeChanged;
+
 	void registerDefaultCallbacks();
 
 public:
@@ -154,6 +158,10 @@ public:
 	bool setSliderValue(const std::string& functionName, float value);
 	// Attach the game clock the built-in time controls act on.
 	void setClock(std::shared_ptr<GameClock> clock) { m_clock = std::move(clock); }
+
+	// Called after a world-size button changes the map, so the scene can keep the
+	// camera inside the new world.
+	void setWorldSizeCallback(std::function<void(MapSize)> callback) { m_onWorldSizeChanged = std::move(callback); }
 
 	// INPUTS
 	void input(const sf::Event::TextEntered& event);

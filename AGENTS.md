@@ -212,6 +212,27 @@ that keeps a settlement thriving.
   size in tiles. Convert to pixels only when emitting vertices, via
   `tileToWorld` / `worldToTile` (`helpers/CoordMath.h`). Noise is sampled in
   tile space so terrain does not depend on `tile_size`.
+- The world is *finite*: a square of chunks whose side is a `MapSize`
+  (`MapSize.h`: Normal 64, Big 128, Enormous 256 chunks; `mapSizeChunks`). The
+  size comes from `map_size` in `map_data.json` and is switchable at runtime with
+  the HUD size buttons. `refreshWorldBounds` caches `c_world_tiles` /
+  `c_world_pixels` from `worldTileBounds` (centred on tile origin) and publishes
+  `s_world_half_tiles` for the workers. `setMapSize` recomputes the bounds and
+  *clears* `c_chunks` and both `tc_chunks_*` containers, so the next stream
+  rebuilds the view in the new world; the HUD also sets `m_reset`. Every query
+  (`getBiomeElement`, `getElementAtWorld`, `getBiomeColor`, `getResourceValue`,
+  `getTileCost`, `copyTileBlock`, `getPositionInfo`, `getLocationWithinBound`,
+  `getResourcesWithinBoundary`) and `queueMissingChunks`/`stream` clamp to
+  `c_world_tiles`: outside the world reads as `very_deep_ocean` (unwalkable, no
+  resources) and no chunk is ever queued there. `containsTile`/`containsWorld`
+  expose the test. The camera is confined with `Camera::setWorldBounds` (an empty
+  rect keeps the old free panning); `Scene_Play` sets it from the map and re-sets
+  it from the HUD's world-size callback.
+- The three sizes are 64/128/256 chunks a side (2,048 / 4,096 / 8,192 tiles).
+  They are a design choice: the climate gradient reaches the pole at ~6000 tiles,
+  so Normal/Big stay temperate and Enormous reaches toward the poles. Keep the
+  world square and centred on the tile origin; generation is demand-driven (only
+  the view is streamed), so a big side does not pre-generate anything.
 - Terrain is a *layered* pipeline, sampled in `GenerateTerrain::sampleAt`:
   domain warp -> continent fBm -> ridged mountain belts -> height remap ->
   island falloff -> elevation bands -> lakes -> climate biomes. Keep
