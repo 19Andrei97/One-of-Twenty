@@ -278,6 +278,10 @@ public:
         if (m_onChange) m_onChange(m_value);
     }
 
+    // Set the handle without firing the change callback. Used to reflect a
+    // loaded setting into the widget without re-triggering the edit.
+    void setValueSilent(float value) { m_value = std::clamp(value, m_minValue, m_maxValue); }
+
     void endDrag() { m_active = false; }
 
     bool contains(const sf::Vector2f& point, const sf::Vector2f& viewOrigin) const

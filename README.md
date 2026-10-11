@@ -196,7 +196,8 @@ port is reachable by others. Full details and limits: `tools/stream/README.md`.
 | `src/map_generator` | Chunked procedural map: noise, chunk streaming on worker threads, rendering, tile queries |
 | `src/entity_manager` | EnTT registry, entity spawning, needs/memory/action systems, rendering |
 | `src/components` | ECS component and HUD widget definitions |
-| `src/hud` | Data-driven HUD (buttons, sliders, input boxes) loaded from JSON |
+| `src/hud` | Data-driven HUD (buttons, sliders, input boxes) loaded from JSON; one config per scene |
+| `src/game` | Scene flow: the pre-simulation menu, the play scene and the `GameSettings` hand-off |
 | `src/headless` | Windowless simulation runner (`HeadlessSimulation` + `OneOfTwentySim`), no GL |
 | `src/camera` | World camera and view bounds |
 | `src/helpers` | Header-only utilities: `Logger`, `GameClock`, `Random`, `SharedContainer`, `Config`, `CoordMath`, `Appearance`, `FastNoiseLite` |
@@ -277,8 +278,10 @@ the active work starts at milestone 3 (social station and importance).
   earned/lost influence, an in-simulation vote among the governing twenty).
 - [ ] Events and the player's agency (a player-controlled entity, decisions that
   scale with power and allies, an event system, a political UI, opinion model).
+- [x] Pre-simulation menu (`Scene_Menu` previews and tunes the world; a run is
+  rebuilt from a captured `GameSettings`; `Esc` returns to the menu).
 - [ ] Presentation and UX (day/night lighting, sprites and camera follow,
-  minimap and stats overlay, real menu, audio).
+  minimap and stats overlay, audio).
 
 ### On the side
 - [x] **Entity appearance in JSON.** Each profession (and entity type) draws

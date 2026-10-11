@@ -56,8 +56,13 @@ The engine core and the survival loop are in place:
   authoritative per-tile map, so edits made through `setTileColor` agree with
   what is drawn and what entities query.
 - Data-driven HUD (buttons, sliders, input boxes) loaded from JSON, with named
-  callbacks, multiple levels and a persistent stats panel (`src/hud`,
-  `config/hud_menu_data.json`).
+  callbacks, multiple levels and a persistent stats panel (`src/hud`). Each
+  scene loads its own file: `config/hud_play_data.json` (time controls) for a
+  run and `config/hud_menu_data.json` (terrain sliders, presets, seed, start
+  time, street level, Start/Quit) for the menu.
+- A pre-simulation menu (`Scene_Menu`): it owns a preview world the controls
+  tune and the render draws, captures the choices into a `GameSettings` value,
+  and `Esc` in a run returns to it to start a fresh world.
 - Weighted, personality-scaled entity decisions over needs and a settlement-wide
   shared map knowledge store (`helpers/Knowledge.h`), with terrain-cost movement
   and a gather-to-stockpile work loop (`src/entity_manager`). What one entity
@@ -346,8 +351,9 @@ watching.
       can follow an entity.
 - [ ] Add a minimap of the known world and a stats overlay (population,
       stockpile, clock, standing).
-- [ ] Turn `Scene_Menu` into a real front end: new game (seed/options), load,
-      settings, quit; add a pause overlay.
+- [x] A pre-simulation menu: new game from seed/options with a live world
+      preview, start and quit (`Scene_Menu` + `GameSettings`). Loading a saved
+      game and a dedicated settings screen are still open, as is a pause overlay.
 - [ ] Optional: SFML audio for ambience and events.
 
 **Done when:** the game communicates its own state without debug overlays, and

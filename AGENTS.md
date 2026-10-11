@@ -285,6 +285,32 @@ that keeps a settlement thriving.
   levels. Each slider has a `description` drawn under it and an explicit `value`
   so the handle starts at the config's actual setting. `CSlider` takes the
   description and initial value as its last constructor arguments.
+- Setup-only controls live in the *menu* HUD, not the run HUD. `config.json`
+  names two files: `hud` (`config/hud_play_data.json`, only the in-run time
+  controls) and `menu` (`config/hud_menu_data.json`, terrain sliders, presets,
+  seed, start hour, street level, Start/Quit). The game boots into `Scene_Menu`;
+  do not re-add setup sliders to the play HUD - a running simulation must show
+  only controls that act on it.
+- A run is described entirely by the `GameSettings` value type
+  (`helpers/GameSettings.h`): a `MapConfig` snapshot of the menu *preview* world
+  plus seed, start hour/minute, speed index, street level and the entity/building
+  catalogs. `Scene_Menu` owns a preview `MapGenerator` (created once by `Game`,
+  shared in) that the terrain sliders tune and the render draws; pressing Start
+  captures `getConfig()`/`getSeed()` into `GameSettings` and `Game::startNewGame`
+  builds a *fresh* `Scene_Play`/`MapGenerator` from that snapshot. Never hand the
+  preview generator to a run - the run must not share the object the menu keeps
+  editing, and a fresh world per start is the point. `MapGenerator` has a
+  `MapConfig` constructor for exactly this; keep `setSeed` writing through to
+  `m_config.seed` so a snapshot carries the seed that built the world.
+- `Hud` holds a `GameSettings` member (`settings()`) as the menu's model, and
+  `applySettings()` reflects it onto the settings-bound widgets *silently*
+  (`CSlider::setValueSilent`) - loading a selection must not re-fire the change
+  callbacks. The seed/start-hour sliders are bound in `Hud::registerDefaultCallbacks`
+  (the seed reseeds the live map so the preview and the run agree); the
+  `street_level` button and the Start/Quit buttons are registered by `Scene_Menu`
+  because they act on the scene/game, not the map. `onEnter` reloads
+  `Game::getSettings()` when `Game::hasRun()`, so returning from a run re-shows
+  what was played. `Esc` in `Scene_Play` (`changeScene("menu")`) is the way back.
 - A chunk's `tile_types` is the authoritative per-tile map: `elementAtTile`
   only seeds it at generation, and `buildChunkVertices` derives the drawn mesh
   from it. Edit tiles through `setTileColor` (which rebuilds the mesh) rather

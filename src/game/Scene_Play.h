@@ -5,6 +5,7 @@
 #include "../map_generator/MapGenerator.h"
 #include "../camera/Camera.h"
 #include "../hud/Hud.h"
+#include "../helpers/GameSettings.h"
 
 #include <SFML/Graphics.hpp>
 #include <memory>
@@ -22,6 +23,13 @@ class Scene_Play : public Scene
 	sf::Vector2i					m_current_position{ 0, 0 };
 	float							m_deltaTime{ 0.f };
 	int								m_currentFrame{ 0 };
+
+	// The choices this run was started with (terrain, seed, time, street
+	// level). Kept so the run is self-describing.
+	GameSettings                                    m_settings;
+
+	// Shared construction for both constructors.
+	void init(const sf::Font& font, const GameSettings& settings, const nlohmann::json& config);
 
 	// Latest pointer position in window pixels, refreshed on move/press/wheel so
 	// the hover hit test has a position to work from even before the first move
@@ -47,6 +55,14 @@ class Scene_Play : public Scene
 	void registerTimeControls();
 
 public:
+	// Build a run from the menu's captured settings. The world is rebuilt
+	// from settings.map rather than sharing the menu's preview, so leaving and
+	// re-entering a run never carries hidden state across.
+	Scene_Play(Game* game, const sf::Font& font, const GameSettings& settings, const nlohmann::json& config);
+
+	// Convenience constructor for tools and tests that only have the config:
+	// it derives the settings from config["map"]["file"], config["time"] and
+	// the entity/building paths.
 	Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& config);
 
 	void update(float deltaTime) override;
@@ -61,4 +77,5 @@ public:
 	Hud* getHud() const { return m_hud.get(); }
 	std::shared_ptr<GameClock> getGameClock() const { return m_game_clock; }
 	std::shared_ptr<MapGenerator> getMap() const { return m_map; }
+	const GameSettings& getSettings() const { return m_settings; }
 };

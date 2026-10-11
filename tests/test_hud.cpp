@@ -438,3 +438,61 @@ TEST_CASE("Hud readout panels are pinned to distinct corners and do not overlap"
     CHECK_FALSE(infoRect.findIntersection(timeRect).has_value());
     CHECK_FALSE(statsRect.findIntersection(timeRect).has_value());
 }
+
+TEST_CASE("Settings-bound widgets edit the HUD GameSettings")
+{
+    sf::Font font;
+    Hud hud(font, nullptr, hudSourcePath(), 1280.f, 720.f);
+    hud.init();
+
+    // The seed and start hour are bound in Hud (they need the live map and the
+    // settings value); the menu config ships the matching widgets.
+    REQUIRE(hud.hasSliderCallback("map_seed"));
+    REQUIRE(hud.hasSliderCallback("start_hour"));
+
+    // Editing a slider flows into the settings the menu reads on Play.
+    hud.setSliderValue("map_seed", 777.f);
+    CHECK(hud.settings().seed == 777);
+    hud.setSliderValue("start_hour", 6.f);
+    CHECK(hud.settings().start_hour == 6);
+
+    // applySettings reflects the settings back onto the widgets without firing
+    // changes, so a returned-to menu shows the last run's values. Street level is
+    // a menu-only control, so its callback is not registered by Hud, but the
+    // relabel still happens here.
+    hud.settings().start_hour = 19;
+    hud.settings().street_level = 3;
+    hud.applySettings();
+
+    float shownHour = -1.f;
+    for (const auto& s : hud.getSliders())
+        if (s.functionName == "start_hour" && s.widget)
+            shownHour = s.widget->getValue();
+    CHECK(shownHour == doctest::Approx(19.f));
+
+    std::string streetLabel;
+    for (const auto& b : hud.getButtons())
+        if (b.functionName == "street_level" && b.widget)
+            streetLabel = b.widget->getLabel();
+    CHECK(streetLabel == "Street Level: 3");
+}
+
+TEST_CASE("The run HUD config exposes only in-simulation controls")
+{
+    sf::Font font;
+#ifdef ONE_OF_TWENTY_SOURCE_DIR
+    const std::string playConfig = std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/hud_play_data.json";
+#else
+    const std::string playConfig = "config/hud_play_data.json";
+#endif
+    Hud hud(font, nullptr, playConfig, 1280.f, 720.f);
+    hud.init();
+
+    // Time controls are the only in-run HUD widgets; every setup control lives in
+    // the menu config instead, so the run shows no setup slider or button.
+    CHECK(hud.getButtonCount() == 3);
+    CHECK(hud.getSliderCount() == 0);
+
+    for (const auto& b : hud.getButtons())
+        CHECK(b.functionName.rfind("time_", 0) == 0);
+}

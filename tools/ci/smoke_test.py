@@ -200,6 +200,15 @@ def main() -> int:
             print(f"FAIL: game not rendering (exit={game.poll()}, colours={colors})", file=sys.stderr)
             return 1
 
+        # The game opens on the pre-simulation menu. Start a run (Return activates
+        # the default "Start Simulation" entry) so the movement key below reaches
+        # the play scene's camera, and re-grab the reference frame afterwards.
+        press(disp, "Return", True)
+        press(disp, "Return", False)
+        time.sleep(2.5)
+        before = grab(disp)
+        before.save(artifacts / "frame-running.png")
+
         press(disp, "d", True)
         time.sleep(1.0)
         press(disp, "d", False)
@@ -222,7 +231,11 @@ def main() -> int:
             health = wait_health(url)
             print(f"streamer healthy: {health}")
 
-            # Drive it exactly like the web page: reseed, toggle wireframe, move.
+            # Start a run first (the game boots into the menu), then drive it
+            # exactly like the web page: toggle wireframe, move.
+            post_input(url, {"type": "key", "action": "down", "key": "Return"})
+            post_input(url, {"type": "key", "action": "up", "key": "Return"})
+            time.sleep(2.5)
             for payload in (
                 {"type": "key", "action": "down", "key": "m"},
                 {"type": "key", "action": "up", "key": "m"},

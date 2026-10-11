@@ -453,19 +453,19 @@
     "level": 2,
     "function": "ore_richness"
   },
-  "time_slower": {
+  "start_simulation": {
     "type": "button",
-    "width": 60,
-    "height": 30,
+    "width": 220,
+    "height": 40,
     "position": {
-      "x": 1010,
-      "y": 110
+      "x": 20,
+      "y": 300
     },
-    "label": "<<",
+    "label": "Start Simulation",
     "color_fill": [
-      255,
-      255,
-      255
+      80,
+      200,
+      120
     ],
     "outline": [
       0,
@@ -473,23 +473,23 @@
       0
     ],
     "thickness": 2,
-    "text_size": 16,
+    "text_size": 18,
     "level": 0,
-    "function": "time_slower"
+    "function": "start_simulation"
   },
-  "time_pause": {
+  "quit_game": {
     "type": "button",
-    "width": 120,
-    "height": 30,
+    "width": 220,
+    "height": 40,
     "position": {
-      "x": 1074,
-      "y": 110
+      "x": 20,
+      "y": 350
     },
-    "label": "Pause",
+    "label": "Quit Game",
     "color_fill": [
-      255,
-      255,
-      255
+      220,
+      120,
+      120
     ],
     "outline": [
       0,
@@ -497,19 +497,71 @@
       0
     ],
     "thickness": 2,
-    "text_size": 16,
+    "text_size": 18,
     "level": 0,
-    "function": "time_pause"
+    "function": "quit_game"
   },
-  "time_faster": {
+  "map_seed": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 410
+    },
+    "minimum_value": 1,
+    "maximum_value": 9999,
+    "value": 1,
+    "label": "World Seed",
+    "description": "Seed for terrain and placement; Random Seed rerolls it",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 0,
+    "function": "map_seed"
+  },
+  "start_hour": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 470
+    },
+    "minimum_value": 0,
+    "maximum_value": 23,
+    "value": 8,
+    "label": "Start Hour",
+    "description": "Hour of day the run begins",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 0,
+    "function": "start_hour"
+  },
+  "street_level": {
     "type": "button",
-    "width": 72,
+    "width": 220,
     "height": 30,
     "position": {
-      "x": 1198,
-      "y": 110
+      "x": 20,
+      "y": 520
     },
-    "label": ">>",
+    "label": "Street Level: 1",
     "color_fill": [
       255,
       255,
@@ -523,6 +575,6 @@
     "thickness": 2,
     "text_size": 16,
     "level": 0,
-    "function": "time_faster"
+    "function": "street_level"
   }
 }
