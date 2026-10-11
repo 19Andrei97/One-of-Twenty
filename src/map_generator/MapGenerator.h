@@ -10,6 +10,15 @@
 
 #include <SFML/Graphics.hpp>
 
+// On Windows, SFML pulls in <windows.h>, which defines the legacy `near`/`far`
+// macros. NOMINMAX (which SFML sets) only covers `min`/`max`, so `near` and
+// `far` still mangle any identifier spelled that way in a translation unit that
+// includes this header. Undefine them so the names stay usable in our code.
+#ifdef _WIN32
+    #undef near
+    #undef far
+#endif
+
 #include <atomic>
 #include <memory>
 #include <mutex>
