@@ -32,21 +32,32 @@ Game::Game(const std::string& path)
 		std::cerr << "Could not load font!\n";
 	}
 
+	// PREVIEW WORLD
+	// The menu owns a map generator the terrain sliders tune and the render
+	// draws; a run is then rebuilt from a snapshot of it, so the world the
+	// player previewed is the world they play.
+	LOG_DEBUG("Creating the menu preview map.");
+	m_preview_map = std::make_shared<MapGenerator>(m_preview_frames, m_config["map"]["file"]);
+
 	// SCENES
 	LOG_DEBUG("Registering scenes.");
-	auto playScene = std::make_shared<Scene_Play>(this, m_font, m_config);
-	registerScene("play", playScene);
-
-	auto menuScene = std::make_shared<Scene_Menu>(
-		this, 
-		m_font, 
-		static_cast<float>(m_config["window"]["width"]), 
-		static_cast<float>(m_config["window"]["height"])
-	);
+	auto menuScene = std::make_shared<Scene_Menu>(this, m_font, m_config, m_preview_map);
 	registerScene("menu", menuScene);
 
-	// Start in the play scene
-	changeScene("play");
+	// Start in the menu: choose the world, then start the simulation.
+	changeScene("menu");
+}
+
+void Game::startNewGame(const GameSettings& settings)
+{
+	m_settings = settings;
+	m_hasRun = true;
+
+	// A fresh play scene (and a fresh world) each start, so a run never
+	// inherits chunks, entities or clock state from a previous one.
+	LOG_DEBUG("Starting a new game run.");
+	auto playScene = std::make_shared<Scene_Play>(this, m_font, m_settings, m_config);
+	changeScene("play", playScene, /*endCurrent=*/false);
 }
 
 void Game::registerScene(const std::string& name, std::shared_ptr<Scene> scene)
