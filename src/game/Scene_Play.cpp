@@ -3,25 +3,50 @@
 #include "Scene_Play.h"
 #include "Game.h"
 
+Scene_Play::Scene_Play(Game* game, const sf::Font& font, const GameSettings& settings, const nlohmann::json& data)
+	: Scene(game)
+{
+	init(font, settings, data);
+}
+
 Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& data)
 	: Scene(game)
 {
+	// Derive settings from the config so tools and tests can build a run the
+	// same way the menu does. The terrain comes straight from the map file;
+	// the menu path passes a snapshot instead.
+	GameSettings settings;
+	settings.map = loadMapConfig(data["map"]["file"]);
+	settings.seed = settings.map.seed;
+	const auto time_cfg = data.value("time", nlohmann::json::object());
+	settings.start_hour = time_cfg.value("start_hour", 8);
+	settings.start_minute = time_cfg.value("start_minute", 0);
+	settings.speed_index = time_cfg.value("speed_index", 1);
+	settings.entity_file = data["entity"]["file"];
+	settings.buildings_file = data.value("buildings", nlohmann::json::object()).value("file", "config/buildings.json");
+	init(font, settings, data);
+}
+
+void Scene_Play::init(const sf::Font& font, const GameSettings& settings, const nlohmann::json& data)
+{
+	m_settings = settings;
+
 	// IN GAME CLOCK
 	LOG_DEBUG("Creating in Game Clock.");
 	m_game_clock = std::make_shared<GameClock>();
-	const auto time_cfg = data.value("time", nlohmann::json::object());
-	m_game_clock->setSpeedIndex(time_cfg.value("speed_index", 1)); // 1 hour/s
+	m_game_clock->setSpeedIndex(settings.speed_index);
 	// Start mid-morning: a midnight start would put the settlement to sleep for
 	// its first hours, before it has found work or a farm.
-	m_game_clock->setTime(time_cfg.value("start_hour", 8), time_cfg.value("start_minute", 0));
+	m_game_clock->setTime(settings.start_hour, settings.start_minute);
 	m_game_clock->onNewDay([&]()
 		{
 			LOG_INFO("New day. Passed: {}", m_game_clock->getDays());
 		});
 
-	// MAP GENERATION
+	// MAP GENERATION. Built from the captured config, not the map file, so the
+	// run reproduces the world the menu previewed.
 	LOG_DEBUG("Creating Map Generator.");
-	m_map = std::make_shared<MapGenerator>(m_currentFrame, data["map"]["file"]);
+	m_map = std::make_shared<MapGenerator>(m_currentFrame, settings.map);
 
 	// HUD
 	LOG_DEBUG("Creating HUD.");
@@ -36,8 +61,8 @@ Scene_Play::Scene_Play(Game* game, const sf::Font& font, const nlohmann::json& d
 
 	// ENTITIES MANAGER
 	LOG_DEBUG("Creating Entities Manager.");
-	m_entity_manager = std::make_unique<EntityManager>(font, m_map, m_game_clock, m_deltaTime, data["entity"]["file"],
-	                                                   data.value("buildings", nlohmann::json::object()).value("file", "config/buildings.json"));
+	m_entity_manager = std::make_unique<EntityManager>(font, m_map, m_game_clock, m_deltaTime, settings.entity_file,
+	                                                   settings.buildings_file);
 	// Color building tiles with the catalog's colors, so a structure renders as the
 	// JSON declares rather than a palette entry in map_data.json.
 	m_map->applyBuildingColors(m_entity_manager->buildings().colors());

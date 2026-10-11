@@ -14,6 +14,7 @@
 #include "../components/Components_HUD.h"
 #include "../helpers/GameClock.h"
 #include "../map_generator/MapGenerator.h"
+#include "../helpers/GameSettings.h"
 
 enum class HudLevelMode
 {
@@ -58,6 +59,9 @@ private:
 	// drive this clock directly. The scene may override any of them to keep
 	// its own pause state in step.
 	std::shared_ptr<GameClock>	m_clock;
+	// The pre-simulation choices the settings-bound controls edit. Kept by value
+	// so the HUD can serve as the menu's model before a run starts.
+	GameSettings			m_settings;
 
 	int								m_currentLevel{ 0 };
 	int								m_maxLevel{ 0 };
@@ -154,6 +158,16 @@ public:
 	bool setSliderValue(const std::string& functionName, float value);
 	// Attach the game clock the built-in time controls act on.
 	void setClock(std::shared_ptr<GameClock> clock) { m_clock = std::move(clock); }
+
+	// The settings the settings-bound widgets edit (seed, start hour, street
+	// level). The menu reads this when a run starts and writes it when a run
+	// returns to the menu.
+	GameSettings& settings() { return m_settings; }
+	const GameSettings& settings() const { return m_settings; }
+
+	// Reflect the current settings onto the widgets that edit them without firing
+	// their change callbacks, so loading a selection does not re-issue the edits.
+	void applySettings();
 
 	// INPUTS
 	void input(const sf::Event::TextEntered& event);

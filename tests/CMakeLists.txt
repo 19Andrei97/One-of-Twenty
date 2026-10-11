@@ -18,6 +18,7 @@ add_executable(unit_tests
     test_pathfinding.cpp
     test_hud.cpp
     test_scene.cpp
+    test_game_settings.cpp
     test_camera_hover.cpp
     test_headless_sim.cpp
 )

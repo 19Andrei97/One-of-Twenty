@@ -1,0 +1,74 @@
+{
+  "time_slower": {
+    "type": "button",
+    "width": 60,
+    "height": 30,
+    "position": {
+      "x": 1010,
+      "y": 70
+    },
+    "label": "<<",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 16,
+    "level": 0,
+    "function": "time_slower"
+  },
+  "time_pause": {
+    "type": "button",
+    "width": 120,
+    "height": 30,
+    "position": {
+      "x": 1074,
+      "y": 70
+    },
+    "label": "Pause",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 16,
+    "level": 0,
+    "function": "time_pause"
+  },
+  "time_faster": {
+    "type": "button",
+    "width": 72,
+    "height": 30,
+    "position": {
+      "x": 1198,
+      "y": 70
+    },
+    "label": ">>",
+    "color_fill": [
+      255,
+      255,
+      255
+    ],
+    "outline": [
+      0,
+      0,
+      0
+    ],
+    "thickness": 2,
+    "text_size": 16,
+    "level": 0,
+    "function": "time_faster"
+  }
+}

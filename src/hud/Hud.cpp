@@ -152,6 +152,19 @@ void Hud::registerDefaultCallbacks()
                         m_map->setOreRichness(val);
                 onMapChanged();
         });
+
+        // Settings-bound sliders keep the HUD's GameSettings in step with the
+        // widgets. The seed also reseeds the live map (so the menu preview and a
+        // run agree) and asks for a reset; the start hour only records the value.
+        registerSliderCallback("map_seed", [this, onMapChanged](float val) {
+                m_settings.seed = static_cast<int>(val);
+                if (m_map)
+                        m_map->setSeed(m_settings.seed);
+                onMapChanged();
+        });
+        registerSliderCallback("start_hour", [this](float val) {
+                m_settings.start_hour = static_cast<int>(val);
+        });
 }
 
 void Hud::init()
@@ -476,6 +489,26 @@ bool Hud::setSliderValue(const std::string& functionName, float value)
 		}
 	}
 	return found;
+}
+
+// Reflect the current GameSettings into the widgets that edit them, with no
+// change callback: loading a selection must not re-issue the edits.
+void Hud::applySettings()
+{
+	for (auto& b : buttons)
+	{
+		if (b.functionName == "street_level" && b.widget)
+			b.widget->setLabel("Street Level: " + std::to_string(m_settings.street_level));
+	}
+	for (auto& s : sliders)
+	{
+		if (!s.widget)
+			continue;
+		if (s.functionName == "start_hour")
+			s.widget->setValueSilent(static_cast<float>(m_settings.start_hour));
+		else if (s.functionName == "map_seed")
+			s.widget->setValueSilent(static_cast<float>(m_settings.seed));
+	}
 }
 
 // INPUTS

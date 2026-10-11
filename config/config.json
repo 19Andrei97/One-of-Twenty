@@ -1,41 +1,41 @@
 {
-	"window": {
-		"width": 1280,
-		"height": 720,
-		"frames": 120,
-		"fullscreen": false
-	},
-
-	"font": {
-		"file": "fonts/arial.ttf",
-		"size": 24,
-		"color": [ 255, 255, 255 ]
-	},
-
-	"map": {
-		"file": "config/map_data.json"
-	},
-
-		"entity": {
-			"file": "config/entity_data.json"
-		},
-
-		"buildings": {
-			"file": "config/buildings.json"
-		},
-
-	"hud": {
-		"file": "config/hud_menu_data.json"
-	},
-
-	"time": {
-		"start_hour": 8,
-		"start_minute": 0,
-		"speed_index": 1
-	},
-
-	"logger": {
-		"file": "logs/game.log",
-		"level": "debug"
-	}
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "frames": 120,
+    "fullscreen": false
+  },
+  "font": {
+    "file": "fonts/arial.ttf",
+    "size": 24,
+    "color": [
+      255,
+      255,
+      255
+    ]
+  },
+  "map": {
+    "file": "config/map_data.json"
+  },
+  "entity": {
+    "file": "config/entity_data.json"
+  },
+  "buildings": {
+    "file": "config/buildings.json"
+  },
+  "hud": {
+    "file": "config/hud_play_data.json"
+  },
+  "menu": {
+    "file": "config/hud_menu_data.json"
+  },
+  "time": {
+    "start_hour": 8,
+    "start_minute": 0,
+    "speed_index": 1
+  },
+  "logger": {
+    "file": "logs/game.log",
+    "level": "debug"
+  }
 }

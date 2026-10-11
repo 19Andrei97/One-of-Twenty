@@ -3,6 +3,26 @@
 #include "MapGenerator.h"
 
 /*
+*       Shared tail of every constructor: take the chunk sizing from the config
+*       and start the workers unless this instance generates chunks inline.
+*/
+void MapGenerator::launch()
+{
+        c_chunk_tiles = m_config.chunk_tile_size;
+        c_chunk_margin = m_config.chunk_margin;
+
+        s_running = true;
+
+        if (!m_synchronous)
+        {
+                // Generate Threads
+                (void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
+                (void)t_threads.submit_task([this] { startChunksGenerator(); });
+                (void)t_threads.submit_task([this] { startChunksGenerator(); });
+        }
+}
+
+/*
 *       Generate a chunk of terrain, tiles_per_side square. tile_position is the top
 *       left tile of the chunk; pixels are derived only when emitting vertices.
 */

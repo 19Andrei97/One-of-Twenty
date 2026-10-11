@@ -70,6 +70,9 @@ private:
 
 	// GENERATE MAP SUPPORT FUNCTIONS
 	std::shared_ptr<Chunk>  generateChunk(int tiles_per_side, const sf::Vector2i& tile_position);
+	// Shared tail of every constructor: derive the chunk sizing from the config
+	// and spin up the workers unless synchronous.
+	void                    launch();
 	void                    startChunksGenerator();
 	// Chunk key (top-left tile) that contains a tile. Floors toward -inf so the
 	// lookup matches how chunks are actually keyed, unlike getNextChunkPosition.
@@ -101,18 +104,20 @@ public:
 		, i_frames(frames)
 		, m_synchronous(synchronous)
 	{
-		c_chunk_tiles = m_config.chunk_tile_size;
-		c_chunk_margin = m_config.chunk_margin;
+		launch();
+	}
 
-		s_running = true;
-
-		if (!m_synchronous)
-		{
-			// Generate Threads
-			(void)t_threads.submit_task([this] { fillQueueChunks(); }); // Find chunks to create.
-			(void)t_threads.submit_task([this] { startChunksGenerator(); });
-			(void)t_threads.submit_task([this] { startChunksGenerator(); });
-		}
+	// Build directly from a MapConfig value, so a run can be recreated from the
+	// menu's captured settings instead of re-reading the map file. The config is
+	// the single source of truth for terrain and seed.
+	MapGenerator(int& frames, MapConfig config, bool synchronous = false)
+		: m_config(std::move(config))
+		, m_seed(m_config.seed)
+		, m_terrain(m_config)
+		, i_frames(frames)
+		, m_synchronous(synchronous)
+	{
+		launch();
 	}
 
 	// DECONSTRUCTOR
@@ -139,7 +144,13 @@ public:
 	void generateQueuedChunks();
 
 	// SETTERS
-	void setSeed(int seed = Random::get(1, 1000000)) { m_seed = seed; }
+	void setSeed(int seed = Random::get(1, 1000000))
+        {
+                m_seed = seed;
+                // Keep the live config in step so a snapshot of it (the menu) carries
+                // the same seed the world was built with.
+                m_config.seed = seed;
+        }
 	void setNoises();
 
 	// Terrain tuning, named the way the HUD presents it. Each setter writes the
@@ -207,6 +218,9 @@ public:
 	sf::Color      getBiomeColor(const sf::Vector2i& coord);
 	int            getTileSize() const { return m_config.tile_size_px; }
 	int            getSeed()     const { return m_seed; }
+	// The live terrain config, so a caller can capture the tuned world (the
+	// menu) or rebuild one from it.
+	const MapConfig& getConfig() const { return m_config; }
 	float          getTileCost(const sf::Vector2i& pos);
 	std::vector<std::string> getPositionInfo(sf::Vector2i pos);
 	sf::Vector2i   getLocationWithinBound(sf::Vector2i& pos, float radius);
