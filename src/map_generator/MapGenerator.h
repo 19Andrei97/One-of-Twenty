@@ -19,6 +19,7 @@
     #undef far
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -73,6 +74,9 @@ private:
 	// TERRAIN variables
 	MapConfig       m_config;
 	int             m_seed;         // terrain seed, applied to m_terrain by setNoises()
+	// Current in-game day, fed by the scene so the tile readout can report the
+	// seasonal temperature. 0 means "no season", i.e. the neutral climate.
+	int             m_day{ 0 };
 	GenerateTerrain m_terrain;      // holds a reference to m_config; declared after it
 
 	// INHERITED variables
@@ -209,21 +213,30 @@ public:
 	void setLakeSize(float size)             { m_config.lake_size = size; }
 
 	void setOreRichness(float richness)      { m_config.ore_richness = richness; }
+	void setResourceRichness(float value)    { m_config.resource_richness = value; }
+
+	// The in-game day, so the tile readout reports the seasonal temperature. The
+	// scene sets it each frame; the world's climate itself never changes.
+	void setDay(int day)                     { m_day = std::max(0, day); }
 
 	bool setTileColor(const sf::Vector2i& pos, const Elements& new_element);
 	bool setChunkUnload(const sf::Vector2i& pos, bool unload);
 
-	// Take one unit of wood from the forest tile under a world position.
-	// Returns the wood remaining on the tile after the harvest; when it reaches
-	// zero the stand is cleared and the tile becomes a hill (the mesh is rebuilt
-	// so the change renders immediately). Returns -1 when the tile no longer
-	// holds a tree (depleted, or not a forest), so the caller can skip crediting a
-	// trip to a stale target.
-	int harvestWood(const sf::Vector2i& pos);
+	// Outcome of a harvest attempt. `Taken` removed a unit; `Empty` means the
+	// tile is loaded but holds nothing (depleted, or never a gatherable), so the
+	// trip must not be credited; `NotResident` means the chunk is not loaded, so
+	// the map cannot answer and the caller should credit the trip rather than
+	// punish the gatherer for a chunk that happened to stream out.
+	enum class Harvest { Taken, Empty, NotResident };
+	// Take one unit of the finite resource from the gatherable tile under a world
+	// position. `remaining` receives the amount left on the tile; when it reaches
+	// zero the tile becomes `barren` (the mesh is rebuilt so the change renders
+	// immediately).
+	Harvest harvestResource(const sf::Vector2i& pos, int& remaining);
 
-	// Remaining wood on the forest tile under a world position, or 0 when the
-	// tile holds no tree. For the tile info readout.
-	int woodAt(const sf::Vector2i& pos) const;
+	// Remaining resource on the gatherable tile under a world position, or 0 when
+	// the tile holds none. For the tile info readout.
+	int resourceAt(const sf::Vector2i& pos) const;
 
 	// Overwrite the palette entries for building elements with the colors the
 	// building catalog declares, so a structure renders with its JSON color.
@@ -253,6 +266,13 @@ public:
 	// Resource noise value in [0,1] at a world position. Returns 0 for a
 	// non-resource element.
 	float          getResourceValue(const sf::Vector2i& coord, Elements resource) const;
+	// The biome temperature at a world position, in the same [0,1] climate space the
+	// terrain uses (0.5 is temperate). `day` is the in-game day, so the reading
+	// includes the seasonal swing; pass 0 for the neutral, seasonless climate. The
+	// swing is stronger toward the poles, so the tropics stay warm year-round.
+	float          getTemperature(const sf::Vector2i& coord, int day = 0) const;
+	// The same value expressed in degrees Celsius, for the tile readout.
+	int            getTemperatureCelsius(const sf::Vector2i& coord, int day = 0) const;
 	sf::Color      getBiomeColor(const sf::Vector2i& coord);
 	int            getTileSize() const { return m_config.tile_size_px; }
 	int            getSeed()     const { return m_seed; }

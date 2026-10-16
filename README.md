@@ -168,7 +168,7 @@ wrapping); a genuine leak or UB in project code still fails the run.
 | `1` | Spawn a generic human entity |
 | Mouse hover | Inspect the tile under the cursor, and show an entity's readout only while the cursor is over it |
 | Left click | Paint the tile under the cursor (map edit debug) |
-| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, lakes and ore (each slider has a one-line description); preset buttons (Earth, Pangaea, Archipelago) apply a whole world in one click |
+| HUD sliders | Tune the terrain: land amount, continents, coasts, mountains, climate, lakes, ore and resource richness (each slider has a one-line description); preset buttons (Earth, Pangaea, Archipelago) apply a whole world in one click |
 | HUD size buttons | Switch the finite world size between Normal (64x64 chunks), Big (128x128) and Enormous (256x256); the camera is confined to the new bounds |
 
 ## Running in a browser (remote display)
@@ -332,9 +332,19 @@ Retired from the roadmap; kept here as a record.
   food and workshops run recipes; and buildings are placed with `setTileColor`
   so they render and persist. Food is a settlement resource consumed once per
   person per day (a shortfall costs each unfed entity a day of hunger, and three
-  hungry days in a row drain health), farms are the only food source, and a
-  forest tile holds a finite pile of wood that becomes a hill once cleared. A
+  hungry days in a row drain health), farms are the only food source, and every
+  gatherable tile (forest, hill, clay, iron, silver) holds a finite pile of its
+  good that depletes to `barren` ground once worked out. A
   stats panel shows the stockpile, buildings and gather count.
+- [x] **Finite, biome-aware resources.** Every gatherable tile holds a finite
+  amount of its good (`Chunk::resource_amount`), sized at generation from the
+  element's own field and a per-resource config range; a gather takes a unit and
+  the last one leaves `barren` ground (walkable, yields nothing, dropped from the
+  shared knowledge). Each deposit has a `biome_bonus`, so a climate that suits a
+  resource grows it (forest holds more wood on lush ground) and the tile readout
+  reports a seasonal temperature. Inland `lake` basins are carved below the water
+  table and are drinkable fresh water. `resource_deposits` and `resource_richness`
+  in `map_data.json` (the "Resource Richness" HUD slider) tune deposit sizes.
 - [x] **Buildings catalog and construction.** `helpers/Buildings.h` is a pure,
   data-driven catalog (`config/buildings.json`) of what a building costs, looks
   like, produces and how it changes movement, so adding one is a JSON entry plus

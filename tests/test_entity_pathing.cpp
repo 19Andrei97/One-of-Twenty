@@ -161,6 +161,19 @@ TEST_CASE("a gather does not complete before the entity reaches its tile")
             farTile = candidate;
     }
     REQUIRE(farTile != spawn);
+    // Make the target a real deposit: every gatherable is a finite pile, so a plain
+    // land tile would hold nothing and the gather could never bank a yield.
+    REQUIRE(map->setTileColor(farTile, Elements::forest));
+
+    // Anchor the settlement on another tile first. Otherwise the construction
+    // planner (which runs inside update()) raises the city center on the painted
+    // target, overwriting the deposit with the anchor's element, and the gather
+    // then correctly banks nothing from an empty tile. With the anchor complete and
+    // an empty store nothing else is affordable, so no site can disturb the target.
+    const sf::Vector2i anchor = CoordMath::tileToWorld(spawnTile + sf::Vector2i{ 0, 4 }, ts);
+    REQUIRE_FALSE(Resources::isOcean(map->getElementAtWorld(anchor)));
+    REQUIRE(entities.placeBuilding("city_center", anchor));
+    REQUIRE(entities.completeBuilding(anchor));
 
     auto* queue = entities.actionsOf(entity);
     REQUIRE(queue != nullptr);
@@ -210,6 +223,16 @@ TEST_CASE("a gather is withheld while the entity is knocked off its tile")
     const entt::entity entity = entities.addEntity(EntityType::Human_Generic, spawn);
 
     const int ts = map->getTileSize();
+    // The spawn tile must hold a finite deposit for the gather to bank anything.
+    REQUIRE(map->setTileColor(spawn, Elements::forest));
+    // Anchor the settlement elsewhere so the construction planner cannot overwrite
+    // the painted target with the city center's element (see the sibling test).
+    const sf::Vector2i spawnTile = CoordMath::worldToTile(spawn, ts);
+    const sf::Vector2i anchor = CoordMath::tileToWorld(spawnTile + sf::Vector2i{ 0, 4 }, ts);
+    REQUIRE_FALSE(Resources::isOcean(map->getElementAtWorld(anchor)));
+    REQUIRE(entities.placeBuilding("city_center", anchor));
+    REQUIRE(entities.completeBuilding(anchor));
+
     auto* queue = entities.actionsOf(entity);
     REQUIRE(queue != nullptr);
     // A gather whose timer expired long ago (a negative start time): nothing but

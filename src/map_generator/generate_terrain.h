@@ -37,11 +37,17 @@ public:
         // Resource noise value in [0,1]. Returns 0 for a non-resource element.
         float resourceValue(const sf::Vector2i& world, Elements resource) const;
 
-        // How much wood a forest tile holds. A deterministic pseudo-random amount
-        // in [tree_wood_min, tree_wood_max], derived from a dedicated noise field
-        // so a forest reads as many differently sized stands. Only meaningful for
-        // a forest tile; other tiles return 0.
-        int treeAmountAtTile(const sf::Vector2i& tile) const;
+        // How much of its good a gatherable tile holds. Every gatherable is a
+        // *finite* pile: a deterministic pseudo-random amount drawn from the
+        // element's configured range and scaled by how the tile's climate favours
+        // it (a lush forest holds more wood, dry ground holds more stone). Only
+        // meaningful for a gatherable element; other tiles return 0.
+        int resourceAmountAtTile(const sf::Vector2i& tile, Elements resource) const;
+
+        // How strongly the tile's climate favours a resource, as a multiplier on
+        // its deposit size. 1.0 is neutral. Exposed so the abundance a biome gives
+        // a resource can be inspected and tested without re-deriving the climate.
+        float resourceAbundanceAtTile(const sf::Vector2i& tile, Elements resource) const;
 
         // Composed land elevation in [0,1] at a tile, after warping, mountain
         // belts, the configured height range and island falloff. Exposed so
@@ -78,10 +84,11 @@ private:
         FastNoiseLite                   m_noise_iron;
         FastNoiseLite                   m_noise_silver;
         FastNoiseLite                   m_noise_lake;
-        // Forest density field: sizes each forest tile's wood pile so stands vary
-        // (a few big trees, many small ones) rather than every tile holding the
-        // same amount.
-        FastNoiseLite                   m_noise_tree;
+        // Deposit-density field: sizes each gatherable tile's finite pile so
+        // stands/deposits vary (a few big ones, many small ones) rather than every
+        // tile holding the same amount. One field serves every resource; its seed
+        // offset is per element so the same spot does not spike for all of them.
+        FastNoiseLite                   m_noise_deposit;
 
         // The warped coordinate for a tile plus the composed elevation and the
         // climate values, computed together so a full sample touches each noise

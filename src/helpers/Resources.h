@@ -33,7 +33,8 @@ namespace Resources
     }
 
     // Workable land: the tiles an entity can gather to produce a settlement
-    // resource.
+    // resource. Every one of these holds a finite amount of its good (see
+    // Chunk::resource_amount); once worked out it becomes `barren`.
     inline constexpr bool isGatherable(const Elements element) noexcept
     {
         switch (element)
@@ -47,6 +48,13 @@ namespace Resources
             default:
                 return false;
         }
+    }
+
+    // Depleted ground: walkable land that yields nothing. Produced only by a
+    // completed harvest; never generated.
+    inline constexpr bool isBarren(const Elements element) noexcept
+    {
+        return element == Elements::barren;
     }
 
     // A placed building. Buildings run production recipes or apply an effect
@@ -102,6 +110,7 @@ namespace Resources
             case Elements::house:           return "house";
             case Elements::city_center:     return "city_center";
             case Elements::road:            return "road";
+            case Elements::barren:          return "barren";
             case Elements::test:            return "test";
             default:                        return "unknown";
         }
@@ -130,6 +139,7 @@ namespace Resources
             case Elements::house:           return "House";
             case Elements::city_center:     return "City Center";
             case Elements::road:            return "Road";
+            case Elements::barren:          return "Barren Ground";
             case Elements::test:            return "Test";
             default:                        return "Unknown";
         }

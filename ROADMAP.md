@@ -52,6 +52,14 @@ The engine core and the survival loop are in place:
   chunks whose side is one of three sizes (`MapSize.h`: Normal / Big / Enormous,
   set by `map_size` in `map_data.json` and switchable from the HUD), and every
   query, the streaming queue and the camera clamp to that rectangle.
+- **Finite, biome-aware resources.** Every gatherable tile (forest, hill, clay,
+  iron, silver) holds a finite amount of its good, sized at generation from the
+  element's own field and a per-resource config range; a gather takes a unit and
+  the last leaves `barren` ground (walkable, yields nothing). Each deposit has a
+  `biome_bonus`, so a climate that suits a resource grows it, and `resource_richness`
+  scales every pile. Inland `lake` basins are carved below the water table and are
+  drinkable fresh water, and the tile readout reports a seasonal temperature
+  (`helpers/Season.h`).
 - Tile-space coordinates end to end (`helpers/CoordMath.h`); `tile_types` is the
   authoritative per-tile map, so edits made through `setTileColor` agree with
   what is drawn and what entities query.
@@ -127,7 +135,8 @@ The engine core and the survival loop are in place:
   and reshape professions without a rebuild. Unconfigured entities keep the
   default white circle, so older configs are unchanged.
 - Unit tests (doctest) across coordinates, `SharedContainer`, `GameClock`,
-  config, map lifetime/determinism, decisions, move cost, appearance, HUD,
+  config, map lifetime/determinism, finite deposits and depletion, decisions,
+  move cost, appearance, HUD,
   scenes, survival/population, the economy/jobs and observability (event log,
   run history, interruption, runtime reload).
 - CI on Linux + Windows plus an ASan/UBSan job (`.github/workflows/build.yml`)
@@ -156,8 +165,8 @@ Turn "gather the nearest resource" into production with roles and buildings.
       `helpers/Economy.h`).
 - [x] Make food a real resource: farms and spoilage, so hunger is supplied by
       production rather than a tile fallback. Farms are the only food source;
-      wild forest/hill yields wood/stone, and a forest tile holds a finite pile
-      of wood that becomes a hill once cleared.
+      wild forest/hill yields wood/stone, and every gatherable tile holds a
+      finite pile of its good that becomes `barren` ground once worked out.
 - [~] Add a stockpile HUD panel showing counts and rates over time — the panel
       shows per-good counts, buildings and gathers; rates over time are still to
       come.

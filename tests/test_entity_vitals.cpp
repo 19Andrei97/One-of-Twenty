@@ -277,6 +277,9 @@ TEST_CASE("a fast clock does not outrun survival")
     // Regression: needs decay in in-game hours, so if movement ran on real time
     // the settlement would starve before it could walk to work. At one month per
     // second (the fastest preset) the founders must still survive a year.
+    // Seeded for reproducibility: an unseeded run draws spawn and decisions from
+    // the global RNG, so it is not a stable oracle.
+    Random::mt.seed(20241007);
     sf::Font font;
     int frames = 0;
     auto map = std::make_shared<MapGenerator>(frames, std::string(ONE_OF_TWENTY_SOURCE_DIR) + "/config/map_data.json");

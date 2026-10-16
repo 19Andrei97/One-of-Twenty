@@ -1,7 +1,9 @@
 #include <doctest/doctest.h>
 
 #include "GameClock.h"
+#include "Season.h"
 
+#include <cmath>
 #include <string>
 
 namespace
@@ -147,6 +149,39 @@ TEST_CASE("seasons follow the months")
 
     advanceMinutes(clock, 3 * GameTime::kDaysPerMonth * 24 * 60);
     CHECK(clock.getSeasonName() == "Winter");
+}
+
+TEST_CASE("temperature swings with the seasons, more at the poles than the equator")
+{
+    using namespace Season;
+
+    // The curve peaks at mid-summer and bottoms at mid-winter, aligned to the
+    // calendar seasons: mid-summer is the middle of months 4-6 (day 135) and
+    // mid-winter the middle of months 10-12 (day 315).
+    const int year = GameTime::kDaysPerYear;
+    CHECK(offsetForDay(135) == doctest::Approx(1.f));    // height of summer
+    CHECK(offsetForDay(315) == doctest::Approx(-1.f));   // depth of winter
+    // The start of spring is on the cold side of the curve, warming toward summer.
+    CHECK(offsetForDay(0) < 0.f);
+    CHECK(offsetForDay(0) == doctest::Approx(offsetForDay(year)));  // wraps cleanly
+
+    // A cold base (a pole) swings much further than a warm base (the equator)
+    // over the same year, and the equator is nearly flat.
+    const float pole_summer = apply(0.15f, 135);
+    const float pole_winter = apply(0.15f, 315);
+    CHECK(pole_summer > pole_winter);
+    CHECK(pole_summer - pole_winter > 0.15f);
+
+    const float equator = apply(0.9f, 135);
+    const float equator_other = apply(0.9f, 315);
+    CHECK(std::abs(equator - equator_other) < 0.05f);
+
+    // The display conversion is monotonic and centred: a temperate 0.5 reads as
+    // a pleasant 15 C, and the full range stays plausible.
+    CHECK(celsius(0.5f) == 15);
+    CHECK(celsius(1.0f) == 45);
+    CHECK(celsius(0.0f) == -15);
+    CHECK(celsius(0.8f) > celsius(0.2f));
 }
 
 TEST_CASE("speed presets are ordered and faster/slower step through them")

@@ -11,6 +11,21 @@
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/System/Vector2.hpp>
 
+#include <optional>
+
+// The gatherable element a config key names ("forest", "hill", "clay", "iron",
+// "silver"). Returns nullopt for anything else, so a typo in a config is ignored
+// rather than silently creating a deposit on a non-resource element.
+[[nodiscard]] inline std::optional<Elements> depositElementFromName(const std::string& name)
+{
+        if (name == "forest") return Elements::forest;
+        if (name == "hill")   return Elements::hill;
+        if (name == "clay")   return Elements::clay;
+        if (name == "iron")   return Elements::iron;
+        if (name == "silver") return Elements::silver;
+        return std::nullopt;
+}
+
 // Parameters that control how terrain is sampled, plus the biome palette.
 //
 // The parameters are grouped the way a player thinks about a map, not the way
@@ -75,11 +90,28 @@ struct MapConfig
         // --- Resources ---
         // How abundant ore deposits are: higher values grow the deposits.
         float                           ore_richness{ 0.15f };
-        // How much wood a single forest tile holds. Each tile's pile is a
-        // deterministic pseudo-random amount in [tree_wood_min, tree_wood_max]; a
-        // gatherer takes one per trip and clears the stand to a hill at zero.
-        int                             tree_wood_min{ 1 };
-        int                             tree_wood_max{ 5 };
+
+        // How much of its good one tile of a gatherable holds. Every gatherable
+        // (forest, hill and the three ores) is a *finite* pile: a gather takes one
+        // unit and the tile turns to `barren` once the pile reaches zero. The size
+        // of a tile's pile is a deterministic pseudo-random amount drawn from the
+        // element's own range, scaled by the biome's character and by
+        // `resource_richness`, so the same resource is richer in the biome it
+        // belongs to (lush forest holds more wood than dry scrub).
+        struct Deposit
+        {
+                int   min{ 1 };
+                int   max{ 1 };
+                // How strongly the local climate scales this deposit: positive makes
+                // the resource richer in lush (warm, wet) ground, negative makes it
+                // richer in dry, exposed ground. 0 ignores climate. This is what
+                // gives a biome more of one resource than another.
+                float biome_bonus{ 0.0f };
+        };
+        std::array<Deposit, kElementCount> deposits{};
+        // A global multiplier on every deposit's size: the single "how plentiful
+        // are raw materials" control. 0.5 is the neutral (x1) setting.
+        float                           resource_richness{ 0.5f };
 
         // --- Shaping (not player-facing) ---
         // Radial falloff so the world is an island surrounded by ocean.
@@ -110,6 +142,25 @@ inline MapConfig loadMapConfig(const std::string& path)
         const nlohmann::json js_map = loadJsonFile(path);
 
         MapConfig cfg;
+
+        // Shipped deposit sizes. A config that names only some of them keeps these
+        // for the rest, so a resource is never accidentally left at the 1-unit
+        // placeholder.
+        const auto setDeposit = [&cfg](const char* name, const int lo, const int hi, const float bonus)
+        {
+                const auto element = depositElementFromName(name);
+                if (!element)
+                        return;
+                const auto index = static_cast<std::size_t>(*element);
+                cfg.deposits[index].min = lo;
+                cfg.deposits[index].max = hi;
+                cfg.deposits[index].biome_bonus = bonus;
+        };
+        setDeposit("forest", 2, 8, 0.8f);   // lush ground holds more wood
+        setDeposit("hill",   2, 6, -0.3f);  // dry, exposed ground holds more stone
+        setDeposit("clay",   1, 4, 0.0f);
+        setDeposit("iron",   1, 3, 0.0f);
+        setDeposit("silver", 1, 2, 0.0f);
 
         cfg.tile_size_px = js_map["tile_size"];
         cfg.chunk_tile_size = js_map["chunk_tile_size"];
@@ -149,10 +200,46 @@ inline MapConfig loadMapConfig(const std::string& path)
 
         // Resources.
         cfg.ore_richness     = js_map.value("ore_richness", cfg.ore_richness);
-        cfg.tree_wood_min    = js_map.value("tree_wood_min", cfg.tree_wood_min);
-        cfg.tree_wood_max    = js_map.value("tree_wood_max", cfg.tree_wood_max);
-        if (cfg.tree_wood_max < cfg.tree_wood_min)
-                std::swap(cfg.tree_wood_min, cfg.tree_wood_max);
+        cfg.resource_richness = js_map.value("resource_richness", cfg.resource_richness);
+
+        // Per-resource deposit sizes. A `resource_deposits` block overrides the
+        // shipped defaults per element, so a biome's wealth is a data edit. Each
+        // entry accepts a `[min, max]` pair (or a `{ "min": .., "max": .. }`
+        // object) plus an optional `biome_bonus`.
+        if (js_map.contains("resource_deposits"))
+        {
+                for (const auto& [name, value] : js_map["resource_deposits"].items())
+                {
+                        const auto element = depositElementFromName(name);
+                        if (!element)
+                                continue;
+                        auto& deposit = cfg.deposits[static_cast<std::size_t>(*element)];
+                        if (value.is_array() && value.size() >= 2)
+                        {
+                                deposit.min = value[0].get<int>();
+                                deposit.max = value[1].get<int>();
+                        }
+                        else if (value.is_object())
+                        {
+                                deposit.min = value.value("min", deposit.min);
+                                deposit.max = value.value("max", deposit.max);
+                                deposit.biome_bonus = value.value("biome_bonus", deposit.biome_bonus);
+                        }
+                        if (deposit.max < deposit.min)
+                                std::swap(deposit.min, deposit.max);
+                }
+        }
+
+        // The legacy `tree_wood_min`/`tree_wood_max` keys still size the forest
+        // deposit, so an older config keeps its wood.
+        if (js_map.contains("tree_wood_min") || js_map.contains("tree_wood_max"))
+        {
+                auto& forest = cfg.deposits[static_cast<std::size_t>(Elements::forest)];
+                forest.min = js_map.value("tree_wood_min", forest.min);
+                forest.max = js_map.value("tree_wood_max", forest.max);
+                if (forest.max < forest.min)
+                        std::swap(forest.min, forest.max);
+        }
 
         for (const auto& [key, value] : js_map["elements"].items()) {
                 cfg.biome_colors[static_cast<std::size_t>(std::stoi(key))] = {

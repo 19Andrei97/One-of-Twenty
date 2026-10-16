@@ -81,6 +81,11 @@ void Scene_Play::update(float deltaTime)
 	m_deltaTime = deltaTime;
 	m_game_clock->update(m_deltaTime);
 
+	// Keep the map's notion of the day in step with the clock so the tile
+	// readout reports the seasonal temperature, not just the base climate.
+	if (m_map)
+		m_map->setDay(m_game_clock->getDays());
+
 	// The camera is view-only, so it keeps moving while the simulation is
 	// paused: a player can still look around a frozen world.
 	sCamera();
