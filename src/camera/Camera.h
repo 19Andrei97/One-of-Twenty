@@ -2,6 +2,9 @@
 
 #include "Components_Entities.h"
 
+#include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/System/Vector2.hpp>
+
 class Camera
 {
 	sf::View	m_camera;
@@ -35,4 +38,13 @@ public:
 	const sf::View& getCamera() const { return m_camera; }
 	float getVelocity() const { return m_velocity; }
 	sf::IntRect		getWorldBounds() const;
+
+	// Convert a window pixel to world coordinates through this camera's view.
+	// The single home for the screen->world conversion, so callers do not have
+	// to reach for the raw sf::View.
+	[[nodiscard]] sf::Vector2f worldFromPixel(const sf::RenderTarget& target,
+	                                          const sf::Vector2i& pixel) const
+	{
+		return target.mapPixelToCoords(pixel, m_camera);
+	}
 };

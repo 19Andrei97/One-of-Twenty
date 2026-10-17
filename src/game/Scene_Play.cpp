@@ -197,22 +197,18 @@ void Scene_Play::sCamera()
 	if (m_camera->cInput.up)
 	{
 		m_camera->move(0, -step);
-		m_current_position.y -= static_cast<int>(step);
 	}
 	else if (m_camera->cInput.down)
 	{
 		m_camera->move(0, step);
-		m_current_position.y += static_cast<int>(step);
 	}
 	if (m_camera->cInput.left)
 	{
 		m_camera->move(-step, 0);
-		m_current_position.x -= static_cast<int>(step);
 	}
 	else if (m_camera->cInput.right)
 	{
 		m_camera->move(step, 0);
-		m_current_position.x += static_cast<int>(step);
 	}
 }
 
@@ -232,7 +228,7 @@ void Scene_Play::updateHover()
 	}
 
 	const sf::Vector2f worldPos =
-		m_game->getWindow().mapPixelToCoords(m_mouse_pixel, m_camera->getCamera());
+		m_camera->worldFromPixel(m_game->getWindow(), m_mouse_pixel);
 	m_entity_manager->setHoverWorld(static_cast<sf::Vector2i>(worldPos));
 }
 
@@ -386,7 +382,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 				// controls can always be clicked.
 				if (m_hud)
 				{
-					sf::Vector2f guiPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());
+					sf::Vector2f guiPos = ViewMath::worldFromPixel(m_game->getWindow(), pixel, m_hud->getCamera());
 					m_hud->input(*mousePressed, guiPos);
 				}
 
@@ -406,7 +402,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 			if (mouseReleased->button == sf::Mouse::Button::Left)
 			{
 				auto pixel = sf::Mouse::getPosition(m_game->getWindow());
-				sf::Vector2f mouseHudPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());
+				sf::Vector2f mouseHudPos = ViewMath::worldFromPixel(m_game->getWindow(), pixel, m_hud->getCamera());
 				m_hud->input(*mouseReleased, mouseHudPos);
 			}
 		}
@@ -422,7 +418,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 
 			if (m_hud)
 			{
-				sf::Vector2f mouseHudPos = m_game->getWindow().mapPixelToCoords(pixel, m_hud->getCamera());
+				sf::Vector2f mouseHudPos = ViewMath::worldFromPixel(m_game->getWindow(), pixel, m_hud->getCamera());
 				m_hud->input(*mouseMoved, mouseHudPos);
 			}
 
@@ -431,7 +427,7 @@ void Scene_Play::sUserInput(const sf::Event& event)
 			// still be panned.
 			if (m_camera && m_map)
 			{
-				sf::Vector2f worldPos = m_game->getWindow().mapPixelToCoords(pixel, m_camera->getCamera());
+				sf::Vector2f worldPos = m_camera->worldFromPixel(m_game->getWindow(), pixel);
 				if (m_hud)
 					m_hud->infoBox(m_map->getPositionInfo(static_cast<sf::Vector2i>(worldPos)));
 			}

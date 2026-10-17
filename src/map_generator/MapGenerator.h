@@ -275,6 +275,10 @@ public:
 	int            getTemperatureCelsius(const sf::Vector2i& coord, int day = 0) const;
 	sf::Color      getBiomeColor(const sf::Vector2i& coord);
 	int            getTileSize() const { return m_config.tile_size_px; }
+
+	// The tile size as a value, so a caller can convert coordinates without
+	// fetching the size on every call.
+	CoordMath::TileGrid tileGrid() const { return CoordMath::TileGrid{ getTileSize() }; }
 	int            getSeed()     const { return m_seed; }
 
 	// World size and its bounds. `getWorldTileBounds` / `getWorldPixelBounds`

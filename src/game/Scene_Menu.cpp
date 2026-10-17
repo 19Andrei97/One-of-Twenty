@@ -231,7 +231,7 @@ void Scene_Menu::sUserInput(const sf::Event& event)
 		if (mousePressed->button == sf::Mouse::Button::Left)
 		{
 			const auto pixel = sf::Mouse::getPosition(window);
-			const sf::Vector2f guiPos = window.mapPixelToCoords(pixel, m_hud->getCamera());
+			const sf::Vector2f guiPos = ViewMath::worldFromPixel(window, pixel, m_hud->getCamera());
 			m_hud->input(*mousePressed, guiPos);
 		}
 	}
@@ -241,7 +241,7 @@ void Scene_Menu::sUserInput(const sf::Event& event)
 		if (mouseReleased->button == sf::Mouse::Button::Left)
 		{
 			const auto pixel = sf::Mouse::getPosition(window);
-			const sf::Vector2f guiPos = window.mapPixelToCoords(pixel, m_hud->getCamera());
+			const sf::Vector2f guiPos = ViewMath::worldFromPixel(window, pixel, m_hud->getCamera());
 			m_hud->input(*mouseReleased, guiPos);
 		}
 	}
@@ -249,7 +249,7 @@ void Scene_Menu::sUserInput(const sf::Event& event)
 	if (const auto* mouseMoved = event.getIf<sf::Event::MouseMoved>())
 	{
 		const auto pixel = sf::Mouse::getPosition(window);
-		const sf::Vector2f guiPos = window.mapPixelToCoords(pixel, m_hud->getCamera());
+		const sf::Vector2f guiPos = ViewMath::worldFromPixel(window, pixel, m_hud->getCamera());
 		m_hud->input(*mouseMoved, guiPos);
 	}
 

@@ -37,6 +37,10 @@ class EntityManager
         const sf::Font&                                         m_font;
         std::unique_ptr<entt::registry> m_registry;
         std::shared_ptr<MapGenerator>   m_map;
+        // The map's tile size as a value, so conversions read `m_grid` instead of
+        // threading `m_map->getTileSize()` through every call. Refreshed in the
+        // constructor and `reloadConfig`.
+        CoordMath::TileGrid             m_grid;
         std::shared_ptr<GameClock>              m_game_clock;
         std::mutex                                              m_mutex;
 
@@ -288,6 +292,7 @@ public:
                 // construction: reloading the config does not rebuild the explored
                 // map, because re-bucketing it mid-run would discard what is known.
                 m_knowledge = CivKnowledge(m_config.knowledge.cell_size, m_config.knowledge.max_cells);
+                m_grid = m_map->tileGrid();
                 m_registry = std::make_unique<entt::registry>();
         }
 
@@ -302,6 +307,9 @@ public:
                 m_config = loadEntityConfig(m_config_path);
                 m_catalog = Buildings::loadCatalog(m_buildings_path);
                 m_settlement = Buildings::loadSettlement(m_buildings_path);
+                // The map may have been resized (or the size re-read) since the
+                // constructor, so refresh the cached grid.
+                m_grid = m_map->tileGrid();
 
                 // Repaint live entities so a look change is visible immediately,
                 // without a restart.

@@ -22,6 +22,9 @@ add_executable(unit_tests
     test_game_settings.cpp
     test_camera_hover.cpp
     test_headless_sim.cpp
+    test_vector_math.cpp
+    test_tile_block.cpp
+    test_view_math.cpp
 )
 
 # The helper headers under test are header-only; expose them directly.

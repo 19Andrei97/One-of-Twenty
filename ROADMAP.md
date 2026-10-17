@@ -62,7 +62,12 @@ The engine core and the survival loop are in place:
   (`helpers/Season.h`).
 - Tile-space coordinates end to end (`helpers/CoordMath.h`); `tile_types` is the
   authoritative per-tile map, so edits made through `setTileColor` agree with
-  what is drawn and what entities query.
+  what is drawn and what entities query. The shared conversions carry the tile
+  size as a value (`CoordMath::TileGrid`), so a class holds one grid instead of
+  threading `getTileSize()` through every call; the pure companions
+  `helpers/VectorMath.h` (distance / neighbour offsets), `helpers/ViewMath.h`
+  (view origin, pixel->world) and `helpers/TileBlock.h` (a view over a copied
+  tile window) keep the coordinate, distance and view-space math in one place.
 - Data-driven HUD (buttons, sliders, input boxes) loaded from JSON, with named
   callbacks, multiple levels and a persistent stats panel (`src/hud`). Each
   scene loads its own file: `config/hud_play_data.json` (time controls) for a

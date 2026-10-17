@@ -23,4 +23,29 @@ namespace CoordMath
     {
         return sf::Vector2i{ tile.x * tileSize, tile.y * tileSize };
     }
+
+    // A tile size carried as a value, so a caller that already knows the grid
+    // does not have to fetch the size and thread it through every conversion.
+    // Every member delegates to the free functions above, which stay the single
+    // source of truth for the floor-division formula.
+    struct TileGrid
+    {
+        int tile_size{ 0 };
+
+        [[nodiscard]] sf::Vector2i worldToTile(const sf::Vector2i& world) const
+        {
+            return CoordMath::worldToTile(world, tile_size);
+        }
+
+        [[nodiscard]] sf::Vector2i tileToWorld(const sf::Vector2i& tile) const
+        {
+            return CoordMath::tileToWorld(tile, tile_size);
+        }
+
+        // Snap a world position to the top-left corner of the tile it falls in.
+        [[nodiscard]] sf::Vector2i tileCorner(const sf::Vector2i& world) const
+        {
+            return CoordMath::tileToWorld(CoordMath::worldToTile(world, tile_size), tile_size);
+        }
+    };
 }
