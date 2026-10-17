@@ -15,8 +15,6 @@
     "lake_level": 0.3,
     "lake_size": 0.62,
     "ore_richness": 0.55,
-    "tree_wood_min": 1,
-    "tree_wood_max": 5,
     "island": {
         "enabled": false,
         "falloff": 0.4
@@ -85,6 +83,11 @@
             26,
             66,
             88
+        ],
+        "17": [
+            66,
+            60,
+            52
         ]
     },
     "heights": {
@@ -97,5 +100,33 @@
         "6": 0.95,
         "7": 1.0,
         "11": 0.58
+    },
+    "resource_richness": 0.5,
+    "resource_deposits": {
+        "forest": {
+            "min": 2,
+            "max": 8,
+            "biome_bonus": 0.8
+        },
+        "hill": {
+            "min": 2,
+            "max": 6,
+            "biome_bonus": -0.3
+        },
+        "clay": {
+            "min": 1,
+            "max": 4,
+            "biome_bonus": 0.0
+        },
+        "iron": {
+            "min": 1,
+            "max": 3,
+            "biome_bonus": 0.0
+        },
+        "silver": {
+            "min": 1,
+            "max": 2,
+            "biome_bonus": 0.0
+        }
     }
 }

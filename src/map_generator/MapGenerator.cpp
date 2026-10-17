@@ -2,6 +2,9 @@
 
 #include "MapGenerator.h"
 
+#include "Goods.h"
+#include "Season.h"
+
 /*
 *       Shared tail of every constructor: take the chunk sizing from the config
 *       and start the workers unless this instance generates chunks inline.
@@ -41,11 +44,11 @@ std::shared_ptr<Chunk> MapGenerator::generateChunk(const int tiles_per_side, con
 			const sf::Vector2i tile{ tile_position.x + tx, tile_position.y + ty };
 			const Elements element = m_terrain.elementAtTile(tile);
 			chunk->tile_types[tile] = element;
-			// A forest tile is a finite wood pile, sized from its own
-			// density field. Kept beside the tile map so a gather can
-			// deplete it without re-sampling noise.
-			if (element == Elements::forest)
-				chunk->tree_wood.emplace(tile, m_terrain.treeAmountAtTile(tile));
+			// A gatherable tile is a finite pile of its good, sized from its
+			// own field and the local climate. Kept beside the tile map so a
+			// gather can deplete it without re-sampling noise.
+			if (Resources::isGatherable(element))
+				chunk->resource_amount.emplace(tile, m_terrain.resourceAmountAtTile(tile, element));
 		}
 
 	buildChunkVertices(*chunk);
@@ -494,12 +497,13 @@ std::vector<std::string> MapGenerator::getPositionInfo(sf::Vector2i pos)
 	const auto tileIt = it->second->tile_types.find(tile);
 	const Elements element = (tileIt != it->second->tile_types.end()) ? tileIt->second : getBiomeElement(pos);
 	result.push_back(std::string("Type: ") + Resources::displayName(element));
-	if (element == Elements::forest)
+	if (Resources::isGatherable(element))
 	{
-		const auto treeIt = it->second->tree_wood.find(tile);
-		if (treeIt != it->second->tree_wood.end())
-			result.push_back("Wood: " + std::to_string(treeIt->second));
+		const auto amountIt = it->second->resource_amount.find(tile);
+		if (amountIt != it->second->resource_amount.end())
+			result.push_back(Goods::name(Goods::fromElement(element)) + ": " + std::to_string(amountIt->second));
 	}
+	result.push_back("Temp: " + std::to_string(getTemperatureCelsius(pos, m_day)) + " C");
 	result.push_back("X: " + std::to_string(static_cast<int>(tileWorld.x)));
 	result.push_back("Y: " + std::to_string(static_cast<int>(tileWorld.y)));
 
@@ -728,6 +732,20 @@ bool MapGenerator::setTileColor(const sf::Vector2i& pos, const Elements& new_ele
 
 	found->second = new_element;
 
+	// Keep the finite-resource map consistent with the tile type: a tile painted
+	// as a gatherable gains a pile, and a tile painted as anything else drops any
+	// stale one. Without this an edited forest would hold no wood and could never
+	// be gathered, while a building on a former forest could still be harvested.
+	if (Resources::isGatherable(new_element))
+	{
+		if (chunk->resource_amount.find(tile) == chunk->resource_amount.end())
+			chunk->resource_amount.emplace(tile, m_terrain.resourceAmountAtTile(tile, new_element));
+	}
+	else
+	{
+		chunk->resource_amount.erase(tile);
+	}
+
 	// The mesh is derived from tile_types, so rebuild it or the edit would
 	// never show up (and getPositionInfo would disagree with what is drawn).
 	buildChunkVertices(*chunk);
@@ -742,7 +760,7 @@ void MapGenerator::applyBuildingColors(const std::vector<std::pair<Elements, sf:
                 m_config.biome_colors[static_cast<std::size_t>(element)] = color;
 }
 
-int MapGenerator::harvestWood(const sf::Vector2i& pos)
+MapGenerator::Harvest MapGenerator::harvestResource(const sf::Vector2i& pos, int& remaining)
 {
         const sf::Vector2i tile = worldToTile(pos);
         const sf::Vector2i chunkPos = chunkOf(tile);
@@ -751,26 +769,27 @@ int MapGenerator::harvestWood(const sf::Vector2i& pos)
 
         auto it = c_chunks.find(chunkPos);
         if (it == c_chunks.end() || !it->second)
-                return -1;
+                return Harvest::NotResident;
 
         Chunk& chunk = *it->second;
-        const auto treeIt = chunk.tree_wood.find(tile);
-        if (treeIt == chunk.tree_wood.end())
-                return -1;
+        const auto amountIt = chunk.resource_amount.find(tile);
+        if (amountIt == chunk.resource_amount.end())
+                return Harvest::Empty;
 
-        const int remaining = --treeIt->second;
+        remaining = --amountIt->second;
         if (remaining > 0)
-                return remaining;
+                return Harvest::Taken;
 
-        // The stand is exhausted: clear it to a hill so the map reflects it, and
-        // drop the tree entry. Rebuild the mesh so the change renders at once.
-        chunk.tree_wood.erase(treeIt);
-        chunk.tile_types[tile] = Elements::hill;
+        // The deposit is exhausted: leave real depleted ground (barren) so the map
+        // reflects it, and drop the amount entry. Rebuild the mesh so the change
+        // renders at once.
+        chunk.resource_amount.erase(amountIt);
+        chunk.tile_types[tile] = Elements::barren;
         buildChunkVertices(chunk);
-        return 0;
+        return Harvest::Taken;
 }
 
-int MapGenerator::woodAt(const sf::Vector2i& pos) const
+int MapGenerator::resourceAt(const sf::Vector2i& pos) const
 {
         const sf::Vector2i tile = worldToTile(pos);
         const sf::Vector2i chunkPos = chunkOf(tile);
@@ -781,8 +800,8 @@ int MapGenerator::woodAt(const sf::Vector2i& pos) const
         if (it == c_chunks.end() || !it->second)
                 return 0;
 
-        const auto treeIt = it->second->tree_wood.find(tile);
-        return (treeIt == it->second->tree_wood.end()) ? 0 : treeIt->second;
+        const auto amountIt = it->second->resource_amount.find(tile);
+        return (amountIt == it->second->resource_amount.end()) ? 0 : amountIt->second;
 }
 
 /*
@@ -841,6 +860,21 @@ float MapGenerator::getResourceValue(const sf::Vector2i& coord, Elements resourc
 	if (!c_world_tiles.contains(worldToTile(coord)))
 		return 0.0f;
 	return m_terrain.resourceValue(coord, resource);
+}
+
+float MapGenerator::getTemperature(const sf::Vector2i& coord, int day) const
+{
+	const sf::Vector2i tile = worldToTile(coord);
+	// Outside the finite world there is no climate to report; a neutral, temperate
+	// value keeps the readout honest rather than inventing polar cold.
+	if (!c_world_tiles.contains(tile))
+		return 0.5f;
+	return Season::apply(m_terrain.temperatureAtTile(tile), day);
+}
+
+int MapGenerator::getTemperatureCelsius(const sf::Vector2i& coord, int day) const
+{
+	return Season::celsius(getTemperature(coord, day));
 }
 
 sf::Color MapGenerator::getBiomeColor(const sf::Vector2i& coord)

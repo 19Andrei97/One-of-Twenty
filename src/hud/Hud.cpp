@@ -47,6 +47,7 @@ void Hud::registerDefaultCallbacks()
                         { "mountain_height", 0.45f }, { "mountain_scale", 0.012f },
                         { "temperature", 0.50f }, { "rainfall", 0.50f }, { "snow_line", 0.90f },
                         { "lake_level", 0.30f }, { "lake_size", 0.62f }, { "ore_richness", 0.55f },
+                        { "resource_richness", 0.50f },
                 });
         });
         registerButtonCallback("preset_archipelago", [applyPreset]() {
@@ -55,6 +56,7 @@ void Hud::registerDefaultCallbacks()
                         { "mountain_height", 0.35f }, { "mountain_scale", 0.020f },
                         { "temperature", 0.58f }, { "rainfall", 0.62f }, { "snow_line", 0.95f },
                         { "lake_level", 0.32f }, { "lake_size", 0.62f }, { "ore_richness", 0.50f },
+                        { "resource_richness", 0.45f },
                 });
         });
         registerButtonCallback("preset_pangaea", [applyPreset]() {
@@ -63,6 +65,7 @@ void Hud::registerDefaultCallbacks()
                         { "mountain_height", 0.60f }, { "mountain_scale", 0.008f },
                         { "temperature", 0.48f }, { "rainfall", 0.38f }, { "snow_line", 0.85f },
                         { "lake_level", 0.28f }, { "lake_size", 0.58f }, { "ore_richness", 0.60f },
+                        { "resource_richness", 0.58f },
                 });
         });
 
@@ -167,6 +170,14 @@ void Hud::registerDefaultCallbacks()
         registerSliderCallback("ore_richness", [this, onMapChanged](float val) {
                 if (m_map)
                         m_map->setOreRichness(val);
+                onMapChanged();
+        });
+
+        // How plentiful raw materials are: a single multiplier on every finite
+        // deposit's size, so a world can be made stingy or rich in one control.
+        registerSliderCallback("resource_richness", [this, onMapChanged](float val) {
+                if (m_map)
+                        m_map->setResourceRichness(val);
                 onMapChanged();
         });
 

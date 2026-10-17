@@ -408,11 +408,38 @@ to a browser for interactive play; it is X11-only and needs `python-xlib` +
   days start draining health. Sleep (`sleep_gain_per_hour`) is the only per-entity
   need. Farms are the *only* food source (`Resources::isFood` is farm-only);
   wild forest/hill yield wood/stone via gathers, never food.
-- A forest tile is a finite wood pile (`Chunk::tree_wood`, sized at generation
-  from `tree_wood_min`/`tree_wood_max` via `GenerateTerrain::treeAmountAtTile`);
-  `MapGenerator::harvestWood` decrements it and clears the tile to a hill at zero,
-  rebuilding the mesh. Gathers credit `Goods::fromElement`, so a farm yields food
-  and a forest wood with no special case in the gather handler.
+- Every *gatherable* tile is a finite pile of its good (`Chunk::resource_amount`,
+  a per-tile amount), not just forest. `GenerateTerrain::resourceAmountAtTile`
+  sizes it at generation from the element's `MapConfig::Deposit` range
+  (`resource_deposits` in `map_data.json`), scaled by the global
+  `resource_richness` slider and by `resourceAbundanceAtTile` (the tile's climate
+  via the deposit's `biome_bonus`). `MapGenerator::harvestResource` returns
+  `Harvest::{Taken,Empty,NotResident}`: `Taken` removed a unit, `Empty` means the
+  loaded tile holds nothing (worked out or never gatherable), `NotResident` means
+  the chunk is not loaded so the caller credits the trip rather than punish a
+  gatherer for a chunk that streamed out. At zero the tile becomes `barren`
+  (walkable, yields nothing) and the mesh rebuilds. `setTileColor` keeps
+  `resource_amount` in step: a tile painted gatherable gains a pile, anything
+  else drops a stale one. A gather must harvest *first* and only credit on
+  `!= Empty`, and a finite tile the map reports empty must be dropped from
+  `CivKnowledge` (`forget`) or gatherers trek back to an empty spot. Farms are
+  not finite deposits: `Resources::isGatherable` excludes them, so a farm's food
+  is credited directly, never harvested.
+- Inland `lake` basins are carved below the water table (`lake_level`/`lake_size`,
+  checked *before* the beach so a basin reads as water); a lake is drinkable fresh
+  water (`Resources::isWater`) but not ocean (`isOcean`), and its bank is
+  walkable. `barren` is appended *last* to `Elements` (before `test`) so existing
+  element numbering and the palette keys are unchanged; it has a palette entry in
+  `map_data.json` and a fast `MoveCost`.
+- Seasonal temperature is a pure function (`helpers/Season.h`): `apply` swings a
+  tile's base climate by a cosine aligned to the calendar (peak at mid-summer,
+  day 135), strongest at the poles (cold base) and nearly flat at the equator,
+  and `celsius` maps the [0,1] climate to a plausible display temperature.
+  `MapGenerator::setDay` is fed the clock's day each frame by `Scene_Play`, so the
+  tile readout reports the season. Keep the world's climate itself fixed; only the
+  readout (and later, gameplay) swings.
+- Gathers credit `Goods::fromElement`, so a farm yields food and a forest wood
+  with no special case in the gather handler.
 - Work must be done *on* the tile. `CGather`/`CBuild` are queued before the walk,
   so their timer (`timestamp_min`) is stamped on arrival, not at plan time, via a
   `started` latch in the finish-action pass: the move is popped on arrival, so a

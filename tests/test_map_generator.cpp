@@ -3,6 +3,7 @@
 #include "MapGenerator.h"
 #include "generate_terrain.h"
 #include "DisplayProbe.h"
+#include "MapStream.h"
 
 #include <doctest/doctest.h>
 
@@ -259,6 +260,56 @@ TEST_CASE("fresh water is drinkable and distinguished from the ocean")
             CHECK(MoveCost::moveCost(e) > 0.f);
         }
     CHECK(fresh > 0);
+}
+
+TEST_CASE("harvesting depletes a gatherable tile and leaves barren ground")
+{
+    // Every gatherable is a finite pile: taking from it lowers the amount and,
+    // once empty, the tile becomes `barren` - plain walkable land that yields
+    // nothing. This is the "resources are not endless" rule at the map level.
+    int frames = 0;
+    auto generator = makeGenerator(frames);
+    generator->setSeed(42);
+    generator->setNoises();
+
+    // Stream the view so the target chunk is resident (harvest needs it loaded).
+    const int tileSize = generator->getTileSize();
+    const sf::Vector2i tile{ 2, 2 };
+    const sf::Vector2i world = CoordMath::tileToWorld(tile, tileSize);
+    TestSupport::primeChunks(*generator, frames, world, 512);
+
+    // Paint a known forest pile so the amount is not noise-dependent.
+    REQUIRE(generator->setTileColor(world, Elements::forest));
+    const int start = generator->resourceAt(world);
+    REQUIRE(start > 0);
+
+    // A non-resident coordinate cannot be answered: the caller must be able to
+    // tell that apart from a genuinely empty tile.
+    const sf::Vector2i far = CoordMath::tileToWorld({ 4000, 4000 }, tileSize);
+    int remaining = -1;
+    CHECK(generator->harvestResource(far, remaining) == MapGenerator::Harvest::NotResident);
+
+    // A resident but non-gatherable tile is Empty, not a free unit.
+    const sf::Vector2i barren_world = CoordMath::tileToWorld({ 6, 6 }, tileSize);
+    REQUIRE(generator->setTileColor(barren_world, Elements::barren));
+    CHECK(generator->harvestResource(barren_world, remaining) == MapGenerator::Harvest::Empty);
+    CHECK(generator->resourceAt(barren_world) == 0);
+
+    // Take the whole pile one unit at a time. Each unit lowers the amount, and
+    // the last one flips the tile to barren.
+    for (int i = 0; i < start; ++i)
+    {
+        CHECK(generator->harvestResource(world, remaining) == MapGenerator::Harvest::Taken);
+        CHECK(remaining == start - i - 1);
+    }
+    CHECK(generator->resourceAt(world) == 0);
+    CHECK(generator->getElementAtWorld(world) == Elements::barren);
+
+    // Now it holds nothing, so another attempt is Empty (no negative amounts).
+    CHECK(generator->harvestResource(world, remaining) == MapGenerator::Harvest::Empty);
+    CHECK(generator->resourceAt(world) == 0);
+    // Barren ground is walkable, fast, open land.
+    CHECK(MoveCost::moveCost(Elements::barren) > 0.f);
 }
 
 TEST_CASE("setChunkUnload reports when no chunk is loaded")

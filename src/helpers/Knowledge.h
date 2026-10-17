@@ -81,6 +81,25 @@ public:
             }
     }
 
+    // Drop a remembered tile. Called when a resource is worked out: the tile is
+    // barren now, so keeping it would send gatherers back to an empty spot. The
+    // element bucket is pruned too, so a query never returns the dead tile.
+    void forget(const sf::Vector2i& tile)
+    {
+        if (!m_tile_set.erase(tile))
+            return;
+
+        for (auto it = m_tiles.begin(); it != m_tiles.end(); )
+        {
+            auto& positions = it->second;
+            positions.erase(std::remove(positions.begin(), positions.end(), tile), positions.end());
+            if (positions.empty())
+                it = m_tiles.erase(it);
+            else
+                ++it;
+        }
+    }
+
     // Closest remembered location of the given kind, if any. Scans the tiles of
     // every element that matches the kind, picking the nearest to `from`.
     [[nodiscard]] std::optional<sf::Vector2i> findNearest(const sf::Vector2i& from, const Kind kind) const

@@ -284,25 +284,38 @@ void EntityManager::update()
                         if (offTile(action->tile))
                                 return;
 
-                        // The gather produced a unit: carry it, then deposit it into
-                        // the settlement stores as the good its tile yields, and
-                        // tally the completed trip. A forest tile is a finite pile of
-                        // wood: deplete it and, once exhausted, clear it to a hill.
-                        inventory.gather();
+                        // A gatherable tile is a finite pile, so the unit is taken
+                        // from the map *first*: another entity may have worked this
+                        // one out while this gatherer walked to it. A farm is not a
+                        // finite deposit (its food is a yield, not a pile), so it is
+                        // credited directly. A chunk that streamed out mid-trip
+                        // (NotResident) cannot be judged, so the trip is credited
+                        // rather than punishing a gatherer for a tile the map no
+                        // longer has.
                         const Elements yielded = action->element;
-                        m_goods.add(Goods::fromElement(yielded), inventory.deposit());
-                        ++m_gathers_completed;
-                        if (yielded == Elements::forest)
+                        const bool finite = Resources::isGatherable(yielded);
+                        int remaining = 0;
+                        const auto harvest = finite ? m_map->harvestResource(action->tile, remaining)
+                                                    : MapGenerator::Harvest::NotResident;
+                        if (harvest != MapGenerator::Harvest::Empty)
                         {
-                                const int remaining = m_map->harvestWood(action->tile);
+                                inventory.gather();
+                                m_goods.add(Goods::fromElement(yielded), inventory.deposit());
+                                ++m_gathers_completed;
                                 m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
-                                                1, remaining == 0 ? "Wood (stand cleared)" : Goods::name(Goods::Good::Wood));
+                                                1, harvest == MapGenerator::Harvest::Taken && remaining == 0
+                                                        ? Goods::name(Goods::fromElement(yielded)) + " (depleted)"
+                                                        : Goods::name(Goods::fromElement(yielded)));
                         }
-                        else
-                        {
-                                m_events.record(Observability::EventKind::Gather, m_game_clock->getTimestamp(),
-                                                1, Goods::name(Goods::fromElement(yielded)));
-                        }
+                        // A finite tile the map reports as holding nothing (worked
+                        // out by this or another gatherer) must leave the shared
+                        // knowledge, or gatherers would keep trekking back to an
+                        // empty tile. A non-resident chunk is unknown, so its entry
+                        // is kept, and a farm never depletes.
+                        if (finite
+                            && (harvest == MapGenerator::Harvest::Empty
+                                || (harvest == MapGenerator::Harvest::Taken && remaining == 0)))
+                                m_knowledge.forget(action->tile);
 
                         std::lock_guard<std::mutex> lock(m_mutex);
                         queue.actions.pop_front();

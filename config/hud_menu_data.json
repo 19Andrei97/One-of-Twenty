@@ -576,5 +576,31 @@
     "text_size": 16,
     "level": 0,
     "function": "street_level"
+  },
+  "resource_richness": {
+    "type": "slider",
+    "width": 300,
+    "height": 10,
+    "position": {
+      "x": 20,
+      "y": 184
+    },
+    "minimum_value": 0,
+    "maximum_value": 1,
+    "value": 0.5,
+    "label": "Resource Richness",
+    "description": "How much each finite deposit holds; higher is a richer world",
+    "bar_color": [
+      0,
+      0,
+      0
+    ],
+    "handle_color": [
+      255,
+      255,
+      255
+    ],
+    "level": 2,
+    "function": "resource_richness"
   }
 }

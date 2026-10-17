@@ -48,6 +48,14 @@ enum class Elements
 	city_center,
 	road,
 
+	// Depleted ground: a tile whose finite resource has been worked out. A
+	// forest cleared of its trees (or a hill stripped of its stone) leaves a
+	// real scar on the map - plain walkable land that yields nothing and is not
+	// remembered as a resource - instead of becoming another gatherable tile.
+	// Only ever produced by harvesting, never by generation. Appended last so the
+	// existing element numbering (and any save/palette keyed by it) is unchanged.
+	barren,
+
 	test,
 
 	count	// number of elements; not a real element
@@ -63,11 +71,12 @@ struct Chunk {
 	sf::Vector2i    position;                       // top left position of chunk, in tiles
 	sf::VertexArray vertices;                       // the map in vertices ready to draw
 	std::unordered_map<sf::Vector2i, Elements, Vector2iHash> tile_types;
-	// Remaining wood on each forest tile (tile coordinate -> units). Filled at
-	// generation from the tree-density field; a gather decrements the entry and
-	// clears the tile to a hill once it reaches zero. Only forest tiles have an
-	// entry.
-	std::unordered_map<sf::Vector2i, int, Vector2iHash> tree_wood;
+	// Remaining amount of the finite resource on each gatherable tile (tile
+	// coordinate -> units): wood on a forest, stone on a hill, ore on a clay/iron/
+	// silver deposit. Filled at generation from each resource's own field; a
+	// gather decrements the entry and clears the tile to `barren` once it reaches
+	// zero. Only gatherable tiles have an entry.
+	std::unordered_map<sf::Vector2i, int, Vector2iHash> resource_amount;
 	bool unload{ true };
 };
 

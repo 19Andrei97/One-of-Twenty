@@ -67,10 +67,10 @@ GenerateTerrain::GenerateTerrain(const MapConfig& config)
         m_noise_lake.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
         m_noise_lake.SetFractalType(FastNoiseLite::FractalType_FBm);
 
-        // Forest density: a mid-frequency field so neighbouring forest tiles hold
-        // noticeably different amounts of wood.
-        m_noise_tree.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-        m_noise_tree.SetFractalType(FastNoiseLite::FractalType_FBm);
+        // Deposit density: a mid-frequency field so neighbouring gatherable tiles
+        // hold noticeably different amounts.
+        m_noise_deposit.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+        m_noise_deposit.SetFractalType(FastNoiseLite::FractalType_FBm);
 
         setSeed(m_config.seed);
 }
@@ -122,10 +122,10 @@ void GenerateTerrain::setSeed(int seed)
         m_noise_lake.SetSeed(seed + 6);
         m_noise_lake.SetFrequency(0.004f);
 
-        m_noise_tree.SetSeed(seed + 11);
-        // A per-tile scale so neighbouring stands differ; high enough that a
-        // forest reads as a mosaic instead of one uniform amount.
-        m_noise_tree.SetFrequency(0.35f);
+        m_noise_deposit.SetSeed(seed + 11);
+        // A per-tile scale so neighbouring deposits differ; high enough that a
+        // resource patch reads as a mosaic instead of one uniform amount.
+        m_noise_deposit.SetFrequency(0.35f);
 }
 
 /*
@@ -359,16 +359,66 @@ float GenerateTerrain::resourceValue(const sf::Vector2i& coord, Elements resourc
         return (field->GetNoise(warped.x, warped.y) + 1.0f) * 0.5f;
 }
 
-int GenerateTerrain::treeAmountAtTile(const sf::Vector2i& tile) const
+/*
+*       How strongly the tile's climate favours a resource. A resource with a
+*       positive `biome_bonus` is richer where the ground is lush (warm and wet:
+*       forest), a negative bonus where it is dry and open (hill/stone). The result
+*       is a multiplier around 1.0, clamped so no biome produces an absurd pile.
+*       This is the mechanism that gives each biome more of one resource than
+*       another, and it is the reason two forests on different ground hold
+*       different amounts of wood.
+*/
+float GenerateTerrain::resourceAbundanceAtTile(const sf::Vector2i& tile, Elements resource) const
 {
-        const int lo = std::min(m_config.tree_wood_min, m_config.tree_wood_max);
-        const int hi = std::max(m_config.tree_wood_min, m_config.tree_wood_max);
-        if (hi <= lo)
-                return std::max(1, lo);
+        const auto index = static_cast<std::size_t>(resource);
+        if (index >= kElementCount)
+                return 1.0f;
 
+        const float bonus = m_config.deposits[index].biome_bonus;
+        if (bonus == 0.0f)
+                return 1.0f;
+
+        const Sample sample = sampleAt(tile);
+        // Lushness: the same warm+wet blend classifyLand uses, so "lush" means the
+        // same thing everywhere. Centred on 0.5, in [-0.5, 0.5].
+        const float lushness = (0.6f * sample.moisture + 0.4f * sample.temperature) - 0.5f;
+        return std::clamp(1.0f + bonus * lushness, 0.25f, 2.0f);
+}
+
+/*
+*       How much of its good a gatherable tile holds. The pile is a deterministic
+*       pseudo-random amount in the element's configured range, scaled by the
+*       global `resource_richness` and by how the tile's climate favours the
+*       resource. A tile that is not a gatherable holds nothing.
+*/
+int GenerateTerrain::resourceAmountAtTile(const sf::Vector2i& tile, Elements resource) const
+{
+        if (!Resources::isGatherable(resource))
+                return 0;
+
+        const auto index = static_cast<std::size_t>(resource);
+        const MapConfig::Deposit& deposit = m_config.deposits[index];
+
+        const int lo = std::min(deposit.min, deposit.max);
+        const int hi = std::max(deposit.min, deposit.max);
+
+        // `resource_richness` 0.5 is neutral (x1); the full range spans x0.25 to
+        // x1.75, so the slider meaningfully raises or lowers every deposit.
+        const float richness = 0.25f + std::clamp(m_config.resource_richness, 0.0f, 1.0f) * 1.5f;
+        const float abundance = resourceAbundanceAtTile(tile, resource);
+        const float scale = richness * abundance;
+
+        // Per-resource noise offset: each resource reads the deposit field at its
+        // own spot, so two resources on adjacent tiles do not get the same amount.
         const sf::Vector2f warped = warp(tile);
-        const float value = (m_noise_tree.GetNoise(warped.x, warped.y) + 1.0f) * 0.5f;
+        const float offset = static_cast<float>(index) * 137.0f;
+        const float value = (m_noise_deposit.GetNoise(warped.x + offset, warped.y - offset) + 1.0f) * 0.5f;
+
+        if (hi <= lo)
+                return std::max(1, static_cast<int>(std::lround(static_cast<float>(lo) * scale)));
+
         const int span = hi - lo + 1;
-        const int amount = lo + static_cast<int>(value * static_cast<float>(span));
-        return std::clamp(amount, lo, hi);
+        const int base = lo + static_cast<int>(value * static_cast<float>(span));
+        const int amount = static_cast<int>(std::lround(static_cast<float>(base) * scale));
+        return std::max(1, amount);
 }

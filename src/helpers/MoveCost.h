@@ -54,6 +54,9 @@ namespace MoveCost
             // when no catalog is consulted.
             case Elements::road:            return 1.5f;
 
+            // Depleted ground is plain open land: quick to cross, nothing to gather.
+            case Elements::barren:          return 0.8f;
+
             case Elements::test:            return kDefault;
         }
         return kDefault;
