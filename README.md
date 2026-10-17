@@ -200,7 +200,7 @@ port is reachable by others. Full details and limits: `tools/stream/README.md`.
 | `src/game` | Scene flow: the pre-simulation menu, the play scene and the `GameSettings` hand-off |
 | `src/headless` | Windowless simulation runner (`HeadlessSimulation` + `OneOfTwentySim`), no GL |
 | `src/camera` | World camera and view bounds |
-| `src/helpers` | Header-only utilities: `Logger`, `GameClock`, `Random`, `SharedContainer`, `Config`, `CoordMath`, `Appearance`, `FastNoiseLite` |
+| `src/helpers` | Header-only utilities: `Logger`, `GameClock`, `Random`, `SharedContainer`, `Config`, `CoordMath` (incl. `TileGrid`), `VectorMath`, `ViewMath`, `TileBlock`, `Appearance`, `FastNoiseLite` |
 | `src/pch` | Precompiled header aggregating the common includes |
 
 Config files live in `config/`: `config.json` (window/logger/font/map/HUD

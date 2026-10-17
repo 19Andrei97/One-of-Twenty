@@ -408,7 +408,7 @@ size_t Hud::getVisibleInputCount() const
 void Hud::render(sf::RenderTarget& window)
 {
 	// Widgets position themselves relative to the top-left of the HUD view.
-	const sf::Vector2f viewOrigin = m_camera.getCenter() - m_camera.getSize() / 2.f;
+	const sf::Vector2f viewOrigin = ViewMath::viewOrigin(m_camera);
 
 	for (auto& b : buttons)
 	{
@@ -547,7 +547,7 @@ void Hud::input(const sf::Event::MouseButtonPressed& event, const sf::Vector2f& 
 	{
 	case sf::Mouse::Button::Left:
 	{
-		const sf::Vector2f viewOrigin = m_camera.getCenter() - m_camera.getSize() / 2.f;
+		const sf::Vector2f viewOrigin = ViewMath::viewOrigin(m_camera);
 
 		for (auto& b : buttons)
 		{

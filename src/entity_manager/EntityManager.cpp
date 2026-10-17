@@ -21,15 +21,6 @@ bool queueHasAction(const CActionsQueue& queue, const ActionTypes type)
                        [type](const std::shared_ptr<CAction>& action)
                        { return action && action->action_name == type; });
 }
-
-// Squared distance between two positions. Squared so comparisons stay integer
-// and avoid a square root in the per-candidate selection loops.
-int squaredDistance(const sf::Vector2i& a, const sf::Vector2i& b) noexcept
-{
-    const int dx = a.x - b.x;
-    const int dy = a.y - b.y;
-    return dx * dx + dy * dy;
-}
 } // namespace
 
 void EntityManager::update()
@@ -123,14 +114,14 @@ void EntityManager::update()
         // found by one is known to all and nothing is duplicated per entity.
         m_registry->view<CTransform, CKnowledgeScan, CVision>().each([&](auto entity, auto& trs, auto& scan, auto& vision)
         {
-                const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, m_map->getTileSize());
+                const sf::Vector2i tile = m_grid.worldToTile(trs.pos);
                 if (scan.last_scan_tile && *scan.last_scan_tile == tile)
                         return;
 
                 scan.last_scan_tile = tile;
                 const auto found = m_map->getResourcesWithinBoundary(trs.pos, vision.radius);
                 m_knowledge.remember(found);
-                m_knowledge.observe(tile, static_cast<int>(vision.radius / static_cast<float>(m_map->getTileSize())));
+                m_knowledge.observe(tile, static_cast<int>(vision.radius / static_cast<float>(m_grid.tile_size)));
                 for (const auto& [element, pos] : found)
                         recordDiscovery(element);
         });
@@ -248,12 +239,12 @@ void EntityManager::update()
 
                 const auto& front = queue.actions.front();
                 const std::int64_t elapsed = m_game_clock->getTimestamp();
-                const int tileSize = m_map->getTileSize();
+                const int tileSize = m_grid.tile_size;
                 // Work must happen on the tile; a completion further than one tile
                 // away is a bug (the arrival latch prevents it). Recorded so the
                 // regression is testable, not just visible on screen.
                 const auto offTile = [&](const sf::Vector2i& tile) {
-                        return squaredDistance(tile, trs.pos) > tileSize * tileSize;
+                        return VectorMath::distanceSquared(tile, trs.pos) > tileSize * tileSize;
                 };
 
                 if (auto action = std::dynamic_pointer_cast<CSleeping>(front); action
@@ -464,11 +455,10 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
         const auto queueExplore = [&]() -> bool
         {
                 sf::Vector2i from = pos;
-                const int ts = m_map->getTileSize();
                 // Snap to a tile corner: routes are built between tile corners, and
                 // the move target must match the route's last waypoint.
                 const sf::Vector2i target =
-                        CoordMath::tileToWorld(CoordMath::worldToTile(m_map->getLocationWithinBound(from, visionRadius), ts), ts);
+                        m_grid.tileCorner(m_map->getLocationWithinBound(from, visionRadius));
                 if (!queueMoveTo(pos, target, path, queue))
                         queue.actions.push_back(std::make_shared<CMoving>(ActionTypes::Moving, target));
                 return true;
@@ -551,9 +541,8 @@ bool EntityManager::startActionFor(const EntityDecision::Need need,
 // when both ends share a tile, or an empty vector when no land route exists.
 std::optional<std::vector<sf::Vector2i>> EntityManager::findRoute(const sf::Vector2i& from, const sf::Vector2i& to)
 {
-        const int ts = m_map->getTileSize();
-        const sf::Vector2i startTile = CoordMath::worldToTile(from, ts);
-        const sf::Vector2i goalTile = CoordMath::worldToTile(to, ts);
+        const sf::Vector2i startTile = m_grid.worldToTile(from);
+        const sf::Vector2i goalTile = m_grid.worldToTile(to);
         if (startTile == goalTile)
                 return std::nullopt;
 
@@ -572,16 +561,10 @@ std::optional<std::vector<sf::Vector2i>> EntityManager::findRoute(const sf::Vect
                                     std::min(startTile.y, goalTile.y) - margin };
 
         const int blockSide = m_map->copyTileBlock(topLeft, side, m_tile_block);
-        const auto& block = m_tile_block;
-        // Outside the copied window is unknown; treat it as impassable so the
-        // search cannot wander off the snapshot.
-        const auto elementAt = [&](const sf::Vector2i& tile) -> Elements
-        {
-                const sf::Vector2i rel = tile - topLeft;
-                if (rel.x < 0 || rel.y < 0 || rel.x >= blockSide || rel.y >= blockSide)
-                        return Elements::very_deep_ocean;
-                return block[static_cast<std::size_t>(rel.y) * blockSide + rel.x];
-        };
+        // Outside the copied window is unknown; the view reports impassable
+        // ground there so the search cannot wander off the snapshot.
+        const TileBlock block{ topLeft, blockSide, &m_tile_block };
+        const auto elementAt = [&](const sf::Vector2i& tile) { return block.elementAt(tile); };
 
         const auto path = Pathfinding::findPath(
                 startTile, goalTile,
@@ -596,7 +579,7 @@ std::optional<std::vector<sf::Vector2i>> EntityManager::findRoute(const sf::Vect
         std::vector<sf::Vector2i> waypoints;
         waypoints.reserve(path.size() - 1);
         for (std::size_t i = 1; i < path.size(); ++i)
-                waypoints.push_back(CoordMath::tileToWorld(path[i], ts));
+                waypoints.push_back(m_grid.tileToWorld(path[i]));
         return waypoints;
 }
 
@@ -624,24 +607,20 @@ bool EntityManager::queueMoveTo(const sf::Vector2i& from, const sf::Vector2i& ta
 
 void EntityManager::resolveCollisions()
 {
-        const int ts = m_map->getTileSize();
-
         // Keep entities out of the ocean. An entity that ends up on a water tile
         // (pushed there, or spawned in a corner) steps back to the nearest land
         // tile in its 8-neighbourhood.
         m_registry->view<CTransform>().each([&](auto, CTransform& trs)
         {
-                const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, ts);
-                const sf::Vector2i center = CoordMath::tileToWorld(tile, ts);
+                const sf::Vector2i tile = m_grid.worldToTile(trs.pos);
+                const sf::Vector2i center = m_grid.tileToWorld(tile);
                 if (!Resources::isOcean(m_map->getElementAtWorld(center)))
                         return;
 
                 const sf::Vector2i offset = trs.pos - center;
-                static constexpr sf::Vector2i kAround[8]{ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
-                                                          { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
-                for (const auto& d : kAround)
+                for (const auto& d : VectorMath::kNeighbours8)
                 {
-                        const sf::Vector2i candidate = center + sf::Vector2i{ d.x * ts, d.y * ts };
+                        const sf::Vector2i candidate = m_grid.tileToWorld(tile + d);
                         if (!Resources::isOcean(m_map->getElementAtWorld(candidate)))
                         {
                                 trs.pos = candidate + offset;
@@ -683,15 +662,17 @@ void EntityManager::resolveCollisions()
                 for (std::size_t j = i + 1; j < positions.size(); ++j)
                 {
                         const sf::Vector2i d = positions[j].second - positions[i].second;
-                        const int dist2 = d.x * d.x + d.y * d.y;
+                        const int dist2 = VectorMath::distanceSquared(positions[i].second, positions[j].second);
                         if (dist2 >= kMinSeparation * kMinSeparation || dist2 == 0)
                                 continue;
 
                         const float dist = std::sqrt(static_cast<float>(dist2));
                         const float overlap = static_cast<float>(kMinSeparation) - dist;
-                        const sf::Vector2i unit{
-                                static_cast<int>(std::lround(d.x / dist)),
-                                static_cast<int>(std::lround(d.y / dist)) };
+                        // Normalized direction, rounded per axis: the push is along
+                        // the line joining the pair, not merely axis-aligned. `dist`
+                        // is non-zero here (the zero offset was skipped above).
+                        const sf::Vector2f dir = sf::Vector2f(d) / dist;
+                        const sf::Vector2i unit = VectorMath::roundedVector(dir);
                         // A worker stays put; its neighbour takes the full push so
                         // the pair still separates. Two workers of the same tile are
                         // both anchored and simply remain.
@@ -699,22 +680,16 @@ void EntityManager::resolveCollisions()
                                 continue;
                         if (anchors[i])
                         {
-                                positions[j].second += sf::Vector2i{
-                                        static_cast<int>(std::lround(unit.x * overlap)),
-                                        static_cast<int>(std::lround(unit.y * overlap)) };
+                                positions[j].second += VectorMath::roundedVector(sf::Vector2f(unit) * overlap);
                         }
                         else if (anchors[j])
                         {
-                                positions[i].second -= sf::Vector2i{
-                                        static_cast<int>(std::lround(unit.x * overlap)),
-                                        static_cast<int>(std::lround(unit.y * overlap)) };
+                                positions[i].second -= VectorMath::roundedVector(sf::Vector2f(unit) * overlap);
                         }
                         else
                         {
-                                const float push = overlap * 0.5f;
-                                const sf::Vector2i shift{
-                                        static_cast<int>(std::lround(d.x / dist * push)),
-                                        static_cast<int>(std::lround(d.y / dist * push)) };
+                                const sf::Vector2i shift =
+                                        VectorMath::roundedVector(dir * (overlap * 0.5f));
                                 positions[i].second -= shift;
                                 positions[j].second += shift;
                         }
@@ -735,8 +710,6 @@ void EntityManager::resolveCollisions()
         // already-placed entity occupies, so the settlement does not render as a
         // single dot and no two entities share a position. An anchored worker is
         // never fanned out: it has to stay on the tile it is working.
-        static constexpr sf::Vector2i kAround[8]{ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
-                                                  { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } };
         std::vector<sf::Vector2i> placed;
         placed.reserve(positions.size());
         for (std::size_t k = 0; k < positions.size(); ++k)
@@ -745,10 +718,10 @@ void EntityManager::resolveCollisions()
                 const bool duplicate = std::find(placed.begin(), placed.end(), trs.pos) != placed.end();
                 if (duplicate && !anchors[k])
                 {
-                        const sf::Vector2i tile = CoordMath::worldToTile(trs.pos, ts);
-                        for (const auto& d : kAround)
+                        const sf::Vector2i tile = m_grid.worldToTile(trs.pos);
+                        for (const auto& d : VectorMath::kNeighbours8)
                         {
-                                const sf::Vector2i candidate = CoordMath::tileToWorld(tile + d, ts);
+                                const sf::Vector2i candidate = m_grid.tileToWorld(tile + d);
                                 if (Resources::isOcean(m_map->getElementAtWorld(candidate)))
                                         continue;
                                 if (std::find(placed.begin(), placed.end(), candidate) != placed.end())
@@ -824,7 +797,7 @@ std::optional<sf::Vector2i> EntityManager::nearestIncompleteSite(const sf::Vecto
         {
                 if (building.complete)
                         continue;
-                const int dist = squaredDistance(building.origin, from);
+                const int dist = VectorMath::distanceSquared(building.origin, from);
                 if (!best || dist < bestDist)
                 {
                         best = building.origin;
@@ -935,8 +908,7 @@ std::optional<sf::Vector2i> EntityManager::findBuildSite(const Buildings::Def& d
         // The anchor (city center) seeds the search; before it exists, the
         // settlement spawns its first building near where the founders stand.
         const sf::Vector2i center = m_anchor.value_or(findHabitableSpawn());
-        const int ts = m_map->getTileSize();
-        const sf::Vector2i centerTile = CoordMath::worldToTile(center, ts);
+        const sf::Vector2i centerTile = m_grid.worldToTile(center);
         const int radius = std::max(1, m_settlement.build_radius_tiles);
 
         // Start from a random point near the centre, not the centre itself: the
@@ -960,15 +932,14 @@ std::optional<sf::Vector2i> EntityManager::findBuildSite(const Buildings::Def& d
         for (std::size_t i = 0; i < frontier.size() && static_cast<int>(i) < maxVisit; ++i)
         {
                 const sf::Vector2i tile = frontier[i];
-                if (std::max(std::abs(tile.x - centerTile.x), std::abs(tile.y - centerTile.y)) > radius)
+                if (VectorMath::chebyshevDistance(tile, centerTile) > radius)
                         continue;
 
-                const sf::Vector2i world = CoordMath::tileToWorld(tile, ts);
+                const sf::Vector2i world = m_grid.tileToWorld(tile);
                 if (canBuildOn(def, world))
                         return world;
 
-                for (const sf::Vector2i step : { sf::Vector2i{ 1, 0 }, sf::Vector2i{ -1, 0 },
-                                                 sf::Vector2i{ 0, 1 }, sf::Vector2i{ 0, -1 } })
+                for (const sf::Vector2i step : VectorMath::kNeighbours4)
                 {
                         const sf::Vector2i next = tile + step;
                         if (std::find(visited.begin(), visited.end(), next) == visited.end())
@@ -984,8 +955,6 @@ std::optional<sf::Vector2i> EntityManager::findBuildSite(const Buildings::Def& d
 
 bool EntityManager::canBuildOn(const Buildings::Def& def, const sf::Vector2i& worldPos) const
 {
-        const int ts = m_map->getTileSize();
-
         // Only dry land suits a building: no ocean, no lake and no beach sand.
         // The def may narrow this further (a future mine that must sit on a
         // mountain), so both gates must pass.
@@ -1000,11 +969,11 @@ bool EntityManager::canBuildOn(const Buildings::Def& def, const sf::Vector2i& wo
         if (!Resources::isRoad(def.element))
         {
                 const int minSpacing = std::max(1, m_settlement.min_spacing_tiles);
-                const sf::Vector2i tile = CoordMath::worldToTile(worldPos, ts);
+                const sf::Vector2i tile = m_grid.worldToTile(worldPos);
                 for (const auto& building : m_buildings)
                 {
-                        const sf::Vector2i otherTile = CoordMath::worldToTile(building.origin, ts);
-                        if (std::max(std::abs(tile.x - otherTile.x), std::abs(tile.y - otherTile.y)) < minSpacing)
+                        const sf::Vector2i otherTile = m_grid.worldToTile(building.origin);
+                        if (VectorMath::chebyshevDistance(tile, otherTile) < minSpacing)
                                 return false;
                 }
         }
@@ -1494,7 +1463,7 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
         // settlement founded there starves before it can find a drink. Find the
         // nearest coast, then a land tile with both water and forage inside an
         // entity's vision, so the settlement is self-sufficient.
-        const int tileSize = m_map->getTileSize();
+        const int tileSize = m_grid.tile_size;
         const float reach = CVision{}.radius;
         const int reachTiles = static_cast<int>(reach / static_cast<float>(tileSize));
 
@@ -1512,7 +1481,7 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
                 const auto it = cache.find(key);
                 if (it != cache.end())
                         return it->second;
-                const Elements e = m_map->getElementAtWorld(sf::Vector2i(tx * tileSize, ty * tileSize));
+                const Elements e = m_map->getElementAtWorld(m_grid.tileToWorld(sf::Vector2i(tx, ty)));
                 cache.emplace(key, e);
                 return e;
         };
@@ -1568,7 +1537,7 @@ sf::Vector2i EntityManager::findHabitableSpawn() const
 
         const sf::Vector2i chosen = (bestWorkDist > 0.f) ? bestWorkLand
                                  : (bestLandDist > 0.f) ? bestLand : sf::Vector2i{ 0, 0 };
-        return sf::Vector2i{ chosen.x * tileSize, chosen.y * tileSize };
+        return m_grid.tileToWorld(chosen);
 }
 
 Jobs::Job EntityManager::defaultJobFor(const EntityType& type) const
@@ -1618,9 +1587,7 @@ std::optional<entt::entity> EntityManager::entityAtWorld(const sf::Vector2i& wor
         float best2 = limit2;
         m_registry->view<CTransform>().each([&](auto entity, const CTransform& trs)
         {
-                const float dx = static_cast<float>(trs.pos.x - worldPos.x);
-                const float dy = static_cast<float>(trs.pos.y - worldPos.y);
-                const float d2 = dx * dx + dy * dy;
+                const float d2 = static_cast<float>(VectorMath::distanceSquared(trs.pos, worldPos));
                 if (d2 <= best2)
                 {
                         best2 = d2;
@@ -1715,7 +1682,7 @@ std::optional<EntityManager::WorkTarget> EntityManager::settleElements(const Civ
         {
                 if (rank < 0)
                         return;
-                const int dist = squaredDistance(pos, from);
+                const int dist = VectorMath::distanceSquared(pos, from);
                 if (!best || rank < bestRank || (rank == bestRank && dist < bestDist))
                 {
                         best = WorkTarget{ pos, element };

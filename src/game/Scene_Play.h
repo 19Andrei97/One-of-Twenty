@@ -20,7 +20,6 @@ class Scene_Play : public Scene
 	std::shared_ptr<GameClock>		m_game_clock;
 	std::shared_ptr<MapGenerator>	m_map;
 
-	sf::Vector2i					m_current_position{ 0, 0 };
 	float							m_deltaTime{ 0.f };
 	int								m_currentFrame{ 0 };
 
